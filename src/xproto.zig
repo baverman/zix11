@@ -31,11 +31,13 @@ pub const PropertyView = struct {
 
 pub fn internAtom(conn: *Connection, name: []const u8) !u32 {
     _ = try conn.send(InternAtomRequest{
-        .onlyIfExists = false,
+        .only_if_exists = false,
         .name = name,
     });
 
-    const reply = try InternAtomReply.decode(conn.reader());
+    const packet = try conn.readReplyPacket();
+    var reader: std.Io.Reader = .fixed(packet);
+    const reply = try InternAtomReply.decode(&reader);
     return reply.atom;
 }
 
@@ -51,17 +53,19 @@ pub fn getProperty(
         .window = window,
         .property = property,
         .type_atom = property_type,
-        .longOffset = 0,
-        .longLength = 4096,
+        .long_offset = 0,
+        .long_length = 4096,
     });
 
-    const reply = try GetPropertyReply.decode(conn.reader(), out);
-    if (reply.bytesAfter != 0) return error.PropertyTruncated;
+    const packet = try conn.readReplyPacket();
+    var reader: std.Io.Reader = .fixed(packet);
+    const reply = try GetPropertyReply.decode(&reader, out);
+    if (reply.bytes_after != 0) return error.PropertyTruncated;
 
     return .{
         .format = reply.format,
         .type_atom = reply.type_atom,
-        .value_len = reply.valueLen,
+        .value_len = reply.value_len,
         .bytes = reply.value,
     };
 }

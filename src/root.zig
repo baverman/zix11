@@ -8,7 +8,7 @@ test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
     try (xproto.InternAtomRequest{
-        .onlyIfExists = true,
+        .only_if_exists = true,
         .name = "WM_NAME",
     }).encode(&writer);
     const packet = buf[0..writer.end];
@@ -25,11 +25,11 @@ test "SetupRequest encoding" {
     var buf: [64]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
     try (xproto.SetupRequest{
-        .byteOrder = 'l',
-        .protocolMajorVersion = 11,
-        .protocolMinorVersion = 0,
-        .authorizationProtocolName = "MIT-MAGIC-COOKIE-1",
-        .authorizationProtocolData = &.{ 0xaa, 0xbb, 0xcc, 0xdd },
+        .byte_order = 'l',
+        .protocol_major_version = 11,
+        .protocol_minor_version = 0,
+        .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
+        .authorization_protocol_data = &.{ 0xaa, 0xbb, 0xcc, 0xdd },
     }).encode(&writer);
     const packet = buf[0..writer.end];
 
@@ -60,6 +60,6 @@ test "GetProperty reply decode copies into caller scratch" {
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
     try std.testing.expectEqual(@as(u32, 57), reply.type_atom);
-    try std.testing.expectEqual(@as(u32, 2), reply.valueLen);
+    try std.testing.expectEqual(@as(u32, 2), reply.value_len);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 }, reply.value);
 }

@@ -89,6 +89,17 @@ pub const Connection = struct {
         return &self.stream_writer.interface;
     }
 
+    pub fn readReplyPacket(self: *Connection) ![]const u8 {
+        const header = try self.reader().peek(32);
+        const packet_kind = header[0];
+        const extra_len = if (packet_kind == 1)
+            @as(usize, std.mem.readInt(u32, header[4..8], .little)) * 4
+        else
+            0;
+        const packet_len = 32 + extra_len;
+        return try self.reader().take(packet_len);
+    }
+
     pub fn send(self: *Connection, request: anytype) !u16 {
         const sequence = self.sequence;
         self.sequence +%= 1;
@@ -99,32 +110,43 @@ pub const Connection = struct {
 
     fn sendSetup(self: *Connection, cookie: []const u8) !void {
         try (gen.SetupRequest{
-            .byteOrder = 'l',
-            .protocolMajorVersion = 11,
-            .protocolMinorVersion = 0,
-            .authorizationProtocolName = AuthName,
-            .authorizationProtocolData = cookie,
+            .byte_order = 'l',
+            .protocol_major_version = 11,
+            .protocol_minor_version = 0,
+            .authorization_protocol_name = AuthName,
+            .authorization_protocol_data = cookie,
         }).encode(self.writer());
         try self.writer().flush();
     }
 
     fn readSetupReply(self: *Connection) !void {
-        const status = try self.reader().peekByte();
+        const packet = try self.readSetupPacket();
+        const status = packet[0];
+        var packet_reader: std.Io.Reader = .fixed(packet);
         switch (status) {
             1 => {
-                const setup = try gen.Setup.decode(self.reader());
-                self.root_window = setup.root;
+                const setup = try gen.Setup.decode(&packet_reader);
+                var roots = setup.roots.iterator();
+                const screen = (try roots.next()) orelse return error.MalformedPacket;
+                self.root_window = screen.root;
             },
             0 => {
-                _ = try gen.SetupFailed.decode(self.reader());
+                _ = try gen.SetupFailed.decode(&packet_reader);
                 return error.X11SetupFailed;
             },
             2 => {
-                _ = try gen.SetupAuthenticate.decode(self.reader());
+                _ = try gen.SetupAuthenticate.decode(&packet_reader);
                 return error.X11SetupAuthenticate;
             },
             else => return error.X11SetupUnknown,
         }
+    }
+
+    fn readSetupPacket(self: *Connection) ![]const u8 {
+        const prefix = try self.reader().peek(8);
+        const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .little)) * 4;
+        const packet_len = 8 + extra_len;
+        return try self.reader().take(packet_len);
     }
 };
 
