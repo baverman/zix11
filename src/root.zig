@@ -18,7 +18,7 @@ pub fn getProperty(
         .property = property,
         .type_atom = expected_type,
         .long_offset = 0,
-        .long_length = 4096,
+        .long_length = @intCast(scratch.len / 4),
     }, scratch);
 
     if (reply.type_atom != expected_type) return error.UnexpectedType;
