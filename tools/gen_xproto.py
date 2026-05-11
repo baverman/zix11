@@ -11,7 +11,20 @@ XML_PATH = Path("/usr/share/xcb/xproto.xml")
 OUT_PATH = Path("src/xproto.zig")
 TARGET_REQUESTS = ("InternAtom", "GetProperty", "GetInputFocus", "CreateWindow", "MapWindow")
 TARGET_EVENTS = ("ButtonPress", "Expose", "MapNotify", "ConfigureNotify", "ReparentNotify")
-TARGET_ENUMS = ("GetPropertyType", "WindowClass", "CW", "EventMask")
+TARGET_ENUMS = (
+    "GetPropertyType",
+    "WindowClass",
+    "CW",
+    "EventMask",
+    "VisualClass",
+    "BackingStore",
+    "ImageOrder",
+    "ColorFlag",
+    "Family",
+    "InputFocus",
+    "Gravity",
+    "KeyButMask",
+)
 
 SCALAR_TYPES = {
     "BOOL": ("bool", 1),
@@ -29,6 +42,7 @@ class Field:
     name: str
     x_type: str
     zig_type: str
+    wire_zig_type: str
     size: int
 
 
@@ -197,6 +211,8 @@ def emit(buf: list[str], line: str) -> None:
 def emit_enum(buf: list[str], name: str, node: ET.Element) -> None:
     value = 0
     has_bits = any(item.find("bit") is not None for item in node.findall("item"))
+    seen_values: dict[int, str] = {}
+    aliases: list[tuple[str, str]] = []
     emit(buf, f"pub const {name} = enum(u32) {{")
     for item in node.findall("item"):
         item_name = item.attrib["name"]
@@ -206,7 +222,13 @@ def emit_enum(buf: list[str], name: str, node: ET.Element) -> None:
             value = int(value_node.text.strip(), 0)
         elif bit_node is not None and bit_node.text is not None:
             value = 1 << int(bit_node.text.strip(), 0)
-        emit(buf, f"    {zig_name(item_name)} = {value},")
+        zig_item_name = zig_name(item_name)
+        previous_name = seen_values.get(value)
+        if previous_name is None:
+            emit(buf, f"    {zig_item_name} = {value},")
+            seen_values[value] = zig_item_name
+        else:
+            aliases.append((zig_item_name, previous_name))
         value += 1
     emit(buf, "    _,")
     if has_bits:
@@ -214,6 +236,10 @@ def emit_enum(buf: list[str], name: str, node: ET.Element) -> None:
         emit(buf, "    pub fn of(flags: []const @This()) u32 {")
         emit(buf, "        return wire.maskOf(@This(), flags);")
         emit(buf, "    }")
+    if aliases:
+        emit(buf, "")
+        for alias_name, target_name in aliases:
+            emit(buf, f"    pub const {alias_name} = @This().{target_name};")
     emit(buf, "};")
 
 
@@ -329,13 +355,21 @@ def parse_items(
 
 
 def parse_field(node: ET.Element, typedefs: dict[str, str], xidtypes: set[str], xidunions: set[str]) -> Field:
-    zig_type, size = zig_scalar_type(node.attrib["type"], typedefs, xidtypes, xidunions)
+    wire_zig_type, size = zig_scalar_type(node.attrib["type"], typedefs, xidtypes, xidunions)
+    zig_type = field_zig_type(node, wire_zig_type)
     return Field(
         name=node.attrib["name"],
         x_type=node.attrib["type"],
         zig_type=zig_type,
+        wire_zig_type=wire_zig_type,
         size=size,
     )
+
+
+def field_zig_type(node: ET.Element, wire_zig_type: str) -> str:
+    if "enum" in node.attrib:
+        return node.attrib["enum"]
+    return wire_zig_type
 
 
 def resolve_type_size(
@@ -506,6 +540,14 @@ def emit_scalar_write(expr: str, zig_type: str, size: int, xid_like_types: set[s
     raise AssertionError((expr, zig_type, size))
 
 
+def emit_field_write(expr: str, field: Field, xid_like_types: set[str]) -> list[str]:
+    if field.zig_type != field.wire_zig_type and field.wire_zig_type != "bool":
+        if field.size == 1:
+            return [f"        try writer.writeByte(@intCast(@intFromEnum({expr})));"]
+        return [f"        try writer.writeInt({field.wire_zig_type}, @intCast(@intFromEnum({expr})), .little);"]
+    return emit_scalar_write(expr, field.zig_type, field.size, xid_like_types)
+
+
 def derived_field_value_expr(
     item: Field,
     list_item: ListField,
@@ -535,8 +577,8 @@ def emit_field_encode(
 ) -> list[str]:
     if item.name in derived_fields:
         extra_lines, value_expr = derived_field_value_expr(item, derived_fields[item.name], structs, self_prefix=self_prefix)
-        return extra_lines + emit_scalar_write(value_expr, item.zig_type, item.size, xid_like_types)
-    return emit_scalar_write(f"{self_prefix}{zig_name(item.name)}", item.zig_type, item.size, xid_like_types)
+        return extra_lines + emit_field_write(value_expr, item, xid_like_types)
+    return emit_field_write(f"{self_prefix}{zig_name(item.name)}", item, xid_like_types)
 
 
 def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef], xid_like_types: set[str]) -> list[str]:
@@ -771,6 +813,8 @@ def simple_fieldref_name(expr: Expr) -> str | None:
 def decode_field_expr(item: Field, xid_like_types: set[str]) -> str:
     if item.zig_type in xid_like_types:
         return f"@as({item.zig_type}, @enumFromInt(try reader.takeInt(u32, .little)))"
+    if item.zig_type != item.wire_zig_type and item.wire_zig_type != "bool":
+        return f"@as({item.zig_type}, @enumFromInt(try reader.takeInt({item.wire_zig_type}, .little)))"
     if item.zig_type == "bool":
         return "(try reader.takeByte()) != 0"
     if item.size == 1:

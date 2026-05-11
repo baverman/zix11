@@ -166,7 +166,7 @@ pub const FORMAT = struct {
 
 pub const VISUALTYPE = struct {
     visual_id: u32,
-    class: u8,
+    class: VisualClass,
     bits_per_rgb_value: u8,
     colormap_entries: u16,
     red_mask: u32,
@@ -180,7 +180,7 @@ pub const VISUALTYPE = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
         try writer.writeInt(u32, self.visual_id, .little);
-        try writer.writeByte(self.class);
+        try writer.writeByte(@intCast(@intFromEnum(self.class)));
         try writer.writeByte(self.bits_per_rgb_value);
         try writer.writeInt(u16, self.colormap_entries, .little);
         try writer.writeInt(u32, self.red_mask, .little);
@@ -191,7 +191,7 @@ pub const VISUALTYPE = struct {
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
         const visual_id = try reader.takeInt(u32, .little);
-        const class = try reader.takeByte();
+        const class = @as(VisualClass, @enumFromInt(try reader.takeInt(u8, .little)));
         const bits_per_rgb_value = try reader.takeByte();
         const colormap_entries = try reader.takeInt(u16, .little);
         const red_mask = try reader.takeInt(u32, .little);
@@ -262,7 +262,7 @@ pub const SCREEN = struct {
     min_installed_maps: u16,
     max_installed_maps: u16,
     root_visual: u32,
-    backing_stores: u8,
+    backing_stores: BackingStore,
     save_unders: bool,
     root_depth: u8,
     allowed_depths: []DEPTH,
@@ -284,7 +284,7 @@ pub const SCREEN = struct {
         try writer.writeInt(u16, self.min_installed_maps, .little);
         try writer.writeInt(u16, self.max_installed_maps, .little);
         try writer.writeInt(u32, self.root_visual, .little);
-        try writer.writeByte(self.backing_stores);
+        try writer.writeByte(@intCast(@intFromEnum(self.backing_stores)));
         try writer.writeByte(@intFromBool(self.save_unders));
         try writer.writeByte(self.root_depth);
         try writer.writeByte(@intCast(self.allowed_depths.len));
@@ -304,7 +304,7 @@ pub const SCREEN = struct {
         const min_installed_maps = try reader.takeInt(u16, .little);
         const max_installed_maps = try reader.takeInt(u16, .little);
         const root_visual = try reader.takeInt(u32, .little);
-        const backing_stores = try reader.takeByte();
+        const backing_stores = @as(BackingStore, @enumFromInt(try reader.takeInt(u8, .little)));
         const save_unders = (try reader.takeByte()) != 0;
         const root_depth = try reader.takeByte();
         const allowed_depths_len = try reader.takeByte();
@@ -483,8 +483,8 @@ pub const Setup = struct {
     resource_id_mask: u32,
     motion_buffer_size: u32,
     maximum_request_length: u16,
-    image_byte_order: u8,
-    bitmap_format_bit_order: u8,
+    image_byte_order: ImageOrder,
+    bitmap_format_bit_order: ImageOrder,
     bitmap_format_scanline_unit: u8,
     bitmap_format_scanline_pad: u8,
     min_keycode: u8,
@@ -511,8 +511,8 @@ pub const Setup = struct {
         try writer.writeInt(u16, self.maximum_request_length, .little);
         try writer.writeByte(@intCast(self.roots.len));
         try writer.writeByte(@intCast(self.pixmap_formats.len));
-        try writer.writeByte(self.image_byte_order);
-        try writer.writeByte(self.bitmap_format_bit_order);
+        try writer.writeByte(@intCast(@intFromEnum(self.image_byte_order)));
+        try writer.writeByte(@intCast(@intFromEnum(self.bitmap_format_bit_order)));
         try writer.writeByte(self.bitmap_format_scanline_unit);
         try writer.writeByte(self.bitmap_format_scanline_pad);
         try writer.writeByte(self.min_keycode);
@@ -538,8 +538,8 @@ pub const Setup = struct {
         const maximum_request_length = try reader.takeInt(u16, .little);
         const roots_len = try reader.takeByte();
         const pixmap_formats_len = try reader.takeByte();
-        const image_byte_order = try reader.takeByte();
-        const bitmap_format_bit_order = try reader.takeByte();
+        const image_byte_order = @as(ImageOrder, @enumFromInt(try reader.takeInt(u8, .little)));
+        const bitmap_format_bit_order = @as(ImageOrder, @enumFromInt(try reader.takeInt(u8, .little)));
         const bitmap_format_scanline_unit = try reader.takeByte();
         const bitmap_format_scanline_pad = try reader.takeByte();
         const min_keycode = try reader.takeByte();
@@ -812,7 +812,7 @@ pub const RGB = struct {
 };
 
 pub const HOST = struct {
-    family: u8,
+    family: Family,
     address: []const u8,
 
     pub fn byteLen(self: @This()) usize {
@@ -820,7 +820,7 @@ pub const HOST = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
-        try writer.writeByte(self.family);
+        try writer.writeByte(@intCast(@intFromEnum(self.family)));
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.address.len), .little);
         try writer.writeAll(self.address);
@@ -828,7 +828,7 @@ pub const HOST = struct {
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
-        const family = try reader.takeByte();
+        const family = @as(Family, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.take(1);
         const address_len = try reader.takeInt(u16, .little);
         const address_wire = try reader.take(@as(usize, address_len));
@@ -907,6 +907,95 @@ pub const EventMask = enum(u32) {
     PropertyChange = 4194304,
     ColorMapChange = 8388608,
     OwnerGrabButton = 16777216,
+    _,
+
+    pub fn of(flags: []const @This()) u32 {
+        return wire.maskOf(@This(), flags);
+    }
+};
+
+pub const VisualClass = enum(u32) {
+    StaticGray = 0,
+    GrayScale = 1,
+    StaticColor = 2,
+    PseudoColor = 3,
+    TrueColor = 4,
+    DirectColor = 5,
+    _,
+};
+
+pub const BackingStore = enum(u32) {
+    NotUseful = 0,
+    WhenMapped = 1,
+    Always = 2,
+    _,
+};
+
+pub const ImageOrder = enum(u32) {
+    LSBFirst = 0,
+    MSBFirst = 1,
+    _,
+};
+
+pub const ColorFlag = enum(u32) {
+    Red = 1,
+    Green = 2,
+    Blue = 4,
+    _,
+
+    pub fn of(flags: []const @This()) u32 {
+        return wire.maskOf(@This(), flags);
+    }
+};
+
+pub const Family = enum(u32) {
+    Internet = 0,
+    DECnet = 1,
+    Chaos = 2,
+    ServerInterpreted = 5,
+    Internet6 = 6,
+    _,
+};
+
+pub const InputFocus = enum(u32) {
+    None = 0,
+    PointerRoot = 1,
+    Parent = 2,
+    FollowKeyboard = 3,
+    _,
+};
+
+pub const Gravity = enum(u32) {
+    BitForget = 0,
+    NorthWest = 1,
+    North = 2,
+    NorthEast = 3,
+    West = 4,
+    Center = 5,
+    East = 6,
+    SouthWest = 7,
+    South = 8,
+    SouthEast = 9,
+    Static = 10,
+    _,
+
+    pub const WinUnmap = @This().BitForget;
+};
+
+pub const KeyButMask = enum(u32) {
+    Shift = 1,
+    Lock = 2,
+    Control = 4,
+    Mod1 = 8,
+    Mod2 = 16,
+    Mod3 = 32,
+    Mod4 = 64,
+    Mod5 = 128,
+    Button1 = 256,
+    Button2 = 512,
+    Button3 = 1024,
+    Button4 = 2048,
+    Button5 = 4096,
     _,
 
     pub fn of(flags: []const @This()) u32 {
@@ -1037,12 +1126,12 @@ pub const GetInputFocusRequest = struct {
 };
 
 pub const GetInputFocusReply = struct {
-    revert_to: u8,
+    revert_to: InputFocus,
     focus: Window,
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
         if (try reader.takeByte() != 1) return error.UnexpectedReplyType;
-        const revert_to = try reader.takeByte();
+        const revert_to = @as(InputFocus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
         _ = try reader.takeInt(u32, .little);
         const focus = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
@@ -1059,9 +1148,9 @@ pub const CreateWindowValueList = struct {
     background_pixel: ?u32 = null,
     border_pixmap: ?Pixmap = null,
     border_pixel: ?u32 = null,
-    bit_gravity: ?u32 = null,
-    win_gravity: ?u32 = null,
-    backing_store: ?u32 = null,
+    bit_gravity: ?Gravity = null,
+    win_gravity: ?Gravity = null,
+    backing_store: ?BackingStore = null,
     backing_planes: ?u32 = null,
     backing_pixel: ?u32 = null,
     override_redirect: ?u32 = null,
@@ -1078,9 +1167,9 @@ pub const CreateWindowValueListSpec = struct {
         .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
         .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap), .value_type = Pixmap },
         .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel), .value_type = u32 },
-        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = u32 },
-        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = u32 },
-        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = u32 },
+        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = Gravity },
+        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = Gravity },
+        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = BackingStore },
         .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes), .value_type = u32 },
         .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel), .value_type = u32 },
         .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect), .value_type = u32 },
@@ -1104,7 +1193,7 @@ pub const CreateWindowRequest = struct {
     width: u16,
     height: u16,
     border_width: u16,
-    class: u16,
+    class: WindowClass,
     visual: u32,
     value_list: CreateWindowValueList,
 
@@ -1126,7 +1215,7 @@ pub const CreateWindowRequest = struct {
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
         try writer.writeInt(u16, self.border_width, .little);
-        try writer.writeInt(u16, self.class, .little);
+        try writer.writeInt(u16, @intCast(@intFromEnum(self.class)), .little);
         try writer.writeInt(u32, self.visual, .little);
         try writer.writeInt(u32, value_mask, .little);
         try wire.writeValueList(CreateWindowValueListSpec, self.value_list, writer);

@@ -46,7 +46,7 @@ pub fn main(init: std.process.Init) !void {
         .width = 320,
         .height = 200,
         .border_width = 0,
-        .class = @intCast(@intFromEnum(zix.xproto.WindowClass.CopyFromParent)),
+        .class = .CopyFromParent,
         .visual = 0,
         .value_list = .{
             .background_pixel = 0x00ff0000,
