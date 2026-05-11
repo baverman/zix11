@@ -9,7 +9,9 @@ from pathlib import Path
 
 XML_PATH = Path("/usr/share/xcb/xproto.xml")
 OUT_PATH = Path("src/xproto.zig")
-TARGET_REQUESTS = ("InternAtom", "GetProperty", "GetInputFocus")
+TARGET_REQUESTS = ("InternAtom", "GetProperty", "GetInputFocus", "CreateWindow", "MapWindow")
+TARGET_EVENTS = ("ButtonPress", "Expose", "MapNotify", "ConfigureNotify", "ReparentNotify")
+TARGET_ENUMS = ("GetPropertyType", "WindowClass", "CW", "EventMask")
 
 SCALAR_TYPES = {
     "BOOL": ("bool", 1),
@@ -17,6 +19,7 @@ SCALAR_TYPES = {
     "CARD8": ("u8", 1),
     "CARD16": ("u16", 2),
     "CARD32": ("u32", 4),
+    "INT16": ("i16", 2),
     "char": ("u8", 1),
 }
 
@@ -78,7 +81,21 @@ class ListField:
     is_last: bool
 
 
-Item = Field | PadBytes | PadAlign | ListField
+@dataclass(frozen=True)
+class SwitchCase:
+    field: Field
+    enum_ref: str
+    enum_item: str
+
+
+@dataclass(frozen=True)
+class SwitchField:
+    name: str
+    mask_field_name: str
+    cases: list[SwitchCase]
+
+
+Item = Field | PadBytes | PadAlign | ListField | SwitchField
 
 
 @dataclass(frozen=True)
@@ -96,10 +113,18 @@ class RequestDef:
     reply_items: list[Item] | None
 
 
+@dataclass(frozen=True)
+class EventDef:
+    name: str
+    number: int
+    items: list[Item]
+
+
 def main() -> None:
     root = ET.parse(XML_PATH).getroot()
     requests_xml = {child.attrib["name"]: child for child in root if child.tag == "request"}
     structs_xml = {child.attrib["name"]: child for child in root if child.tag == "struct"}
+    events_xml = {child.attrib["name"]: child for child in root if child.tag == "event"}
     enums = {child.attrib["name"]: child for child in root if child.tag == "enum"}
     typedefs = {child.attrib["newname"]: child.attrib["oldname"] for child in root if child.tag == "typedef"}
     xidtypes = {child.attrib["name"] for child in root if child.tag == "xidtype"}
@@ -109,6 +134,10 @@ def main() -> None:
     requests = [
         parse_request(requests_xml[name], structs_xml, typedefs, xidtypes, xidunions)
         for name in TARGET_REQUESTS
+    ]
+    events = [
+        parse_event(events_xml[name], structs_xml, typedefs, xidtypes, xidunions)
+        for name in TARGET_EVENTS
     ]
 
     struct_defs: dict[str, StructDef] = {}
@@ -141,13 +170,22 @@ def main() -> None:
             emit(out, line)
         emit(out, "")
 
-    emit_enum(out, "GetPropertyType", enums["GetPropertyType"])
-    emit(out, "")
+    for enum_name in TARGET_ENUMS:
+        emit_enum(out, enum_name, enums[enum_name])
+        emit(out, "")
 
     for request in requests:
         for line in emit_request_module(request, xid_like_types):
             emit(out, line)
         emit(out, "")
+
+    for event in events:
+        for line in emit_event_module(event, xid_like_types):
+            emit(out, line)
+        emit(out, "")
+    for line in emit_event_union(events):
+        emit(out, line)
+    emit(out, "")
 
     OUT_PATH.write_text("".join(out), encoding="utf-8")
 
@@ -158,15 +196,24 @@ def emit(buf: list[str], line: str) -> None:
 
 def emit_enum(buf: list[str], name: str, node: ET.Element) -> None:
     value = 0
+    has_bits = any(item.find("bit") is not None for item in node.findall("item"))
     emit(buf, f"pub const {name} = enum(u32) {{")
     for item in node.findall("item"):
         item_name = item.attrib["name"]
         value_node = item.find("value")
+        bit_node = item.find("bit")
         if value_node is not None and value_node.text is not None:
             value = int(value_node.text.strip(), 0)
+        elif bit_node is not None and bit_node.text is not None:
+            value = 1 << int(bit_node.text.strip(), 0)
         emit(buf, f"    {zig_name(item_name)} = {value},")
         value += 1
     emit(buf, "    _,")
+    if has_bits:
+        emit(buf, "")
+        emit(buf, "    pub fn of(flags: []const @This()) u32 {")
+        emit(buf, "        return wire.maskOf(@This(), flags);")
+        emit(buf, "    }")
     emit(buf, "};")
 
 
@@ -177,7 +224,7 @@ def parse_request(
     xidtypes: set[str],
     xidunions: set[str],
 ) -> RequestDef:
-    body_nodes = [child for child in node if child.tag in {"field", "pad", "list"}]
+    body_nodes = [child for child in node if child.tag in {"field", "pad", "list", "switch"}]
     header_field: Field | None = None
     index = 0
     if body_nodes and body_nodes[0].tag == "field":
@@ -185,6 +232,8 @@ def parse_request(
         if first.size == 1:
             header_field = first
             index = 1
+    elif body_nodes and body_nodes[0].tag == "pad" and body_nodes[0].attrib.get("bytes") == "1":
+        index = 1
     body = parse_items(body_nodes[index:], structs_xml, typedefs, xidtypes, xidunions)
     reply = node.find("reply")
     reply_items = None
@@ -208,6 +257,17 @@ def parse_struct(
 ) -> StructDef:
     items = parse_items([child for child in node if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes, xidunions)
     return StructDef(name=node.attrib["name"], items=items)
+
+
+def parse_event(
+    node: ET.Element,
+    structs_xml: dict[str, ET.Element],
+    typedefs: dict[str, str],
+    xidtypes: set[str],
+    xidunions: set[str],
+) -> EventDef:
+    items = parse_items([child for child in node if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes, xidunions)
+    return EventDef(name=node.attrib["name"], number=int(node.attrib["number"]), items=items)
 
 
 def parse_items(
@@ -237,6 +297,30 @@ def parse_items(
                     elem_size=resolve_type_size(x_type, structs_xml, typedefs, xidtypes, xidunions),
                     length_expr=parse_length_expr(node),
                     is_last=index == len(nodes) - 1,
+                )
+            )
+        elif node.tag == "switch":
+            if len(node) == 0 or node[0].tag != "fieldref" or node[0].text is None:
+                raise ValueError(f"unsupported switch: {ET.tostring(node, encoding='unicode')}")
+            mask_field_name = node[0].text.strip()
+            cases: list[SwitchCase] = []
+            for case_node in node.findall("bitcase"):
+                enumref = case_node.find("enumref")
+                field_nodes = [child for child in case_node if child.tag == "field"]
+                if enumref is None or enumref.text is None or len(field_nodes) != 1:
+                    raise ValueError(f"unsupported bitcase: {ET.tostring(case_node, encoding='unicode')}")
+                cases.append(
+                    SwitchCase(
+                        field=parse_field(field_nodes[0], typedefs, xidtypes, xidunions),
+                        enum_ref=enumref.attrib["ref"],
+                        enum_item=enumref.text.strip(),
+                    )
+                )
+            items.append(
+                SwitchField(
+                    name=node.attrib["name"],
+                    mask_field_name=mask_field_name,
+                    cases=cases,
                 )
             )
         else:
@@ -337,6 +421,10 @@ def struct_supported(struct_def: StructDef, structs: dict[str, StructDef]) -> bo
     return True
 
 
+def request_switches(items: list[Item]) -> dict[str, SwitchField]:
+    return {item.mask_field_name: item for item in items if isinstance(item, SwitchField)}
+
+
 def emit_container_fields(
     lines: list[str],
     items: list[Item],
@@ -344,15 +432,44 @@ def emit_container_fields(
     structs: dict[str, StructDef],
     *,
     request_lists_are_bytes: bool,
+    switches: dict[str, SwitchField] | None = None,
+    request_name: str | None = None,
 ) -> None:
+    switches = switches or {}
     for item in items:
-        if isinstance(item, Field) and item.name not in derived_fields:
+        if isinstance(item, Field) and item.name not in derived_fields and item.name not in switches:
             lines.append(f"    {zig_name(item.name)}: {item.zig_type},")
         elif isinstance(item, ListField):
             if request_lists_are_bytes:
                 lines.append(f"    {zig_name(item.name)}: []const u8,")
             else:
                 lines.append(f"    {zig_name(item.name)}: {list_field_zig_type(item, structs)},")
+        elif isinstance(item, SwitchField):
+            assert request_name is not None
+            lines.append(f"    {zig_name(item.name)}: {request_name}{zig_name(item.name).title().replace('_', '')},")
+
+
+def switch_type_name(request_name: str, switch: SwitchField) -> str:
+    return f"{request_name}{zig_name(switch.name).title().replace('_', '')}"
+
+
+def emit_switch_types(request_name: str, switch: SwitchField) -> list[str]:
+    type_name = switch_type_name(request_name, switch)
+    spec_name = f"{type_name}Spec"
+    lines = [f"pub const {type_name} = struct {{"]
+    for case in switch.cases:
+        lines.append(f"    {zig_name(case.field.name)}: ?{case.field.zig_type} = null,")
+    lines.append("};")
+    lines.append("")
+    lines.append(f"pub const {spec_name} = struct {{")
+    lines.append("    pub const fields = .{")
+    for case in switch.cases:
+        lines.append(
+            f'        .{{ .name = "{zig_name(case.field.name)}", .bit = @intFromEnum({case.enum_ref}.{zig_name(case.enum_item)}), .value_type = {case.field.zig_type} }},'
+        )
+    lines.append("    };")
+    lines.append("};")
+    return lines
 
 
 def emit_plain_struct(struct_def: StructDef, structs: dict[str, StructDef], xid_like_types: set[str]) -> list[str]:
@@ -383,9 +500,9 @@ def emit_scalar_write(expr: str, zig_type: str, size: int, xid_like_types: set[s
     if size == 1:
         return [f"        try writer.writeByte({expr});"]
     if size == 2:
-        return [f"        try writer.writeInt(u16, {expr}, .little);"]
+        return [f"        try writer.writeInt({zig_type}, {expr}, .little);"]
     if size == 4:
-        return [f"        try writer.writeInt(u32, {expr}, .little);"]
+        return [f"        try writer.writeInt({zig_type}, {expr}, .little);"]
     raise AssertionError((expr, zig_type, size))
 
 
@@ -659,7 +776,7 @@ def decode_field_expr(item: Field, xid_like_types: set[str]) -> str:
     if item.size == 1:
         return "try reader.takeByte()"
     if item.size == 2:
-        return "try reader.takeInt(u16, .little)"
+        return f"try reader.takeInt({item.zig_type}, .little)"
     if item.size == 4:
         return f"try reader.takeInt({item.zig_type}, .little)"
     raise AssertionError(item)
@@ -667,16 +784,31 @@ def decode_field_expr(item: Field, xid_like_types: set[str]) -> str:
 
 def emit_request_module(request: RequestDef, xid_like_types: set[str]) -> list[str]:
     derived_fields = derived_length_fields(request.body)
-    lines = [f"pub const {request.name}Request = struct {{"]
+    switches = request_switches(request.body)
+    lines: list[str] = []
+    for switch in switches.values():
+        lines.extend(emit_switch_types(request.name, switch))
+        lines.append("")
+    lines.append(f"pub const {request.name}Request = struct {{")
     lines.append(f"    pub const opcode: u8 = {request.opcode};")
     if request.reply_items is not None:
         lines.append(f"    pub const Reply = {request.name}Reply;")
+    else:
+        lines.append("    pub const Reply = void;")
     lines.append("")
     if request.header_field is not None:
         lines.append(f"    {zig_name(request.header_field.name)}: {request.header_field.zig_type},")
-    emit_container_fields(lines, request.body, derived_fields, {}, request_lists_are_bytes=True)
+    emit_container_fields(
+        lines,
+        request.body,
+        derived_fields,
+        {},
+        request_lists_are_bytes=True,
+        switches=switches,
+        request_name=request.name,
+    )
     lines.append("")
-    lines.extend(emit_request_encode(request, xid_like_types))
+    lines.extend(emit_request_encode(request, xid_like_types, switches))
     lines.append("};")
 
     if request.reply_items is not None:
@@ -685,12 +817,15 @@ def emit_request_module(request: RequestDef, xid_like_types: set[str]) -> list[s
     return lines
 
 
-def emit_request_encode(request: RequestDef, xid_like_types: set[str]) -> list[str]:
+def emit_request_encode(request: RequestDef, xid_like_types: set[str], switches: dict[str, SwitchField]) -> list[str]:
     body_terms: list[str] = []
     uses_self = False
     for item in request.body:
         if isinstance(item, Field):
-            body_terms.append(str(item.size))
+            if item.name in switches:
+                body_terms.append(str(item.size))
+            else:
+                body_terms.append(str(item.size))
         elif isinstance(item, PadBytes):
             body_terms.append(str(item.bytes))
         elif isinstance(item, PadAlign):
@@ -700,6 +835,9 @@ def emit_request_encode(request: RequestDef, xid_like_types: set[str]) -> list[s
             uses_self = True
         elif isinstance(item, ListField):
             body_terms.append(f"self.{zig_name(item.name)}.len")
+            uses_self = True
+        elif isinstance(item, SwitchField):
+            body_terms.append(f"wire.valueListByteLen({switch_type_name(request.name, item)}Spec, self.{zig_name(item.name)})")
             uses_self = True
     lines = [
         "    pub fn byteLen(self: @This()) usize {",
@@ -720,9 +858,14 @@ def emit_request_encode(request: RequestDef, xid_like_types: set[str]) -> list[s
     else:
         lines.extend(emit_scalar_write(f"self.{zig_name(request.header_field.name)}", request.header_field.zig_type, request.header_field.size, xid_like_types))
     lines.append("        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);")
+    for switch in switches.values():
+        lines.append(f"        const {zig_name(switch.mask_field_name)} = wire.computeValueMask({switch_type_name(request.name, switch)}Spec, self.{zig_name(switch.name)});")
     for item in request.body:
         if isinstance(item, Field):
-            lines.extend(emit_field_encode(item, derived_fields, {}, xid_like_types, self_prefix="self."))
+            if item.name in switches:
+                lines.extend(emit_scalar_write(zig_name(item.name), item.zig_type, item.size, xid_like_types))
+            else:
+                lines.extend(emit_field_encode(item, derived_fields, {}, xid_like_types, self_prefix="self."))
         elif isinstance(item, PadBytes):
             lines.append(f"        try writer.splatByteAll(0, {item.bytes});")
         elif isinstance(item, PadAlign):
@@ -739,6 +882,8 @@ def emit_request_encode(request: RequestDef, xid_like_types: set[str]) -> list[s
                     f"        std.debug.assert(self.{zig_name(item.name)}.len == {scalar_list_byte_len_expr(item, 'self.')});"
                 )
             lines.append(f"        try writer.writeAll(self.{zig_name(item.name)});")
+        elif isinstance(item, SwitchField):
+            lines.append(f"        try wire.writeValueList({switch_type_name(request.name, item)}Spec, self.{zig_name(item.name)}, writer);")
     lines.append("        try writer.splatByteAll(0, pad);")
     lines.append("    }")
     return lines
@@ -836,6 +981,105 @@ def emit_reply_decode_variable(items: list[Item], xid_like_types: set[str]) -> l
         "    }",
     ]
     return body_lines
+
+
+def emit_event_module(event: EventDef, xid_like_types: set[str]) -> list[str]:
+    lines = [f"pub const {event.name}Event = struct {{"]
+    for item in event.items:
+        if isinstance(item, Field):
+            lines.append(f"    {zig_name(item.name)}: {item.zig_type},")
+    lines.append("")
+    lines.extend(emit_event_decode(event, xid_like_types))
+    lines.append("};")
+    return lines
+
+
+def emit_event_decode(event: EventDef, xid_like_types: set[str]) -> list[str]:
+    scalar_fields = [item for item in event.items if isinstance(item, Field)]
+    lines: list[str] = [
+        "    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {",
+        f"        if ((try reader.takeByte()) & 0x7f != {event.number}) return error.UnexpectedEventType;",
+    ]
+    body_field_bytes = 0
+    first_item = event.items[0] if event.items else None
+    remaining_items = event.items
+    if isinstance(first_item, Field):
+        if first_item.size != 1:
+            raise ValueError("first fixed event field must be 1 byte")
+        lines.append(f"        const {zig_name(first_item.name)} = {decode_field_expr(first_item, xid_like_types)};")
+        remaining_items = event.items[1:]
+    elif isinstance(first_item, PadBytes):
+        if first_item.bytes != 1:
+            raise ValueError("first fixed event pad must be 1 byte")
+        lines.append("        _ = try reader.takeByte();")
+        remaining_items = event.items[1:]
+    else:
+        lines.append("        _ = try reader.takeByte();")
+    lines.append("        _ = try reader.takeInt(u16, .little);")
+    for item in remaining_items:
+        if isinstance(item, Field):
+            lines.append(f"        const {zig_name(item.name)} = {decode_field_expr(item, xid_like_types)};")
+            body_field_bytes += item.size
+        elif isinstance(item, PadBytes):
+            lines.append(f"        _ = try reader.take({item.bytes});")
+            body_field_bytes += item.bytes
+        elif isinstance(item, PadAlign):
+            raise ValueError("event align pad unsupported")
+        elif isinstance(item, ListField):
+            raise ValueError("fixed event cannot contain list")
+    trailing = 28 - body_field_bytes
+    if trailing > 0:
+        lines.append(f"        _ = try reader.take({trailing});")
+    lines.append("        return .{")
+    for field in scalar_fields:
+        lines.append(f"            .{zig_name(field.name)} = {zig_name(field.name)},")
+    lines.append("        };")
+    lines.append("    }")
+    return lines
+
+
+def event_tag(name: str) -> str:
+    out: list[str] = []
+    for i, ch in enumerate(name):
+        if ch.isupper() and i > 0:
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def emit_event_union(events: list[EventDef]) -> list[str]:
+    lines = [
+        "pub const UnknownEvent = struct {",
+        "    code: u8,",
+        "    sequence: u16,",
+        "    raw: [32]u8,",
+        "};",
+        "",
+        "pub const Event = union(enum) {",
+        "    unknown: UnknownEvent,",
+    ]
+    for event in events:
+        lines.append(f"    {event_tag(event.name)}: {event.name}Event,")
+    lines.append("};")
+    lines.append("")
+    lines.append("pub fn decodeEvent(reader: *std.Io.Reader) wire.Error!Event {")
+    lines.append("    const code = (try reader.peek(1))[0] & 0x7f;")
+    lines.append("    return switch (code) {")
+    for event in events:
+        lines.append(f"        {event.number} => .{{ .{event_tag(event.name)} = try {event.name}Event.decode(reader) }},")
+    lines.append("        else => blk: {")
+    lines.append("            const packet = try reader.take(32);")
+    lines.append("            var raw: [32]u8 = undefined;")
+    lines.append("            @memcpy(raw[0..], packet);")
+    lines.append("            break :blk .{ .unknown = .{")
+    lines.append("                .code = packet[0] & 0x7f,")
+    lines.append("                .sequence = std.mem.readInt(u16, packet[2..4], .little),")
+    lines.append("                .raw = raw,")
+    lines.append("            } };")
+    lines.append("        },")
+    lines.append("    };")
+    lines.append("}")
+    return lines
 
 
 def zig_name(name: str) -> str:

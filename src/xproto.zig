@@ -38,6 +38,102 @@ pub const CHAR2B = struct {
     }
 };
 
+pub const POINT = struct {
+    x: i16,
+    y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        return .{
+            .x = x,
+            .y = y,
+        };
+    }
+};
+
+pub const RECTANGLE = struct {
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        return .{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+        };
+    }
+};
+
+pub const ARC = struct {
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    angle1: i16,
+    angle2: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(i16, self.angle1, .little);
+        try writer.writeInt(i16, self.angle2, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        const angle1 = try reader.takeInt(i16, .little);
+        const angle2 = try reader.takeInt(i16, .little);
+        return .{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .angle1 = angle1,
+            .angle2 = angle2,
+        };
+    }
+};
+
 pub const FORMAT = struct {
     depth: u8,
     bits_per_pixel: u8,
@@ -497,6 +593,34 @@ pub const Setup = struct {
     }
 };
 
+pub const TIMECOORD = struct {
+    time: u32,
+    x: i16,
+    y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const time = try reader.takeInt(u32, .little);
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        return .{
+            .time = time,
+            .x = x,
+            .y = y,
+        };
+    }
+};
+
 pub const FONTPROP = struct {
     name: Atom,
     value: u32,
@@ -517,6 +641,46 @@ pub const FONTPROP = struct {
         return .{
             .name = name,
             .value = value,
+        };
+    }
+};
+
+pub const CHARINFO = struct {
+    left_side_bearing: i16,
+    right_side_bearing: i16,
+    character_width: i16,
+    ascent: i16,
+    descent: i16,
+    attributes: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.left_side_bearing, .little);
+        try writer.writeInt(i16, self.right_side_bearing, .little);
+        try writer.writeInt(i16, self.character_width, .little);
+        try writer.writeInt(i16, self.ascent, .little);
+        try writer.writeInt(i16, self.descent, .little);
+        try writer.writeInt(u16, self.attributes, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const left_side_bearing = try reader.takeInt(i16, .little);
+        const right_side_bearing = try reader.takeInt(i16, .little);
+        const character_width = try reader.takeInt(i16, .little);
+        const ascent = try reader.takeInt(i16, .little);
+        const descent = try reader.takeInt(i16, .little);
+        const attributes = try reader.takeInt(u16, .little);
+        return .{
+            .left_side_bearing = left_side_bearing,
+            .right_side_bearing = right_side_bearing,
+            .character_width = character_width,
+            .ascent = ascent,
+            .descent = descent,
+            .attributes = attributes,
         };
     }
 };
@@ -544,6 +708,38 @@ pub const STR = struct {
 
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.name);
+    }
+};
+
+pub const SEGMENT = struct {
+    x1: i16,
+    y1: i16,
+    x2: i16,
+    y2: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x1, .little);
+        try writer.writeInt(i16, self.y1, .little);
+        try writer.writeInt(i16, self.x2, .little);
+        try writer.writeInt(i16, self.y2, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x1 = try reader.takeInt(i16, .little);
+        const y1 = try reader.takeInt(i16, .little);
+        const x2 = try reader.takeInt(i16, .little);
+        const y2 = try reader.takeInt(i16, .little);
+        return .{
+            .x1 = x1,
+            .y1 = y1,
+            .x2 = x2,
+            .y2 = y2,
+        };
     }
 };
 
@@ -652,6 +848,70 @@ pub const HOST = struct {
 pub const GetPropertyType = enum(u32) {
     Any = 0,
     _,
+};
+
+pub const WindowClass = enum(u32) {
+    CopyFromParent = 0,
+    InputOutput = 1,
+    InputOnly = 2,
+    _,
+};
+
+pub const CW = enum(u32) {
+    BackPixmap = 1,
+    BackPixel = 2,
+    BorderPixmap = 4,
+    BorderPixel = 8,
+    BitGravity = 16,
+    WinGravity = 32,
+    BackingStore = 64,
+    BackingPlanes = 128,
+    BackingPixel = 256,
+    OverrideRedirect = 512,
+    SaveUnder = 1024,
+    EventMask = 2048,
+    DontPropagate = 4096,
+    Colormap = 8192,
+    Cursor = 16384,
+    _,
+
+    pub fn of(flags: []const @This()) u32 {
+        return wire.maskOf(@This(), flags);
+    }
+};
+
+pub const EventMask = enum(u32) {
+    NoEvent = 0,
+    KeyPress = 1,
+    KeyRelease = 2,
+    ButtonPress = 4,
+    ButtonRelease = 8,
+    EnterWindow = 16,
+    LeaveWindow = 32,
+    PointerMotion = 64,
+    PointerMotionHint = 128,
+    Button1Motion = 256,
+    Button2Motion = 512,
+    Button3Motion = 1024,
+    Button4Motion = 2048,
+    Button5Motion = 4096,
+    ButtonMotion = 8192,
+    KeymapState = 16384,
+    Exposure = 32768,
+    VisibilityChange = 65536,
+    StructureNotify = 131072,
+    ResizeRedirect = 262144,
+    SubstructureNotify = 524288,
+    SubstructureRedirect = 1048576,
+    FocusChange = 2097152,
+    PropertyChange = 4194304,
+    ColorMapChange = 8388608,
+    OwnerGrabButton = 16777216,
+    _,
+
+    pub fn of(flags: []const @This()) u32 {
+        return wire.maskOf(@This(), flags);
+    }
 };
 
 pub const InternAtomRequest = struct {
@@ -793,4 +1053,310 @@ pub const GetInputFocusReply = struct {
         };
     }
 };
+
+pub const CreateWindowValueList = struct {
+    background_pixmap: ?Pixmap = null,
+    background_pixel: ?u32 = null,
+    border_pixmap: ?Pixmap = null,
+    border_pixel: ?u32 = null,
+    bit_gravity: ?u32 = null,
+    win_gravity: ?u32 = null,
+    backing_store: ?u32 = null,
+    backing_planes: ?u32 = null,
+    backing_pixel: ?u32 = null,
+    override_redirect: ?u32 = null,
+    save_under: ?u32 = null,
+    event_mask: ?u32 = null,
+    do_not_propogate_mask: ?u32 = null,
+    colormap: ?Colormap = null,
+    cursor: ?Cursor = null,
+};
+
+pub const CreateWindowValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
+        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
+        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap), .value_type = Pixmap },
+        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel), .value_type = u32 },
+        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = u32 },
+        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = u32 },
+        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = u32 },
+        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes), .value_type = u32 },
+        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel), .value_type = u32 },
+        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect), .value_type = u32 },
+        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder), .value_type = u32 },
+        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask), .value_type = u32 },
+        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate), .value_type = u32 },
+        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap), .value_type = Colormap },
+        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor), .value_type = Cursor },
+    };
+};
+
+pub const CreateWindowRequest = struct {
+    pub const opcode: u8 = 1;
+    pub const Reply = void;
+
+    depth: u8,
+    wid: Window,
+    parent: Window,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    border_width: u16,
+    class: u16,
+    visual: u32,
+    value_list: CreateWindowValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + wire.valueListByteLen(CreateWindowValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.depth);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        const value_mask = wire.computeValueMask(CreateWindowValueListSpec, self.value_list);
+        try writer.writeInt(u32, @intFromEnum(self.wid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.border_width, .little);
+        try writer.writeInt(u16, self.class, .little);
+        try writer.writeInt(u32, self.visual, .little);
+        try writer.writeInt(u32, value_mask, .little);
+        try wire.writeValueList(CreateWindowValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+};
+
+pub const MapWindowRequest = struct {
+    pub const opcode: u8 = 8;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+};
+
+pub const ButtonPressEvent = struct {
+    detail: u8,
+    time: u32,
+    root: Window,
+    event: Window,
+    child: Window,
+    root_x: i16,
+    root_y: i16,
+    event_x: i16,
+    event_y: i16,
+    state: u16,
+    same_screen: bool,
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        if ((try reader.takeByte()) & 0x7f != 4) return error.UnexpectedEventType;
+        const detail = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const time = try reader.takeInt(u32, .little);
+        const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const event = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const child = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const root_x = try reader.takeInt(i16, .little);
+        const root_y = try reader.takeInt(i16, .little);
+        const event_x = try reader.takeInt(i16, .little);
+        const event_y = try reader.takeInt(i16, .little);
+        const state = try reader.takeInt(u16, .little);
+        const same_screen = (try reader.takeByte()) != 0;
+        _ = try reader.take(1);
+        return .{
+            .detail = detail,
+            .time = time,
+            .root = root,
+            .event = event,
+            .child = child,
+            .root_x = root_x,
+            .root_y = root_y,
+            .event_x = event_x,
+            .event_y = event_y,
+            .state = state,
+            .same_screen = same_screen,
+        };
+    }
+};
+
+pub const ExposeEvent = struct {
+    window: Window,
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+    count: u16,
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        if ((try reader.takeByte()) & 0x7f != 12) return error.UnexpectedEventType;
+        _ = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const window = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const x = try reader.takeInt(u16, .little);
+        const y = try reader.takeInt(u16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        const count = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        _ = try reader.take(12);
+        return .{
+            .window = window,
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .count = count,
+        };
+    }
+};
+
+pub const MapNotifyEvent = struct {
+    event: Window,
+    window: Window,
+    override_redirect: bool,
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        if ((try reader.takeByte()) & 0x7f != 19) return error.UnexpectedEventType;
+        _ = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const event = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const window = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const override_redirect = (try reader.takeByte()) != 0;
+        _ = try reader.take(3);
+        _ = try reader.take(16);
+        return .{
+            .event = event,
+            .window = window,
+            .override_redirect = override_redirect,
+        };
+    }
+};
+
+pub const ConfigureNotifyEvent = struct {
+    event: Window,
+    window: Window,
+    above_sibling: Window,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    border_width: u16,
+    override_redirect: bool,
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        if ((try reader.takeByte()) & 0x7f != 22) return error.UnexpectedEventType;
+        _ = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const event = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const window = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const above_sibling = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        const border_width = try reader.takeInt(u16, .little);
+        const override_redirect = (try reader.takeByte()) != 0;
+        _ = try reader.take(1);
+        _ = try reader.take(4);
+        return .{
+            .event = event,
+            .window = window,
+            .above_sibling = above_sibling,
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .border_width = border_width,
+            .override_redirect = override_redirect,
+        };
+    }
+};
+
+pub const ReparentNotifyEvent = struct {
+    event: Window,
+    window: Window,
+    parent: Window,
+    x: i16,
+    y: i16,
+    override_redirect: bool,
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        if ((try reader.takeByte()) & 0x7f != 21) return error.UnexpectedEventType;
+        _ = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const event = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const window = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const parent = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const override_redirect = (try reader.takeByte()) != 0;
+        _ = try reader.take(3);
+        _ = try reader.take(8);
+        return .{
+            .event = event,
+            .window = window,
+            .parent = parent,
+            .x = x,
+            .y = y,
+            .override_redirect = override_redirect,
+        };
+    }
+};
+
+pub const UnknownEvent = struct {
+    code: u8,
+    sequence: u16,
+    raw: [32]u8,
+};
+
+pub const Event = union(enum) {
+    unknown: UnknownEvent,
+    button_press: ButtonPressEvent,
+    expose: ExposeEvent,
+    map_notify: MapNotifyEvent,
+    configure_notify: ConfigureNotifyEvent,
+    reparent_notify: ReparentNotifyEvent,
+};
+
+pub fn decodeEvent(reader: *std.Io.Reader) wire.Error!Event {
+    const code = (try reader.peek(1))[0] & 0x7f;
+    return switch (code) {
+        4 => .{ .button_press = try ButtonPressEvent.decode(reader) },
+        12 => .{ .expose = try ExposeEvent.decode(reader) },
+        19 => .{ .map_notify = try MapNotifyEvent.decode(reader) },
+        22 => .{ .configure_notify = try ConfigureNotifyEvent.decode(reader) },
+        21 => .{ .reparent_notify = try ReparentNotifyEvent.decode(reader) },
+        else => blk: {
+            const packet = try reader.take(32);
+            var raw: [32]u8 = undefined;
+            @memcpy(raw[0..], packet);
+            break :blk .{ .unknown = .{
+                .code = packet[0] & 0x7f,
+                .sequence = std.mem.readInt(u16, packet[2..4], .little),
+                .raw = raw,
+            } };
+        },
+    };
+}
 

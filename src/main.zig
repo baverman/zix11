@@ -34,4 +34,43 @@ pub fn main(init: std.process.Init) !void {
     for (client_windows) |window| {
         std.debug.print("  0x{x}\n", .{@intFromEnum(window)});
     }
+
+    const window = try conn.allocId(zix.xproto.Window);
+
+    try conn.request(zix.xproto.CreateWindowRequest{
+        .depth = 0,
+        .wid = window,
+        .parent = conn.root_window,
+        .x = 100,
+        .y = 100,
+        .width = 320,
+        .height = 200,
+        .border_width = 0,
+        .class = @intCast(@intFromEnum(zix.xproto.WindowClass.CopyFromParent)),
+        .visual = 0,
+        .value_list = .{
+            .background_pixel = 0x00ff0000,
+            .event_mask = zix.xproto.EventMask.of(&.{ .Exposure, .ButtonPress }),
+        },
+    });
+    try conn.request(zix.xproto.MapWindowRequest{ .window = window });
+    std.debug.print("created window: 0x{x}\n", .{@intFromEnum(window)});
+
+    while (true) {
+        const event = try conn.nextEvent();
+        switch (event) {
+            .expose => |ev| {
+                if (ev.window == window and ev.count == 0) {
+                    std.debug.print("expose {}x{}\n", .{ ev.width, ev.height });
+                }
+            },
+            .button_press => |ev| {
+                if (ev.event == window) {
+                    std.debug.print("button press at {}, {}\n", .{ ev.event_x, ev.event_y });
+                    break;
+                }
+            },
+            else => {},
+        }
+    }
 }

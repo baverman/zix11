@@ -4,6 +4,8 @@ pub const Error = std.Io.Reader.Error || std.Io.Writer.Error || std.mem.Allocato
     BufferTooSmall,
     MalformedPacket,
     UnexpectedReplyType,
+    UnexpectedEventType,
+    UnsupportedEvent,
     UnsupportedFormat,
 };
 
@@ -26,6 +28,61 @@ pub fn structListByteLen(list: anytype) usize {
     var total: usize = 0;
     for (list) |elem| total += elem.byteLen();
     return total;
+}
+
+pub fn computeValueMask(comptime Spec: type, values: anytype) u32 {
+    var mask: u32 = 0;
+    inline for (Spec.fields) |field| {
+        if (@field(values, field.name) != null) {
+            mask |= field.bit;
+        }
+    }
+    return mask;
+}
+
+pub fn valueListByteLen(comptime Spec: type, values: anytype) usize {
+    var total: usize = 0;
+    inline for (Spec.fields) |field| {
+        if (@field(values, field.name) != null) {
+            total += maskedValueByteLen(field.value_type);
+        }
+    }
+    return total;
+}
+
+pub fn writeValueList(comptime Spec: type, values: anytype, writer: *std.Io.Writer) Error!void {
+    inline for (Spec.fields) |field| {
+        if (@field(values, field.name)) |value| {
+            try writeMaskedValue(field.value_type, writer, value);
+        }
+    }
+}
+
+pub fn maskOf(comptime E: type, flags: []const E) u32 {
+    var mask: u32 = 0;
+    for (flags) |flag| mask |= @intFromEnum(flag);
+    return mask;
+}
+
+fn maskedValueByteLen(comptime T: type) usize {
+    return switch (@typeInfo(T)) {
+        .@"enum" => @sizeOf(@typeInfo(T).@"enum".tag_type),
+        else => @sizeOf(T),
+    };
+}
+
+fn writeMaskedValue(comptime T: type, writer: *std.Io.Writer, value: T) Error!void {
+    switch (@typeInfo(T)) {
+        .@"enum" => |info| try writer.writeInt(info.tag_type, @intFromEnum(value), .little),
+        .int => |info| {
+            if (info.bits == 8) {
+                try writer.writeByte(value);
+            } else {
+                try writer.writeInt(T, value, .little);
+            }
+        },
+        else => @compileError("unsupported masked value type"),
+    }
 }
 
 test "pad4" {
