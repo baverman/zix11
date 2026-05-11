@@ -25,7 +25,7 @@ pub const Connection = struct {
     write_buffer: []u8,
     stream_reader: std.Io.net.Stream.Reader,
     stream_writer: std.Io.net.Stream.Writer,
-    root_window: u32,
+    root_window: xproto.Window,
     sequence: u16 = 1,
 
     pub fn connectFromInit(init: std.process.Init, allocator: std.mem.Allocator) !Connection {
@@ -66,7 +66,7 @@ pub const Connection = struct {
             .write_buffer = write_buffer,
             .stream_reader = stream.reader(io, read_buffer),
             .stream_writer = stream.writer(io, write_buffer),
-            .root_window = 0,
+            .root_window = @enumFromInt(0),
         };
         errdefer conn.deinit();
 

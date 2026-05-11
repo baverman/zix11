@@ -103,16 +103,18 @@ def main() -> None:
     enums = {child.attrib["name"]: child for child in root if child.tag == "enum"}
     typedefs = {child.attrib["newname"]: child.attrib["oldname"] for child in root if child.tag == "typedef"}
     xidtypes = {child.attrib["name"] for child in root if child.tag == "xidtype"}
+    xidunions = {child.attrib["name"] for child in root if child.tag == "xidunion"}
+    xid_like_types = {zig_xid_name(name) for name in xidtypes | xidunions}
 
     requests = [
-        parse_request(requests_xml[name], structs_xml, typedefs, xidtypes)
+        parse_request(requests_xml[name], structs_xml, typedefs, xidtypes, xidunions)
         for name in TARGET_REQUESTS
     ]
 
     struct_defs: dict[str, StructDef] = {}
     for name, node in structs_xml.items():
         try:
-            struct_defs[name] = parse_struct(node, structs_xml, typedefs, xidtypes)
+            struct_defs[name] = parse_struct(node, structs_xml, typedefs, xidtypes, xidunions)
         except ValueError:
             continue
     emitted_structs = [
@@ -128,12 +130,14 @@ def main() -> None:
     emit(out, 'const std = @import("std");')
     emit(out, 'const wire = @import("wire.zig");')
     emit(out, "")
-    emit(out, "pub const Atom = u32;")
-    emit(out, "pub const Window = u32;")
+    for name in sorted(xidtypes):
+        emit(out, f"pub const {zig_xid_name(name)} = enum(u32) {{ _ }};")
+    for name in sorted(xidunions):
+        emit(out, f"pub const {zig_xid_name(name)} = enum(u32) {{ _ }};")
     emit(out, "")
 
     for struct_def in emitted_structs:
-        for line in emit_plain_struct(struct_def, struct_defs):
+        for line in emit_plain_struct(struct_def, struct_defs, xid_like_types):
             emit(out, line)
         emit(out, "")
 
@@ -141,7 +145,7 @@ def main() -> None:
     emit(out, "")
 
     for request in requests:
-        for line in emit_request_module(request):
+        for line in emit_request_module(request, xid_like_types):
             emit(out, line)
         emit(out, "")
 
@@ -171,20 +175,21 @@ def parse_request(
     structs_xml: dict[str, ET.Element],
     typedefs: dict[str, str],
     xidtypes: set[str],
+    xidunions: set[str],
 ) -> RequestDef:
     body_nodes = [child for child in node if child.tag in {"field", "pad", "list"}]
     header_field: Field | None = None
     index = 0
     if body_nodes and body_nodes[0].tag == "field":
-        first = parse_field(body_nodes[0], typedefs, xidtypes)
+        first = parse_field(body_nodes[0], typedefs, xidtypes, xidunions)
         if first.size == 1:
             header_field = first
             index = 1
-    body = parse_items(body_nodes[index:], structs_xml, typedefs, xidtypes)
+    body = parse_items(body_nodes[index:], structs_xml, typedefs, xidtypes, xidunions)
     reply = node.find("reply")
     reply_items = None
     if reply is not None:
-        reply_items = parse_items([child for child in reply if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes)
+        reply_items = parse_items([child for child in reply if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes, xidunions)
     return RequestDef(
         name=node.attrib["name"],
         opcode=int(node.attrib["opcode"]),
@@ -199,8 +204,9 @@ def parse_struct(
     structs_xml: dict[str, ET.Element],
     typedefs: dict[str, str],
     xidtypes: set[str],
+    xidunions: set[str],
 ) -> StructDef:
-    items = parse_items([child for child in node if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes)
+    items = parse_items([child for child in node if child.tag in {"field", "pad", "list"}], structs_xml, typedefs, xidtypes, xidunions)
     return StructDef(name=node.attrib["name"], items=items)
 
 
@@ -209,11 +215,12 @@ def parse_items(
     structs_xml: dict[str, ET.Element],
     typedefs: dict[str, str],
     xidtypes: set[str],
+    xidunions: set[str],
 ) -> list[Item]:
     items: list[Item] = []
     for index, node in enumerate(nodes):
         if node.tag == "field":
-            items.append(parse_field(node, typedefs, xidtypes))
+            items.append(parse_field(node, typedefs, xidtypes, xidunions))
         elif node.tag == "pad":
             if "bytes" in node.attrib:
                 items.append(PadBytes(bytes=int(node.attrib["bytes"], 0)))
@@ -227,7 +234,7 @@ def parse_items(
                 ListField(
                     name=node.attrib["name"],
                     x_type=x_type,
-                    elem_size=resolve_type_size(x_type, structs_xml, typedefs, xidtypes),
+                    elem_size=resolve_type_size(x_type, structs_xml, typedefs, xidtypes, xidunions),
                     length_expr=parse_length_expr(node),
                     is_last=index == len(nodes) - 1,
                 )
@@ -237,8 +244,8 @@ def parse_items(
     return items
 
 
-def parse_field(node: ET.Element, typedefs: dict[str, str], xidtypes: set[str]) -> Field:
-    zig_type, size = zig_scalar_type(node.attrib["type"], typedefs, xidtypes)
+def parse_field(node: ET.Element, typedefs: dict[str, str], xidtypes: set[str], xidunions: set[str]) -> Field:
+    zig_type, size = zig_scalar_type(node.attrib["type"], typedefs, xidtypes, xidunions)
     return Field(
         name=node.attrib["name"],
         x_type=node.attrib["type"],
@@ -252,22 +259,25 @@ def resolve_type_size(
     structs_xml: dict[str, ET.Element],
     typedefs: dict[str, str],
     xidtypes: set[str],
+    xidunions: set[str],
 ) -> int | None:
     if x_type == "void":
         return 1
     if x_type in structs_xml:
         return None
-    _, size = zig_scalar_type(x_type, typedefs, xidtypes)
+    _, size = zig_scalar_type(x_type, typedefs, xidtypes, xidunions)
     return size
 
 
-def zig_scalar_type(x_type: str, typedefs: dict[str, str], xidtypes: set[str]) -> tuple[str, int]:
-    if x_type in xidtypes:
-        return "u32", 4
+def zig_xid_name(name: str) -> str:
+    return name.title().replace("_", "")
+
+
+def zig_scalar_type(x_type: str, typedefs: dict[str, str], xidtypes: set[str], xidunions: set[str]) -> tuple[str, int]:
+    if x_type in xidtypes or x_type in xidunions:
+        return zig_xid_name(x_type), 4
     while x_type in typedefs:
         x_type = typedefs[x_type]
-    if x_type in {"ATOM", "WINDOW"}:
-        return x_type.title().replace("_", ""), 4
     if x_type == "void":
         return "u8", 1
     if x_type in SCALAR_TYPES:
@@ -345,15 +355,15 @@ def emit_container_fields(
                 lines.append(f"    {zig_name(item.name)}: {list_field_zig_type(item, structs)},")
 
 
-def emit_plain_struct(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+def emit_plain_struct(struct_def: StructDef, structs: dict[str, StructDef], xid_like_types: set[str]) -> list[str]:
     dynamic = struct_is_dynamic(struct_def)
     derived_fields = derived_length_fields(struct_def.items)
     lines = [f"pub const {struct_def.name} = struct {{"]
     emit_container_fields(lines, struct_def.items, derived_fields, structs, request_lists_are_bytes=False)
     lines.append("")
-    lines.extend(emit_plain_struct_encode(struct_def, structs))
+    lines.extend(emit_plain_struct_encode(struct_def, structs, xid_like_types))
     lines.append("")
-    lines.extend(emit_plain_struct_decode(struct_def, structs))
+    lines.extend(emit_plain_struct_decode(struct_def, structs, xid_like_types))
     if dynamic:
         lines.append("")
         lines.extend(emit_plain_struct_deinit(struct_def, structs))
@@ -365,7 +375,9 @@ def struct_is_dynamic(struct_def: StructDef) -> bool:
     return any(isinstance(item, ListField) for item in struct_def.items)
 
 
-def emit_scalar_write(expr: str, zig_type: str, size: int) -> list[str]:
+def emit_scalar_write(expr: str, zig_type: str, size: int, xid_like_types: set[str]) -> list[str]:
+    if zig_type in xid_like_types:
+        return [f"        try writer.writeInt(u32, @intFromEnum({expr}), .little);"]
     if zig_type == "bool":
         return [f"        try writer.writeByte(@intFromBool({expr}));"]
     if size == 1:
@@ -400,16 +412,17 @@ def emit_field_encode(
     item: Field,
     derived_fields: dict[str, ListField],
     structs: dict[str, StructDef],
+    xid_like_types: set[str],
     *,
     self_prefix: str,
 ) -> list[str]:
     if item.name in derived_fields:
         extra_lines, value_expr = derived_field_value_expr(item, derived_fields[item.name], structs, self_prefix=self_prefix)
-        return extra_lines + emit_scalar_write(value_expr, item.zig_type, item.size)
-    return emit_scalar_write(f"{self_prefix}{zig_name(item.name)}", item.zig_type, item.size)
+        return extra_lines + emit_scalar_write(value_expr, item.zig_type, item.size, xid_like_types)
+    return emit_scalar_write(f"{self_prefix}{zig_name(item.name)}", item.zig_type, item.size, xid_like_types)
 
 
-def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef], xid_like_types: set[str]) -> list[str]:
     uses_self_for_len = any(isinstance(item, ListField) for item in struct_def.items)
     byte_len_terms: list[str] = []
     for item in struct_def.items:
@@ -435,7 +448,7 @@ def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef
     derived_fields = derived_length_fields(struct_def.items)
     for item in struct_def.items:
         if isinstance(item, Field):
-            lines.extend(emit_field_encode(item, derived_fields, structs, self_prefix="self."))
+            lines.extend(emit_field_encode(item, derived_fields, structs, xid_like_types, self_prefix="self."))
         elif isinstance(item, PadBytes):
             lines.append(f"        try writer.splatByteAll(0, {item.bytes});")
         elif isinstance(item, PadAlign):
@@ -460,10 +473,11 @@ def emit_decode_item(
     item: Item,
     derived_fields: dict[str, ListField],
     structs: dict[str, StructDef],
+    xid_like_types: set[str],
 ) -> tuple[list[str], list[str]]:
     if isinstance(item, Field):
         field_name = zig_name(item.name)
-        lines = [f"        const {field_name} = {decode_field_expr(item)};"]
+        lines = [f"        const {field_name} = {decode_field_expr(item, xid_like_types)};"]
         result_lines = [] if item.name in derived_fields else [f"            .{field_name} = {field_name},"]
         return lines, result_lines
     if isinstance(item, PadBytes):
@@ -473,7 +487,7 @@ def emit_decode_item(
     return lines, [f"            .{zig_name(item.name)} = {zig_name(item.name)},"]
 
 
-def emit_plain_struct_decode(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+def emit_plain_struct_decode(struct_def: StructDef, structs: dict[str, StructDef], xid_like_types: set[str]) -> list[str]:
     dynamic = struct_is_dynamic(struct_def)
     derived_fields = derived_length_fields(struct_def.items)
     locals_lines: list[str] = []
@@ -484,7 +498,7 @@ def emit_plain_struct_decode(struct_def: StructDef, structs: dict[str, StructDef
             assert prev is not None
             locals_lines.append(f"        _ = try reader.take(wire.pad4({decoded_list_len_expr(prev, structs)}));")
             continue
-        item_locals, item_results = emit_decode_item(item, derived_fields, structs)
+        item_locals, item_results = emit_decode_item(item, derived_fields, structs, xid_like_types)
         locals_lines.extend(item_locals)
         result_lines.extend(item_results)
     lines = [
@@ -637,7 +651,9 @@ def simple_fieldref_name(expr: Expr) -> str | None:
     return None
 
 
-def decode_field_expr(item: Field) -> str:
+def decode_field_expr(item: Field, xid_like_types: set[str]) -> str:
+    if item.zig_type in xid_like_types:
+        return f"@as({item.zig_type}, @enumFromInt(try reader.takeInt(u32, .little)))"
     if item.zig_type == "bool":
         return "(try reader.takeByte()) != 0"
     if item.size == 1:
@@ -649,7 +665,7 @@ def decode_field_expr(item: Field) -> str:
     raise AssertionError(item)
 
 
-def emit_request_module(request: RequestDef) -> list[str]:
+def emit_request_module(request: RequestDef, xid_like_types: set[str]) -> list[str]:
     derived_fields = derived_length_fields(request.body)
     lines = [f"pub const {request.name}Request = struct {{"]
     lines.append(f"    pub const opcode: u8 = {request.opcode};")
@@ -660,16 +676,16 @@ def emit_request_module(request: RequestDef) -> list[str]:
         lines.append(f"    {zig_name(request.header_field.name)}: {request.header_field.zig_type},")
     emit_container_fields(lines, request.body, derived_fields, {}, request_lists_are_bytes=True)
     lines.append("")
-    lines.extend(emit_request_encode(request))
+    lines.extend(emit_request_encode(request, xid_like_types))
     lines.append("};")
 
     if request.reply_items is not None:
         lines.append("")
-        lines.extend(emit_reply_struct(request.name, request.reply_items))
+        lines.extend(emit_reply_struct(request.name, request.reply_items, xid_like_types))
     return lines
 
 
-def emit_request_encode(request: RequestDef) -> list[str]:
+def emit_request_encode(request: RequestDef, xid_like_types: set[str]) -> list[str]:
     body_terms: list[str] = []
     uses_self = False
     for item in request.body:
@@ -702,11 +718,11 @@ def emit_request_encode(request: RequestDef) -> list[str]:
     if request.header_field is None:
         lines.append("        try writer.writeByte(0);")
     else:
-        lines.extend(emit_scalar_write(f"self.{zig_name(request.header_field.name)}", request.header_field.zig_type, request.header_field.size))
+        lines.extend(emit_scalar_write(f"self.{zig_name(request.header_field.name)}", request.header_field.zig_type, request.header_field.size, xid_like_types))
     lines.append("        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);")
     for item in request.body:
         if isinstance(item, Field):
-            lines.extend(emit_field_encode(item, derived_fields, {}, self_prefix="self."))
+            lines.extend(emit_field_encode(item, derived_fields, {}, xid_like_types, self_prefix="self."))
         elif isinstance(item, PadBytes):
             lines.append(f"        try writer.splatByteAll(0, {item.bytes});")
         elif isinstance(item, PadAlign):
@@ -728,7 +744,7 @@ def emit_request_encode(request: RequestDef) -> list[str]:
     return lines
 
 
-def emit_reply_struct(name: str, items: list[Item]) -> list[str]:
+def emit_reply_struct(name: str, items: list[Item], xid_like_types: set[str]) -> list[str]:
     scalar_fields = [item for item in items if isinstance(item, Field)]
     list_fields = [item for item in items if isinstance(item, ListField)]
     lines = [f"pub const {name}Reply = struct {{"]
@@ -738,14 +754,14 @@ def emit_reply_struct(name: str, items: list[Item]) -> list[str]:
         lines.append(f"    {zig_name(list_field.name)}: []const u8,")
     lines.append("")
     if list_fields:
-        lines.extend(emit_reply_decode_variable(items))
+        lines.extend(emit_reply_decode_variable(items, xid_like_types))
     else:
-        lines.extend(emit_reply_decode_fixed(items))
+        lines.extend(emit_reply_decode_fixed(items, xid_like_types))
     lines.append("};")
     return lines
 
 
-def emit_reply_decode_fixed(items: list[Item]) -> list[str]:
+def emit_reply_decode_fixed(items: list[Item], xid_like_types: set[str]) -> list[str]:
     scalar_fields = [item for item in items if isinstance(item, Field)]
     locals_lines: list[str] = [
         "    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {",
@@ -757,7 +773,7 @@ def emit_reply_decode_fixed(items: list[Item]) -> list[str]:
     if isinstance(first_item, Field):
         if first_item.size != 1:
             raise ValueError("first fixed reply field must be 1 byte")
-        locals_lines.append(f"        const {zig_name(first_item.name)} = {decode_field_expr(first_item)};")
+        locals_lines.append(f"        const {zig_name(first_item.name)} = {decode_field_expr(first_item, xid_like_types)};")
         remaining_items = items[1:]
     elif isinstance(first_item, PadBytes):
         if first_item.bytes != 1:
@@ -772,7 +788,7 @@ def emit_reply_decode_fixed(items: list[Item]) -> list[str]:
     ])
     for item in remaining_items:
         if isinstance(item, Field):
-            locals_lines.append(f"        const {zig_name(item.name)} = {decode_field_expr(item)};")
+            locals_lines.append(f"        const {zig_name(item.name)} = {decode_field_expr(item, xid_like_types)};")
             body_field_bytes += item.size
         elif isinstance(item, PadBytes):
             locals_lines.append(f"        _ = try reader.take({item.bytes});")
@@ -792,7 +808,7 @@ def emit_reply_decode_fixed(items: list[Item]) -> list[str]:
     return locals_lines
 
 
-def emit_reply_decode_variable(items: list[Item]) -> list[str]:
+def emit_reply_decode_variable(items: list[Item], xid_like_types: set[str]) -> list[str]:
     scalar_fields = [item for item in items if isinstance(item, Field)]
     list_field = next(item for item in items if isinstance(item, ListField))
     body_lines = [
@@ -801,7 +817,7 @@ def emit_reply_decode_variable(items: list[Item]) -> list[str]:
         "        const format = try reader.takeByte();",
         "        _ = try reader.takeInt(u16, .little);",
         "        const reply_len = @as(usize, try reader.takeInt(u32, .little)) * 4;",
-        "        const type_atom = try reader.takeInt(Atom, .little);",
+        "        const type_atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));",
         "        const bytes_after = try reader.takeInt(u32, .little);",
         "        const value_len = try reader.takeInt(u32, .little);",
         "        _ = try reader.take(12);",

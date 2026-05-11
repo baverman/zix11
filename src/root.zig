@@ -4,6 +4,49 @@ pub const wire = @import("wire.zig");
 pub const xproto = @import("xproto.zig");
 pub const Connection = @import("connection.zig").Connection;
 
+pub fn getProperty(
+    conn: *Connection,
+    window: xproto.Window,
+    property: xproto.Atom,
+    expected_type: xproto.Atom,
+    comptime T: type,
+    scratch: []align(@alignOf(T)) u8,
+) ![]const T {
+    const reply = try conn.requestBuf(xproto.GetPropertyRequest{
+        .delete_value = false,
+        .window = window,
+        .property = property,
+        .type_atom = expected_type,
+        .long_offset = 0,
+        .long_length = 4096,
+    }, scratch);
+
+    if (reply.type_atom != expected_type) return error.UnexpectedType;
+    if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
+    if (reply.bytes_after != 0) return error.PropertyTruncated;
+
+    const byte_len = reply.value_len * (@as(usize, reply.format) / 8);
+    if (byte_len > reply.value.len) return error.MalformedProperty;
+    if (byte_len % @sizeOf(T) != 0) return error.MalformedProperty;
+
+    const aligned_bytes: []align(@alignOf(T)) const u8 = @alignCast(reply.value[0..byte_len]);
+    const ptr: [*]align(@alignOf(T)) const T = @ptrCast(aligned_bytes.ptr);
+    return ptr[0 .. byte_len / @sizeOf(T)];
+}
+
+fn propertyFormat(comptime T: type) u8 {
+    if (T == u8) return 8;
+    if (T == u16) return 16;
+    if (T == u32) return 32;
+
+    const info = @typeInfo(T);
+    if (info == .@"enum" and @typeInfo(info.@"enum".tag_type) == .int and @sizeOf(T) == 4) {
+        return 32;
+    }
+
+    @compileError("unsupported property element type");
+}
+
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
@@ -59,7 +102,7 @@ test "GetProperty reply decode copies into caller scratch" {
     const reply = try xproto.GetPropertyReply.decode(&reader, &scratch);
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
-    try std.testing.expectEqual(@as(u32, 57), reply.type_atom);
+    try std.testing.expectEqual(@as(xproto.Atom, @enumFromInt(57)), reply.type_atom);
     try std.testing.expectEqual(@as(u32, 2), reply.value_len);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 }, reply.value);
 }

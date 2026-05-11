@@ -4,8 +4,15 @@
 const std = @import("std");
 const wire = @import("wire.zig");
 
-pub const Atom = u32;
-pub const Window = u32;
+pub const Atom = enum(u32) { _ };
+pub const Colormap = enum(u32) { _ };
+pub const Cursor = enum(u32) { _ };
+pub const Font = enum(u32) { _ };
+pub const Gcontext = enum(u32) { _ };
+pub const Pixmap = enum(u32) { _ };
+pub const Window = enum(u32) { _ };
+pub const Drawable = enum(u32) { _ };
+pub const Fontable = enum(u32) { _ };
 
 pub const CHAR2B = struct {
     byte1: u8,
@@ -147,8 +154,8 @@ pub const DEPTH = struct {
 };
 
 pub const SCREEN = struct {
-    root: u32,
-    default_colormap: u32,
+    root: Window,
+    default_colormap: Colormap,
     white_pixel: u32,
     black_pixel: u32,
     current_input_masks: u32,
@@ -169,8 +176,8 @@ pub const SCREEN = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
-        try writer.writeInt(u32, self.root, .little);
-        try writer.writeInt(u32, self.default_colormap, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.default_colormap), .little);
         try writer.writeInt(u32, self.white_pixel, .little);
         try writer.writeInt(u32, self.black_pixel, .little);
         try writer.writeInt(u32, self.current_input_masks, .little);
@@ -189,8 +196,8 @@ pub const SCREEN = struct {
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
-        const root = try reader.takeInt(u32, .little);
-        const default_colormap = try reader.takeInt(u32, .little);
+        const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const default_colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .little)));
         const white_pixel = try reader.takeInt(u32, .little);
         const black_pixel = try reader.takeInt(u32, .little);
         const current_input_masks = try reader.takeInt(u32, .little);
@@ -491,7 +498,7 @@ pub const Setup = struct {
 };
 
 pub const FONTPROP = struct {
-    name: u32,
+    name: Atom,
     value: u32,
 
     pub fn byteLen(self: @This()) usize {
@@ -500,12 +507,12 @@ pub const FONTPROP = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
-        try writer.writeInt(u32, self.name, .little);
+        try writer.writeInt(u32, @intFromEnum(self.name), .little);
         try writer.writeInt(u32, self.value, .little);
     }
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
-        const name = try reader.takeInt(u32, .little);
+        const name = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
         const value = try reader.takeInt(u32, .little);
         return .{
             .name = name,
@@ -672,14 +679,14 @@ pub const InternAtomRequest = struct {
 };
 
 pub const InternAtomReply = struct {
-    atom: u32,
+    atom: Atom,
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
         if (try reader.takeByte() != 1) return error.UnexpectedReplyType;
         _ = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
         _ = try reader.takeInt(u32, .little);
-        const atom = try reader.takeInt(u32, .little);
+        const atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
         _ = try reader.take(20);
         return .{
             .atom = atom,
@@ -692,9 +699,9 @@ pub const GetPropertyRequest = struct {
     pub const Reply = GetPropertyReply;
 
     delete_value: bool,
-    window: u32,
-    property: u32,
-    type_atom: u32,
+    window: Window,
+    property: Atom,
+    type_atom: Atom,
     long_offset: u32,
     long_length: u32,
 
@@ -709,9 +716,9 @@ pub const GetPropertyRequest = struct {
         try writer.writeByte(opcode);
         try writer.writeByte(@intFromBool(self.delete_value));
         try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
-        try writer.writeInt(u32, self.window, .little);
-        try writer.writeInt(u32, self.property, .little);
-        try writer.writeInt(u32, self.type_atom, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        try writer.writeInt(u32, @intFromEnum(self.type_atom), .little);
         try writer.writeInt(u32, self.long_offset, .little);
         try writer.writeInt(u32, self.long_length, .little);
         try writer.splatByteAll(0, pad);
@@ -720,7 +727,7 @@ pub const GetPropertyRequest = struct {
 
 pub const GetPropertyReply = struct {
     format: u8,
-    type_atom: u32,
+    type_atom: Atom,
     bytes_after: u32,
     value_len: u32,
     value: []const u8,
@@ -730,7 +737,7 @@ pub const GetPropertyReply = struct {
         const format = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
         const reply_len = @as(usize, try reader.takeInt(u32, .little)) * 4;
-        const type_atom = try reader.takeInt(Atom, .little);
+        const type_atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
         const bytes_after = try reader.takeInt(u32, .little);
         const value_len = try reader.takeInt(u32, .little);
         _ = try reader.take(12);
@@ -771,14 +778,14 @@ pub const GetInputFocusRequest = struct {
 
 pub const GetInputFocusReply = struct {
     revert_to: u8,
-    focus: u32,
+    focus: Window,
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
         if (try reader.takeByte() != 1) return error.UnexpectedReplyType;
         const revert_to = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
         _ = try reader.takeInt(u32, .little);
-        const focus = try reader.takeInt(u32, .little);
+        const focus = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
         _ = try reader.take(20);
         return .{
             .revert_to = revert_to,
