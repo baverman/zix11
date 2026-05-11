@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 XML_PATH = Path("/usr/share/xcb/xproto.xml")
-OUT_PATH = Path("src/gen/xproto.zig")
+OUT_PATH = Path("src/xproto.zig")
 TARGET_REQUESTS = ("InternAtom", "GetProperty", "GetInputFocus")
 
 SCALAR_TYPES = {
@@ -126,7 +126,7 @@ def main() -> None:
     emit(out, f"// Source: {XML_PATH}")
     emit(out, "")
     emit(out, 'const std = @import("std");')
-    emit(out, 'const wire = @import("../wire.zig");')
+    emit(out, 'const wire = @import("wire.zig");')
     emit(out, "")
     emit(out, "pub const Atom = u32;")
     emit(out, "pub const Window = u32;")
@@ -327,22 +327,86 @@ def struct_supported(struct_def: StructDef, structs: dict[str, StructDef]) -> bo
     return True
 
 
-def emit_plain_struct(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
-    derived_fields = derived_length_fields(struct_def.items)
-    lines = [f"pub const {struct_def.name} = struct {{"]
-    lines.append("    pub const View = wire.StructView(@This());")
-    lines.append("")
-    for item in struct_def.items:
+def emit_container_fields(
+    lines: list[str],
+    items: list[Item],
+    derived_fields: dict[str, ListField],
+    structs: dict[str, StructDef],
+    *,
+    request_lists_are_bytes: bool,
+) -> None:
+    for item in items:
         if isinstance(item, Field) and item.name not in derived_fields:
             lines.append(f"    {zig_name(item.name)}: {item.zig_type},")
         elif isinstance(item, ListField):
-            lines.append(f"    {zig_name(item.name)}: {list_field_zig_type(item, structs)},")
+            if request_lists_are_bytes:
+                lines.append(f"    {zig_name(item.name)}: []const u8,")
+            else:
+                lines.append(f"    {zig_name(item.name)}: {list_field_zig_type(item, structs)},")
+
+
+def emit_plain_struct(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+    dynamic = struct_is_dynamic(struct_def)
+    derived_fields = derived_length_fields(struct_def.items)
+    lines = [f"pub const {struct_def.name} = struct {{"]
+    emit_container_fields(lines, struct_def.items, derived_fields, structs, request_lists_are_bytes=False)
     lines.append("")
     lines.extend(emit_plain_struct_encode(struct_def, structs))
     lines.append("")
     lines.extend(emit_plain_struct_decode(struct_def, structs))
+    if dynamic:
+        lines.append("")
+        lines.extend(emit_plain_struct_deinit(struct_def, structs))
     lines.append("};")
     return lines
+
+
+def struct_is_dynamic(struct_def: StructDef) -> bool:
+    return any(isinstance(item, ListField) for item in struct_def.items)
+
+
+def emit_scalar_write(expr: str, zig_type: str, size: int) -> list[str]:
+    if zig_type == "bool":
+        return [f"        try writer.writeByte(@intFromBool({expr}));"]
+    if size == 1:
+        return [f"        try writer.writeByte({expr});"]
+    if size == 2:
+        return [f"        try writer.writeInt(u16, {expr}, .little);"]
+    if size == 4:
+        return [f"        try writer.writeInt(u32, {expr}, .little);"]
+    raise AssertionError((expr, zig_type, size))
+
+
+def derived_field_value_expr(
+    item: Field,
+    list_item: ListField,
+    structs: dict[str, StructDef],
+    *,
+    self_prefix: str,
+) -> list[str]:
+    if is_struct_list(list_item, structs):
+        count_expr = f"{self_prefix}{zig_name(list_item.name)}.len"
+        return [], f"@intCast({count_expr})"
+    byte_len_expr = list_field_len_expr(list_item, structs, self_prefix=self_prefix)
+    divisor = scalar_list_elem_size(list_item)
+    if divisor != 1:
+        return [
+            f"        std.debug.assert({byte_len_expr} % {divisor} == 0);",
+        ], f"@intCast(@divExact({byte_len_expr}, {divisor}))"
+    return [], f"@intCast({byte_len_expr})"
+
+
+def emit_field_encode(
+    item: Field,
+    derived_fields: dict[str, ListField],
+    structs: dict[str, StructDef],
+    *,
+    self_prefix: str,
+) -> list[str]:
+    if item.name in derived_fields:
+        extra_lines, value_expr = derived_field_value_expr(item, derived_fields[item.name], structs, self_prefix=self_prefix)
+        return extra_lines + emit_scalar_write(value_expr, item.zig_type, item.size)
+    return emit_scalar_write(f"{self_prefix}{zig_name(item.name)}", item.zig_type, item.size)
 
 
 def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
@@ -356,9 +420,9 @@ def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef
         elif isinstance(item, PadAlign):
             prev = previous_list(struct_def.items, item)
             assert prev is not None
-            byte_len_terms.append(f"wire.pad4({list_field_len_expr(prev, structs)})")
+            byte_len_terms.append(f"wire.pad4({list_field_len_expr(prev, structs, self_prefix='self.')})")
         elif isinstance(item, ListField):
-            byte_len_terms.append(list_field_len_expr(item, structs))
+            byte_len_terms.append(list_field_len_expr(item, structs, self_prefix="self."))
     lines = [
         "    pub fn byteLen(self: @This()) usize {",
     ]
@@ -371,42 +435,13 @@ def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef
     derived_fields = derived_length_fields(struct_def.items)
     for item in struct_def.items:
         if isinstance(item, Field):
-            field_name = zig_name(item.name)
-            if item.name in derived_fields:
-                list_item = derived_fields[item.name]
-                assert list_item.length_expr is not None
-                if list_is_view(list_item, structs):
-                    count_expr = f"self.{zig_name(list_item.name)}.count"
-                    value_expr = f"@intCast({count_expr})"
-                else:
-                    byte_len_expr = list_field_len_expr(list_item, structs)
-                    divisor = scalar_list_elem_size(list_item)
-                    if divisor != 1:
-                        lines.append(f"        std.debug.assert({byte_len_expr} % {divisor} == 0);")
-                        value_expr = f"@intCast(@divExact({byte_len_expr}, {divisor}))"
-                    else:
-                        value_expr = f"@intCast({byte_len_expr})"
-                if item.size == 1:
-                    lines.append(f"        try writer.writeByte({value_expr});")
-                elif item.size == 2:
-                    lines.append(f"        try writer.writeInt(u16, {value_expr}, .little);")
-                elif item.size == 4:
-                    lines.append(f"        try writer.writeInt(u32, {value_expr}, .little);")
-                continue
-            if item.zig_type == "bool":
-                lines.append(f"        try writer.writeByte(@intFromBool(self.{field_name}));")
-            elif item.size == 1:
-                lines.append(f"        try writer.writeByte(self.{field_name});")
-            elif item.size == 2:
-                lines.append(f"        try writer.writeInt(u16, self.{field_name}, .little);")
-            elif item.size == 4:
-                lines.append(f"        try writer.writeInt(u32, self.{field_name}, .little);")
+            lines.extend(emit_field_encode(item, derived_fields, structs, self_prefix="self."))
         elif isinstance(item, PadBytes):
             lines.append(f"        try writer.splatByteAll(0, {item.bytes});")
         elif isinstance(item, PadAlign):
             prev = previous_list(struct_def.items, item)
             assert prev is not None
-            lines.append(f"        try writer.splatByteAll(0, wire.pad4({list_field_len_expr(prev, structs)}));")
+            lines.append(f"        try writer.splatByteAll(0, wire.pad4({list_field_len_expr(prev, structs, self_prefix='self.')}));")
         elif isinstance(item, ListField):
             if (
                 item.length_expr is not None
@@ -414,54 +449,68 @@ def emit_plain_struct_encode(struct_def: StructDef, structs: dict[str, StructDef
                 and simple_fieldref_name(item.length_expr.expr) not in derived_fields
             ):
                 lines.append(
-                    f"        std.debug.assert({list_field_len_expr(item, structs)} == {scalar_list_byte_len_expr(item, 'self.')});"
+                    f"        std.debug.assert({list_field_len_expr(item, structs, self_prefix='self.')} == {scalar_list_byte_len_expr(item, 'self.')});"
                 )
-            lines.append(f"        try writer.writeAll({list_field_bytes_expr(item, structs)});")
+            lines.extend(emit_encode_list(item, structs))
     lines.append("    }")
     return lines
 
 
+def emit_decode_item(
+    item: Item,
+    derived_fields: dict[str, ListField],
+    structs: dict[str, StructDef],
+) -> tuple[list[str], list[str]]:
+    if isinstance(item, Field):
+        field_name = zig_name(item.name)
+        lines = [f"        const {field_name} = {decode_field_expr(item)};"]
+        result_lines = [] if item.name in derived_fields else [f"            .{field_name} = {field_name},"]
+        return lines, result_lines
+    if isinstance(item, PadBytes):
+        return [f"        _ = try reader.take({item.bytes});"], []
+    assert isinstance(item, ListField)
+    lines = emit_decode_list(item, structs)
+    return lines, [f"            .{zig_name(item.name)} = {zig_name(item.name)},"]
+
+
 def emit_plain_struct_decode(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+    dynamic = struct_is_dynamic(struct_def)
     derived_fields = derived_length_fields(struct_def.items)
     locals_lines: list[str] = []
     result_lines: list[str] = []
-    count_sizes: dict[str, int] = {}
     for item in struct_def.items:
-        if isinstance(item, Field):
-            value_expr = decode_field_expr(item)
-            locals_lines.append(f"        const {zig_name(item.name)} = {value_expr};")
-            if item.name not in derived_fields:
-                result_lines.append(f"            .{zig_name(item.name)} = {zig_name(item.name)},")
-            if item.name.endswith("_len"):
-                count_sizes[item.name] = item.size
-        elif isinstance(item, PadBytes):
-            locals_lines.append(f"        _ = try reader.take({item.bytes});")
-        elif isinstance(item, PadAlign):
+        if isinstance(item, PadAlign):
             prev = previous_list(struct_def.items, item)
             assert prev is not None
             locals_lines.append(f"        _ = try reader.take(wire.pad4({decoded_list_len_expr(prev, structs)}));")
-        elif isinstance(item, ListField):
-            if list_is_view(item, structs):
-                locals_lines.append(
-                    f"        const {zig_name(item.name)} = try wire.take_struct_view({item.x_type}, reader, {view_count_expr(item)});"
-                )
-            else:
-                if item.is_last and item.elem_size is None:
-                    locals_lines.append(f"        const {zig_name(item.name)} = reader.buffered();")
-                    locals_lines.append(f"        _ = try reader.take({zig_name(item.name)}.len);")
-                else:
-                    byte_len_expr = scalar_list_byte_len_expr(item)
-                    locals_lines.append(f"        const {zig_name(item.name)} = try reader.take({byte_len_expr});")
-            result_lines.append(
-                f"            .{zig_name(item.name)} = {decoded_list_value_expr(item, structs)},"
-            )
+            continue
+        item_locals, item_results = emit_decode_item(item, derived_fields, structs)
+        locals_lines.extend(item_locals)
+        result_lines.extend(item_results)
     lines = [
-        "    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {",
+        f"    pub fn decode({ 'allocator: std.mem.Allocator, ' if dynamic else '' }reader: *std.Io.Reader) wire.Error!@This() {{",
     ]
     lines.extend(locals_lines)
     lines.append("        return .{")
     lines.extend(result_lines)
     lines.append("        };")
+    lines.append("    }")
+    return lines
+
+
+def emit_plain_struct_deinit(struct_def: StructDef, structs: dict[str, StructDef]) -> list[str]:
+    lines = [
+        "    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {",
+    ]
+    for item in struct_def.items:
+        if isinstance(item, ListField):
+            field_name = zig_name(item.name)
+            if is_struct_list(item, structs):
+                if struct_is_dynamic(structs[item.x_type]):
+                    lines.append(f"        for (self.{field_name}) |*elem| elem.deinit(allocator);")
+                lines.append(f"        allocator.free(self.{field_name});")
+            else:
+                lines.append(f"        allocator.free(self.{field_name});")
     lines.append("    }")
     return lines
 
@@ -485,51 +534,73 @@ def derived_length_fields(items: list[Item]) -> dict[str, ListField]:
                 derived[field_name] = item
     return derived
 
-def list_is_view(item: ListField, structs: dict[str, StructDef]) -> bool:
-    return is_struct_list(item, structs)
-
-
 def is_struct_list(item: ListField, structs: dict[str, StructDef]) -> bool:
     return item.x_type in structs
 
 
 def list_field_zig_type(item: ListField, structs: dict[str, StructDef]) -> str:
-    if list_is_view(item, structs):
-        return f"{item.x_type}.View"
+    if is_struct_list(item, structs):
+        return f"[]{item.x_type}"
     return "[]const u8"
 
 
-def list_field_len_expr(item: ListField, structs: dict[str, StructDef]) -> str:
-    if list_is_view(item, structs):
-        return f"self.{zig_name(item.name)}.bytes.len"
-    return f"self.{zig_name(item.name)}.len"
-
-
-def list_field_bytes_expr(item: ListField, structs: dict[str, StructDef]) -> str:
-    if list_is_view(item, structs):
-        return f"self.{zig_name(item.name)}.bytes"
-    return f"self.{zig_name(item.name)}"
+def list_field_len_expr(item: ListField, structs: dict[str, StructDef], *, self_prefix: str) -> str:
+    if is_struct_list(item, structs):
+        return f"wire.structListByteLen({self_prefix}{zig_name(item.name)})"
+    return f"{self_prefix}{zig_name(item.name)}.len"
 
 
 def decoded_list_len_expr(item: ListField, structs: dict[str, StructDef]) -> str:
-    if list_is_view(item, structs):
-        return f"{zig_name(item.name)}.bytes.len"
+    if is_struct_list(item, structs):
+        return f"wire.structListByteLen({zig_name(item.name)})"
     return f"{zig_name(item.name)}.len"
-
-
-def decoded_list_value_expr(item: ListField, structs: dict[str, StructDef]) -> str:
-    if list_is_view(item, structs):
-        return zig_name(item.name)
-    return zig_name(item.name)
-
-
-def view_count_expr(item: ListField) -> str:
+def struct_list_count_expr(item: ListField) -> str:
     if item.length_expr is None:
-        raise ValueError(f"struct view without count expression: {item.name}")
+        raise ValueError(f"struct list without count expression: {item.name}")
     field_name = simple_fieldref_name(item.length_expr.expr)
     if field_name is None:
-        raise ValueError(f"struct view count must be direct fieldref: {item.name}")
+        raise ValueError(f"struct list count must be direct fieldref: {item.name}")
     return f"@as(usize, {zig_name(field_name)})"
+
+
+def emit_encode_list(item: ListField, structs: dict[str, StructDef]) -> list[str]:
+    field_name = zig_name(item.name)
+    if is_struct_list(item, structs):
+        return [f"        for (self.{field_name}) |elem| try elem.encode(writer);"]
+    return [f"        try writer.writeAll(self.{field_name});"]
+
+
+def emit_decode_list(item: ListField, structs: dict[str, StructDef]) -> list[str]:
+    field_name = zig_name(item.name)
+    if is_struct_list(item, structs):
+        count_expr = struct_list_count_expr(item)
+        elem_type = item.x_type
+        elem_struct_dynamic = struct_is_dynamic(structs[elem_type])
+        lines = [
+            f"        const {field_name} = try allocator.alloc({elem_type}, {count_expr});",
+            f"        errdefer allocator.free({field_name});",
+            f"        var {field_name}_decoded: usize = 0;",
+        ]
+        if elem_struct_dynamic:
+            lines.append(f"        errdefer for ({field_name}[0..{field_name}_decoded]) |*elem| elem.deinit(allocator);")
+        lines.extend([
+            f"        for ({field_name}) |*elem| {{",
+            f"            elem.* = try {elem_type}.decode({'allocator, ' if elem_struct_dynamic else ''}reader);",
+            f"            {field_name}_decoded += 1;",
+            "        }",
+        ])
+        return lines
+    if item.is_last and item.elem_size is None:
+        return [
+            f"        const {field_name}_wire = reader.buffered();",
+            f"        const {field_name} = try allocator.dupe(u8, {field_name}_wire);",
+            f"        _ = try reader.take({field_name}_wire.len);",
+        ]
+    byte_len_expr = scalar_list_byte_len_expr(item)
+    return [
+        f"        const {field_name}_wire = try reader.take({byte_len_expr});",
+        f"        const {field_name} = try allocator.dupe(u8, {field_name}_wire);",
+    ]
 
 
 def scalar_list_byte_len_expr(item: ListField, prefix: str = "") -> str:
@@ -582,14 +653,12 @@ def emit_request_module(request: RequestDef) -> list[str]:
     derived_fields = derived_length_fields(request.body)
     lines = [f"pub const {request.name}Request = struct {{"]
     lines.append(f"    pub const opcode: u8 = {request.opcode};")
+    if request.reply_items is not None:
+        lines.append(f"    pub const Reply = {request.name}Reply;")
     lines.append("")
     if request.header_field is not None:
         lines.append(f"    {zig_name(request.header_field.name)}: {request.header_field.zig_type},")
-    for item in request.body:
-        if isinstance(item, Field) and item.name not in derived_fields:
-            lines.append(f"    {zig_name(item.name)}: {item.zig_type},")
-        elif isinstance(item, ListField):
-            lines.append(f"    {zig_name(item.name)}: []const u8,")
+    emit_container_fields(lines, request.body, derived_fields, {}, request_lists_are_bytes=True)
     lines.append("")
     lines.extend(emit_request_encode(request))
     lines.append("};")
@@ -622,49 +691,22 @@ def emit_request_encode(request: RequestDef) -> list[str]:
     if not uses_self:
         lines.append("        _ = self;")
     raw_len = f"4 + {' + '.join(body_terms) if body_terms else '0'}"
-    lines.append(f"        const raw_len = {raw_len};")
-    lines.append("        return raw_len + wire.pad4(raw_len);")
+    lines.append(f"        return {raw_len};")
     lines.append("    }")
     lines.append("")
     lines.append("    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {")
     derived_fields = derived_length_fields(request.body)
-    lines.append(f"        const raw_len = {raw_len};")
+    lines.append("        const len = self.byteLen();")
+    lines.append("        const pad = wire.pad4(len);")
     lines.append("        try writer.writeByte(opcode);")
     if request.header_field is None:
         lines.append("        try writer.writeByte(0);")
-    elif request.header_field.zig_type == "bool":
-        lines.append(f"        try writer.writeByte(@intFromBool(self.{zig_name(request.header_field.name)}));")
     else:
-        lines.append(f"        try writer.writeByte(self.{zig_name(request.header_field.name)});")
-    lines.append("        try writer.writeInt(u16, @intCast(self.byteLen() / 4), .little);")
+        lines.extend(emit_scalar_write(f"self.{zig_name(request.header_field.name)}", request.header_field.zig_type, request.header_field.size))
+    lines.append("        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);")
     for item in request.body:
         if isinstance(item, Field):
-            field_name = zig_name(item.name)
-            if item.name in derived_fields:
-                list_item = derived_fields[item.name]
-                assert list_item.length_expr is not None
-                byte_len_expr = f"self.{zig_name(list_item.name)}.len"
-                divisor = list_item.elem_size or 1
-                if divisor != 1:
-                    lines.append(f"        std.debug.assert({byte_len_expr} % {divisor} == 0);")
-                    value_expr = f"@intCast(@divExact({byte_len_expr}, {divisor}))"
-                else:
-                    value_expr = f"@intCast({byte_len_expr})"
-                if item.size == 1:
-                    lines.append(f"        try writer.writeByte({value_expr});")
-                elif item.size == 2:
-                    lines.append(f"        try writer.writeInt(u16, {value_expr}, .little);")
-                elif item.size == 4:
-                    lines.append(f"        try writer.writeInt(u32, {value_expr}, .little);")
-                continue
-            if item.zig_type == "bool":
-                lines.append(f"        try writer.writeByte(@intFromBool(self.{field_name}));")
-            elif item.size == 1:
-                lines.append(f"        try writer.writeByte(self.{field_name});")
-            elif item.size == 2:
-                lines.append(f"        try writer.writeInt(u16, self.{field_name}, .little);")
-            elif item.size == 4:
-                lines.append(f"        try writer.writeInt(u32, self.{field_name}, .little);")
+            lines.extend(emit_field_encode(item, derived_fields, {}, self_prefix="self."))
         elif isinstance(item, PadBytes):
             lines.append(f"        try writer.splatByteAll(0, {item.bytes});")
         elif isinstance(item, PadAlign):
@@ -678,10 +720,10 @@ def emit_request_encode(request: RequestDef) -> list[str]:
                 and simple_fieldref_name(item.length_expr.expr) not in derived_fields
             ):
                 lines.append(
-                    f"        std.debug.assert(self.{zig_name(item.name)}.len == {list_byte_len_expr(item, 'self.')});"
+                    f"        std.debug.assert(self.{zig_name(item.name)}.len == {scalar_list_byte_len_expr(item, 'self.')});"
                 )
             lines.append(f"        try writer.writeAll(self.{zig_name(item.name)});")
-    lines.append("        try writer.splatByteAll(0, wire.pad4(raw_len));")
+    lines.append("        try writer.splatByteAll(0, pad);")
     lines.append("    }")
     return lines
 

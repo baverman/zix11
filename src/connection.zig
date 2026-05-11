@@ -1,5 +1,5 @@
 const std = @import("std");
-const gen = @import("gen/xproto.zig");
+const xproto = @import("xproto.zig");
 
 const AuthName = "MIT-MAGIC-COOKIE-1";
 const FamilyInternet: u16 = 0;
@@ -100,16 +100,45 @@ pub const Connection = struct {
         return try self.reader().take(packet_len);
     }
 
-    pub fn send(self: *Connection, request: anytype) !u16 {
+    pub fn send(self: *Connection, request_value: anytype) !u16 {
         const sequence = self.sequence;
         self.sequence +%= 1;
-        try request.encode(self.writer());
+        try request_value.encode(self.writer());
         try self.writer().flush();
         return sequence;
     }
 
+    pub fn request(self: *Connection, request_value: anytype) !@TypeOf(request_value).Reply {
+        _ = try self.send(request_value);
+        const packet = try self.readReplyPacket();
+        var packet_reader: std.Io.Reader = .fixed(packet);
+        return try @TypeOf(request_value).Reply.decode(&packet_reader);
+    }
+
+    pub fn requestAlloc(
+        self: *Connection,
+        allocator: std.mem.Allocator,
+        request_value: anytype,
+    ) !@TypeOf(request_value).Reply {
+        _ = try self.send(request_value);
+        const packet = try self.readReplyPacket();
+        var packet_reader: std.Io.Reader = .fixed(packet);
+        return try @TypeOf(request_value).Reply.decode(allocator, &packet_reader);
+    }
+
+    pub fn requestBuf(
+        self: *Connection,
+        request_value: anytype,
+        scratch: []u8,
+    ) !@TypeOf(request_value).Reply {
+        _ = try self.send(request_value);
+        const packet = try self.readReplyPacket();
+        var packet_reader: std.Io.Reader = .fixed(packet);
+        return try @TypeOf(request_value).Reply.decode(&packet_reader, scratch);
+    }
+
     fn sendSetup(self: *Connection, cookie: []const u8) !void {
-        try (gen.SetupRequest{
+        try (xproto.SetupRequest{
             .byte_order = 'l',
             .protocol_major_version = 11,
             .protocol_minor_version = 0,
@@ -125,17 +154,20 @@ pub const Connection = struct {
         var packet_reader: std.Io.Reader = .fixed(packet);
         switch (status) {
             1 => {
-                const setup = try gen.Setup.decode(&packet_reader);
-                var roots = setup.roots.iterator();
-                const screen = (try roots.next()) orelse return error.MalformedPacket;
+                var setup = try xproto.Setup.decode(self.allocator, &packet_reader);
+                defer setup.deinit(self.allocator);
+                if (setup.roots.len == 0) return error.MalformedPacket;
+                const screen = setup.roots[0];
                 self.root_window = screen.root;
             },
             0 => {
-                _ = try gen.SetupFailed.decode(&packet_reader);
+                var failed = try xproto.SetupFailed.decode(self.allocator, &packet_reader);
+                defer failed.deinit(self.allocator);
                 return error.X11SetupFailed;
             },
             2 => {
-                _ = try gen.SetupAuthenticate.decode(&packet_reader);
+                var auth = try xproto.SetupAuthenticate.decode(self.allocator, &packet_reader);
+                defer auth.deinit(self.allocator);
                 return error.X11SetupAuthenticate;
             },
             else => return error.X11SetupUnknown,
