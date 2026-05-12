@@ -13,16 +13,16 @@ pub fn getProperty(
     comptime T: type,
     scratch: []align(@alignOf(T)) u8,
 ) ![]const T {
-    const reply = try conn.requestBuf(xproto.GetPropertyRequest{
-        .delete_value = false,
+    const reply = try conn.requestBuf(scratch, xproto.GetProperty, .{
+        .delete = false,
         .window = window,
         .property = property,
-        .type_atom = expected_type,
+        .type = expected_type,
         .long_offset = 0,
         .long_length = @intCast(scratch.len / 4),
-    }, scratch);
+    });
 
-    if (reply.type_atom != expected_type) return error.UnexpectedType;
+    if (reply.type != expected_type) return error.UnexpectedType;
     if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
     if (reply.bytes_after != 0) return error.PropertyTruncated;
 
@@ -51,7 +51,7 @@ fn propertyFormat(comptime T: type) u8 {
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    try (xproto.InternAtomRequest{
+    try (xproto.InternAtom{
         .only_if_exists = true,
         .name = "WM_NAME",
     }).encode(&writer);
@@ -87,14 +87,14 @@ test "SetupRequest encoding" {
 
 test "GetProperty reply decode copies into caller scratch" {
     const packet = [_]u8{
-        1, 32, 0, 0,
-        2, 0, 0, 0,
-        57, 0, 0, 0,
-        0, 0, 0, 0,
-        2, 0, 0, 0,
-        0, 0, 0, 0,
-        0, 0, 0, 0,
-        0, 0, 0, 0,
+        1,    32,   0,    0,
+        2,    0,    0,    0,
+        57,   0,    0,    0,
+        0,    0,    0,    0,
+        2,    0,    0,    0,
+        0,    0,    0,    0,
+        0,    0,    0,    0,
+        0,    0,    0,    0,
         0xaa, 0xbb, 0xcc, 0xdd,
         0x11, 0x22, 0x33, 0x44,
     };
@@ -103,7 +103,7 @@ test "GetProperty reply decode copies into caller scratch" {
     const reply = try xproto.GetPropertyReply.decode(&reader, &scratch);
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
-    try std.testing.expectEqual(@as(xproto.Atom, @enumFromInt(57)), reply.type_atom);
+    try std.testing.expectEqual(@as(xproto.Atom, @enumFromInt(57)), reply.type);
     try std.testing.expectEqual(@as(u32, 2), reply.value_len);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 }, reply.value);
 }

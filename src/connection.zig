@@ -18,12 +18,18 @@ const DisplaySpec = struct {
 };
 
 pub const ProtocolError = struct {
-    code: u8,
+    code: xproto.Error,
     sequence: u16,
     bad_value: u32,
     minor_opcode: u16,
     major_opcode: u8,
-    raw: [32]u8,
+    tail: [20]u8,
+};
+
+pub const ReplyMode = enum {
+    fixed,
+    alloc,
+    buffer,
 };
 
 pub const Connection = struct {
@@ -146,14 +152,14 @@ pub const Connection = struct {
         return sequence;
     }
 
-    pub fn request(self: *Connection, request_value: anytype) !@TypeOf(request_value).Reply {
-        const Reply = @TypeOf(request_value).Reply;
+    pub fn _request(self: *Connection, comptime Request: type, req: Request, comptime reply_mode: ReplyMode, storage: anytype) !Request.Reply {
+        const Reply = Request.Reply;
         if (Reply == void) {
-            const request_sequence = try self.send(request_value);
+            const request_sequence = try self.send(req);
             try self.sync(request_sequence);
             return;
         }
-        _ = try self.send(request_value);
+        _ = try self.send(req);
         while (true) {
             const packet = try self.readReplyPacket();
             switch (packet[0]) {
@@ -163,59 +169,36 @@ pub const Connection = struct {
                 },
                 1 => {
                     var packet_reader: std.Io.Reader = .fixed(packet);
-                    return try Reply.decode(&packet_reader);
+                    return switch (reply_mode) {
+                        .fixed => try Reply.decode(&packet_reader),
+                        .alloc => try Reply.decode(storage, &packet_reader),
+                        .buffer => try Reply.decode(storage, &packet_reader),
+                    };
                 },
                 else => try self.queueEventPacket(packet),
             }
         }
     }
 
-    pub fn requestAlloc(
-        self: *Connection,
-        allocator: std.mem.Allocator,
-        request_value: anytype,
-    ) !@TypeOf(request_value).Reply {
-        _ = try self.send(request_value);
-        while (true) {
-            const packet = try self.readReplyPacket();
-            switch (packet[0]) {
-                0 => {
-                    self.last_protocol_error = parseProtocolError(packet);
-                    return error.X11ProtocolError;
-                },
-                1 => {
-                    var packet_reader: std.Io.Reader = .fixed(packet);
-                    return try @TypeOf(request_value).Reply.decode(allocator, &packet_reader);
-                },
-                else => try self.queueEventPacket(packet),
-            }
-        }
+    pub fn request(self: *Connection, comptime Request: type, req: Request) !Request.Reply {
+        return self._request(Request, req, .fixed, {});
     }
 
-    pub fn requestBuf(
-        self: *Connection,
-        request_value: anytype,
-        scratch: []u8,
-    ) !@TypeOf(request_value).Reply {
-        _ = try self.send(request_value);
-        while (true) {
-            const packet = try self.readReplyPacket();
-            switch (packet[0]) {
-                0 => {
-                    self.last_protocol_error = parseProtocolError(packet);
-                    return error.X11ProtocolError;
-                },
-                1 => {
-                    var packet_reader: std.Io.Reader = .fixed(packet);
-                    return try @TypeOf(request_value).Reply.decode(&packet_reader, scratch);
-                },
-                else => try self.queueEventPacket(packet),
-            }
-        }
+    pub fn requestAlloc(self: *Connection, allocator: std.mem.Allocator, comptime Request: type, req: Request) !Request.Reply {
+        return self._request(Request, req, .alloc, allocator);
+    }
+
+    pub fn requestBuf(self: *Connection, buffer: []u8, comptime Request: type, req: Request) !Request.Reply {
+        return self._request(Request, req, .buffer, buffer);
+    }
+
+    pub fn lastError(self: *const Connection) ProtocolError {
+        return self.last_protocol_error orelse unreachable;
     }
 
     pub fn sync(self: *Connection, request_sequence: u16) !void {
-        const sync_sequence = try self.send(xproto.GetInputFocusRequest{});
+        const sync_sequence = try self.send(xproto.GetInputFocus{});
+        var request_failed = false;
         while (true) {
             const packet = try self.readReplyPacket();
             switch (packet[0]) {
@@ -223,7 +206,8 @@ pub const Connection = struct {
                     const protocol_error = parseProtocolError(packet);
                     self.last_protocol_error = protocol_error;
                     if (protocol_error.sequence == request_sequence) {
-                        return error.X11ProtocolError;
+                        request_failed = true;
+                        continue;
                     }
                     return error.UnexpectedProtocolError;
                 },
@@ -234,6 +218,9 @@ pub const Connection = struct {
                     _ = reply;
                     if (reply_sequence != sync_sequence) {
                         return error.UnexpectedReply;
+                    }
+                    if (request_failed) {
+                        return error.X11ProtocolError;
                     }
                     return;
                 },
@@ -421,14 +408,14 @@ fn lowestSetBit(mask: u32) u32 {
 }
 
 fn parseProtocolError(packet: []const u8) ProtocolError {
-    var raw: [32]u8 = undefined;
-    @memcpy(raw[0..], packet[0..32]);
+    var tail: [20]u8 = undefined;
+    @memcpy(tail[0..], packet[12..32]);
     return .{
-        .code = packet[1],
+        .code = @enumFromInt(packet[1]),
         .sequence = std.mem.readInt(u16, packet[2..4], .little),
         .bad_value = std.mem.readInt(u32, packet[4..8], .little),
         .minor_opcode = std.mem.readInt(u16, packet[8..10], .little),
         .major_opcode = packet[10],
-        .raw = raw,
+        .tail = tail,
     };
 }
