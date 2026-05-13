@@ -3,9 +3,6 @@
 const std = @import("std");
 const wire = @import("wire.zig");
 
-// selected requests: CreateWindow, GetInputFocus, GetProperty, InternAtom, MapWindow
-// selected structs: DEPTH, FORMAT, SCREEN, Setup, SetupAuthenticate, SetupFailed, SetupRequest, VISUALTYPE
-
 pub const Atom = enum(u32) { _ };
 
 pub const Colormap = enum(u32) { _ };
@@ -654,6 +651,152 @@ pub const WindowClass = enum(u32) {
     _,
 };
 
+pub const ARC = struct {
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    angle1: i16,
+    angle2: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(i16, self.angle1, .little);
+        try writer.writeInt(i16, self.angle2, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        const angle1 = try reader.takeInt(i16, .little);
+        const angle2 = try reader.takeInt(i16, .little);
+        return .{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .angle1 = angle1,
+            .angle2 = angle2,
+        };
+    }
+
+};
+
+pub const CHAR2B = struct {
+    byte1: u8,
+    byte2: u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.byte1);
+        try writer.writeByte(self.byte2);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const byte1 = try reader.takeByte();
+        const byte2 = try reader.takeByte();
+        return .{
+            .byte1 = byte1,
+            .byte2 = byte2,
+        };
+    }
+
+};
+
+pub const CHARINFO = struct {
+    left_side_bearing: i16,
+    right_side_bearing: i16,
+    character_width: i16,
+    ascent: i16,
+    descent: i16,
+    attributes: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.left_side_bearing, .little);
+        try writer.writeInt(i16, self.right_side_bearing, .little);
+        try writer.writeInt(i16, self.character_width, .little);
+        try writer.writeInt(i16, self.ascent, .little);
+        try writer.writeInt(i16, self.descent, .little);
+        try writer.writeInt(u16, self.attributes, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const left_side_bearing = try reader.takeInt(i16, .little);
+        const right_side_bearing = try reader.takeInt(i16, .little);
+        const character_width = try reader.takeInt(i16, .little);
+        const ascent = try reader.takeInt(i16, .little);
+        const descent = try reader.takeInt(i16, .little);
+        const attributes = try reader.takeInt(u16, .little);
+        return .{
+            .left_side_bearing = left_side_bearing,
+            .right_side_bearing = right_side_bearing,
+            .character_width = character_width,
+            .ascent = ascent,
+            .descent = descent,
+            .attributes = attributes,
+        };
+    }
+
+};
+
+pub const COLORITEM = struct {
+    pixel: u32,
+    red: u16,
+    green: u16,
+    blue: u16,
+    flags: u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 2 + 2 + 2 + 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(u32, self.pixel, .little);
+        try writer.writeInt(u16, self.red, .little);
+        try writer.writeInt(u16, self.green, .little);
+        try writer.writeInt(u16, self.blue, .little);
+        try writer.writeByte(self.flags);
+        try writer.splatByteAll(0, 1);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const pixel = try reader.takeInt(u32, .little);
+        const red = try reader.takeInt(u16, .little);
+        const green = try reader.takeInt(u16, .little);
+        const blue = try reader.takeInt(u16, .little);
+        const flags = try reader.takeByte();
+        _ = try reader.take(1);
+        return .{
+            .pixel = pixel,
+            .red = red,
+            .green = green,
+            .blue = blue,
+            .flags = flags,
+        };
+    }
+
+};
+
 pub const DEPTH = struct {
     depth: u8,
     visuals: []VISUALTYPE,
@@ -694,6 +837,32 @@ pub const DEPTH = struct {
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.visuals);
     }
+
+};
+
+pub const FONTPROP = struct {
+    name: Atom,
+    value: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(u32, @intFromEnum(self.name), .little);
+        try writer.writeInt(u32, self.value, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const name = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
+        const value = try reader.takeInt(u32, .little);
+        return .{
+            .name = name,
+            .value = value,
+        };
+    }
+
 };
 
 pub const FORMAT = struct {
@@ -724,6 +893,132 @@ pub const FORMAT = struct {
             .scanline_pad = scanline_pad,
         };
     }
+
+};
+
+pub const HOST = struct {
+    family: Family,
+    address: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 1 + 2 + self.address.len + wire.pad4(self.address.len);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.family)));
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.address.len), .little);
+        try writer.writeAll(self.address);
+        try writer.splatByteAll(0, wire.pad4(self.address.len));
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        const family = @as(Family, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.take(1);
+        const address_len = try reader.takeInt(u16, .little);
+        const address_byte_len = @as(usize, address_len);
+        const address_temp = try reader.take(address_byte_len);
+        const address = try allocator.dupe(u8, address_temp);
+        _ = try reader.take(wire.pad4(address.len));
+        return .{
+            .family = family,
+            .address = address,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.address);
+    }
+
+};
+
+pub const POINT = struct {
+    x: i16,
+    y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        return .{
+            .x = x,
+            .y = y,
+        };
+    }
+
+};
+
+pub const RECTANGLE = struct {
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        return .{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+        };
+    }
+
+};
+
+pub const RGB = struct {
+    red: u16,
+    green: u16,
+    blue: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(u16, self.red, .little);
+        try writer.writeInt(u16, self.green, .little);
+        try writer.writeInt(u16, self.blue, .little);
+        try writer.splatByteAll(0, 2);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const red = try reader.takeInt(u16, .little);
+        const green = try reader.takeInt(u16, .little);
+        const blue = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        return .{
+            .red = red,
+            .green = green,
+            .blue = blue,
+        };
+    }
+
 };
 
 pub const SCREEN = struct {
@@ -820,6 +1115,68 @@ pub const SCREEN = struct {
         for (self.allowed_depths) |*elem| elem.deinit(allocator);
         allocator.free(self.allowed_depths);
     }
+
+};
+
+pub const SEGMENT = struct {
+    x1: i16,
+    y1: i16,
+    x2: i16,
+    y2: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(i16, self.x1, .little);
+        try writer.writeInt(i16, self.y1, .little);
+        try writer.writeInt(i16, self.x2, .little);
+        try writer.writeInt(i16, self.y2, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const x1 = try reader.takeInt(i16, .little);
+        const y1 = try reader.takeInt(i16, .little);
+        const x2 = try reader.takeInt(i16, .little);
+        const y2 = try reader.takeInt(i16, .little);
+        return .{
+            .x1 = x1,
+            .y1 = y1,
+            .x2 = x2,
+            .y2 = y2,
+        };
+    }
+
+};
+
+pub const STR = struct {
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(self.name.len));
+        try writer.writeAll(self.name);
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        const name_len = try reader.takeByte();
+        const name_byte_len = @as(usize, name_len);
+        const name_temp = try reader.take(name_byte_len);
+        const name = try allocator.dupe(u8, name_temp);
+        return .{
+            .name = name,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+    }
+
 };
 
 pub const Setup = struct {
@@ -947,6 +1304,7 @@ pub const Setup = struct {
         for (self.roots) |*elem| elem.deinit(allocator);
         allocator.free(self.roots);
     }
+
 };
 
 pub const SetupAuthenticate = struct {
@@ -982,6 +1340,7 @@ pub const SetupAuthenticate = struct {
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.reason);
     }
+
 };
 
 pub const SetupFailed = struct {
@@ -1025,6 +1384,7 @@ pub const SetupFailed = struct {
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.reason);
     }
+
 };
 
 pub const SetupRequest = struct {
@@ -1081,6 +1441,36 @@ pub const SetupRequest = struct {
         allocator.free(self.authorization_protocol_name);
         allocator.free(self.authorization_protocol_data);
     }
+
+};
+
+pub const TIMECOORD = struct {
+    time: u32,
+    x: i16,
+    y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        const time = try reader.takeInt(u32, .little);
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        return .{
+            .time = time,
+            .x = x,
+            .y = y,
+        };
+    }
+
 };
 
 pub const VISUALTYPE = struct {
@@ -1127,19 +1517,27 @@ pub const VISUALTYPE = struct {
             .blue_mask = blue_mask,
         };
     }
+
 };
 
-pub const InternAtomReply = struct {
-    atom: Atom,
+pub const AllocColorReply = struct {
+    red: u16,
+    green: u16,
+    blue: u16,
+    pixel: u32,
 
     pub fn byteLen(self: @This()) usize {
         _ = self;
-        return 1 + 4;
+        return 1 + 2 + 2 + 2 + 2 + 4;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
         try writer.splatByteAll(0, 1);
-        try writer.writeInt(u32, @intFromEnum(self.atom), .little);
+        try writer.writeInt(u16, self.red, .little);
+        try writer.writeInt(u16, self.green, .little);
+        try writer.writeInt(u16, self.blue, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeInt(u32, self.pixel, .little);
     }
 
     pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
@@ -1147,144 +1545,330 @@ pub const InternAtomReply = struct {
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
         _ = try reader.takeInt(u32, .little);
-        const atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
+        const red = try reader.takeInt(u16, .little);
+        const green = try reader.takeInt(u16, .little);
+        const blue = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        const pixel = try reader.takeInt(u32, .little);
         return .{
-            .atom = atom,
+            .red = red,
+            .green = green,
+            .blue = blue,
+            .pixel = pixel,
         };
     }
+
 };
 
-pub const InternAtom = struct {
-    pub const opcode: u8 = 16;
-    pub const Reply = InternAtomReply;
+pub const AllocColor = struct {
+    pub const opcode: u8 = 84;
+    pub const Reply = AllocColorReply;
 
-    only_if_exists: bool,
-    name: []const u8,
+    cmap: Colormap,
+    red: u16,
+    green: u16,
+    blue: u16,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 2 + 2 + self.name.len;
+        _ = self;
+        return 4 + 4 + 2 + 2 + 2 + 2;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
-        try writer.writeByte(@intFromBool(self.only_if_exists));
+        try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u16, self.red, .little);
+        try writer.writeInt(u16, self.green, .little);
+        try writer.writeInt(u16, self.blue, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const AllocColorCellsReply = struct {
+    pixels: []const u32,
+    masks: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 2 + 20 + self.pixels.len * 4 + self.masks.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.pixels.len), .little);
+        try writer.writeInt(u16, @intCast(self.masks.len), .little);
+        try writer.splatByteAll(0, 20);
+        for (self.pixels) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+        for (self.masks) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const pixels_len = try reader.takeInt(u16, .little);
+        const masks_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(20);
+        const pixels = try allocator.alloc(u32, @as(usize, pixels_len));
+        errdefer allocator.free(pixels);
+        var pixels_decoded: usize = 0;
+        for (pixels) |*elem| {
+            const elem_value = try reader.takeInt(u32, .little);
+            elem.* = elem_value;
+            pixels_decoded += 1;
+        }
+        const masks = try allocator.alloc(u32, @as(usize, masks_len));
+        errdefer allocator.free(masks);
+        var masks_decoded: usize = 0;
+        for (masks) |*elem| {
+            const elem_value = try reader.takeInt(u32, .little);
+            elem.* = elem_value;
+            masks_decoded += 1;
+        }
+        return .{
+            .pixels = pixels,
+            .masks = masks,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.pixels);
+        allocator.free(self.masks);
+    }
+
+};
+
+pub const AllocColorCells = struct {
+    pub const opcode: u8 = 86;
+    pub const Reply = AllocColorCellsReply;
+
+    contiguous: bool,
+    cmap: Colormap,
+    colors: u16,
+    planes: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.contiguous));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u16, self.colors, .little);
+        try writer.writeInt(u16, self.planes, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const AllocColorPlanesReply = struct {
+    red_mask: u32,
+    green_mask: u32,
+    blue_mask: u32,
+    pixels: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 2 + 4 + 4 + 4 + 8 + self.pixels.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.pixels.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeInt(u32, self.red_mask, .little);
+        try writer.writeInt(u32, self.green_mask, .little);
+        try writer.writeInt(u32, self.blue_mask, .little);
+        try writer.splatByteAll(0, 8);
+        for (self.pixels) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const pixels_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        const red_mask = try reader.takeInt(u32, .little);
+        const green_mask = try reader.takeInt(u32, .little);
+        const blue_mask = try reader.takeInt(u32, .little);
+        _ = try reader.take(8);
+        const pixels = try allocator.alloc(u32, @as(usize, pixels_len));
+        errdefer allocator.free(pixels);
+        var pixels_decoded: usize = 0;
+        for (pixels) |*elem| {
+            const elem_value = try reader.takeInt(u32, .little);
+            elem.* = elem_value;
+            pixels_decoded += 1;
+        }
+        return .{
+            .red_mask = red_mask,
+            .green_mask = green_mask,
+            .blue_mask = blue_mask,
+            .pixels = pixels,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.pixels);
+    }
+
+};
+
+pub const AllocColorPlanes = struct {
+    pub const opcode: u8 = 87;
+    pub const Reply = AllocColorPlanesReply;
+
+    contiguous: bool,
+    cmap: Colormap,
+    colors: u16,
+    reds: u16,
+    greens: u16,
+    blues: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.contiguous));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u16, self.colors, .little);
+        try writer.writeInt(u16, self.reds, .little);
+        try writer.writeInt(u16, self.greens, .little);
+        try writer.writeInt(u16, self.blues, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const AllocNamedColorReply = struct {
+    pixel: u32,
+    exact_red: u16,
+    exact_green: u16,
+    exact_blue: u16,
+    visual_red: u16,
+    visual_green: u16,
+    visual_blue: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u32, self.pixel, .little);
+        try writer.writeInt(u16, self.exact_red, .little);
+        try writer.writeInt(u16, self.exact_green, .little);
+        try writer.writeInt(u16, self.exact_blue, .little);
+        try writer.writeInt(u16, self.visual_red, .little);
+        try writer.writeInt(u16, self.visual_green, .little);
+        try writer.writeInt(u16, self.visual_blue, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const pixel = try reader.takeInt(u32, .little);
+        const exact_red = try reader.takeInt(u16, .little);
+        const exact_green = try reader.takeInt(u16, .little);
+        const exact_blue = try reader.takeInt(u16, .little);
+        const visual_red = try reader.takeInt(u16, .little);
+        const visual_green = try reader.takeInt(u16, .little);
+        const visual_blue = try reader.takeInt(u16, .little);
+        return .{
+            .pixel = pixel,
+            .exact_red = exact_red,
+            .exact_green = exact_green,
+            .exact_blue = exact_blue,
+            .visual_red = visual_red,
+            .visual_green = visual_green,
+            .visual_blue = visual_blue,
+        };
+    }
+
+};
+
+pub const AllocNamedColor = struct {
+    pub const opcode: u8 = 85;
+    pub const Reply = AllocNamedColorReply;
+
+    cmap: Colormap,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
         try writer.writeInt(u16, @intCast(self.name.len), .little);
         try writer.splatByteAll(0, 2);
         try writer.writeAll(self.name);
         try writer.splatByteAll(0, pad);
     }
+
 };
 
-pub const GetPropertyReply = struct {
-    format: u8,
-    type: Atom,
-    bytes_after: u32,
-    value_len: u32,
-    value: []const u8,
+pub const AllowEvents = struct {
+    pub const opcode: u8 = 35;
+    pub const Reply = void;
 
-    pub fn byteLen(self: @This()) usize {
-        return 1 + 4 + 4 + 4 + 12 + self.value.len;
-    }
-
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
-        try writer.writeByte(self.format);
-        try writer.writeInt(u32, @intFromEnum(self.type), .little);
-        try writer.writeInt(u32, self.bytes_after, .little);
-        try writer.writeInt(u32, self.value_len, .little);
-        try writer.splatByteAll(0, 12);
-        try writer.writeAll(self.value);
-    }
-
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
-        _ = try reader.takeByte();
-        const format = try reader.takeByte();
-        _ = try reader.takeInt(u16, .little);
-        _ = try reader.takeInt(u32, .little);
-        var scratch_used: usize = 0;
-        const @"type" = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
-        const bytes_after = try reader.takeInt(u32, .little);
-        const value_len = try reader.takeInt(u32, .little);
-        _ = try reader.take(12);
-        const value_byte_len = @as(usize, (value_len * (format / 8)));
-        const value_temp = try reader.take(value_byte_len);
-        if (scratch_used + value_byte_len > scratch.len) return error.BufferTooSmall;
-        @memcpy(scratch[scratch_used..][0..value_byte_len], value_temp);
-        const value = scratch[scratch_used..][0..value_byte_len];
-        scratch_used += value_byte_len;
-        return .{
-            .format = format,
-            .type = @"type",
-            .bytes_after = bytes_after,
-            .value_len = value_len,
-            .value = value,
-        };
-    }
-};
-
-pub const GetProperty = struct {
-    pub const opcode: u8 = 20;
-    pub const Reply = GetPropertyReply;
-
-    delete: bool,
-    window: Window,
-    property: Atom,
-    type: Atom,
-    long_offset: u32,
-    long_length: u32,
+    mode: Allow,
+    time: u32,
 
     pub fn byteLen(self: @This()) usize {
         _ = self;
-        return 4 + 4 + 4 + 4 + 4 + 4;
+        return 4 + 4;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
-        try writer.writeByte(@intFromBool(self.delete));
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
-        try writer.writeInt(u32, @intFromEnum(self.window), .little);
-        try writer.writeInt(u32, @intFromEnum(self.property), .little);
-        try writer.writeInt(u32, @intFromEnum(self.type), .little);
-        try writer.writeInt(u32, self.long_offset, .little);
-        try writer.writeInt(u32, self.long_length, .little);
+        try writer.writeInt(u32, self.time, .little);
         try writer.splatByteAll(0, pad);
     }
+
 };
 
-pub const GetInputFocusReply = struct {
-    revert_to: InputFocus,
-    focus: Window,
+pub const Bell = struct {
+    pub const opcode: u8 = 104;
+    pub const Reply = void;
 
-    pub fn byteLen(self: @This()) usize {
-        _ = self;
-        return 1 + 4;
-    }
-
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
-        try writer.writeByte(@intCast(@intFromEnum(self.revert_to)));
-        try writer.writeInt(u32, @intFromEnum(self.focus), .little);
-    }
-
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
-        _ = try reader.takeByte();
-        const revert_to = @as(InputFocus, @enumFromInt(try reader.takeInt(u8, .little)));
-        _ = try reader.takeInt(u16, .little);
-        _ = try reader.takeInt(u32, .little);
-        const focus = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
-        return .{
-            .revert_to = revert_to,
-            .focus = focus,
-        };
-    }
-};
-
-pub const GetInputFocus = struct {
-    pub const opcode: u8 = 43;
-    pub const Reply = GetInputFocusReply;
+    percent: i8,
 
     pub fn byteLen(self: @This()) usize {
         _ = self;
@@ -1295,10 +1879,889 @@ pub const GetInputFocus = struct {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
-        try writer.splatByteAll(0, 1);
+        try writer.writeInt(i8, self.percent, .little);
         try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
         try writer.splatByteAll(0, pad);
     }
+
+};
+
+pub const ChangeActivePointerGrab = struct {
+    pub const opcode: u8 = 30;
+    pub const Reply = void;
+
+    cursor: Cursor,
+    time: u32,
+    event_mask: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cursor), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u16, self.event_mask, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeGCValueList = struct {
+    function: ?GX = null,
+    plane_mask: ?u32 = null,
+    foreground: ?u32 = null,
+    background: ?u32 = null,
+    line_width: ?u32 = null,
+    line_style: ?LineStyle = null,
+    cap_style: ?CapStyle = null,
+    join_style: ?JoinStyle = null,
+    fill_style: ?FillStyle = null,
+    fill_rule: ?FillRule = null,
+    tile: ?Pixmap = null,
+    stipple: ?Pixmap = null,
+    tile_stipple_x_origin: ?i32 = null,
+    tile_stipple_y_origin: ?i32 = null,
+    font: ?Font = null,
+    subwindow_mode: ?SubwindowMode = null,
+    graphics_exposures: ?u32 = null,
+    clip_x_origin: ?i32 = null,
+    clip_y_origin: ?i32 = null,
+    clip_mask: ?Pixmap = null,
+    dash_offset: ?u32 = null,
+    dashes: ?u32 = null,
+    arc_mode: ?ArcMode = null,
+};
+
+pub const ChangeGCValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
+        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
+        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground), .value_type = u32 },
+        .{ .name = "background", .bit = @intFromEnum(GC.Background), .value_type = u32 },
+        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth), .value_type = u32 },
+        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle), .value_type = LineStyle },
+        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle), .value_type = CapStyle },
+        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle), .value_type = JoinStyle },
+        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle), .value_type = FillStyle },
+        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule), .value_type = FillRule },
+        .{ .name = "tile", .bit = @intFromEnum(GC.Tile), .value_type = Pixmap },
+        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple), .value_type = Pixmap },
+        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX), .value_type = i32 },
+        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY), .value_type = i32 },
+        .{ .name = "font", .bit = @intFromEnum(GC.Font), .value_type = Font },
+        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode), .value_type = SubwindowMode },
+        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures), .value_type = u32 },
+        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX), .value_type = i32 },
+        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY), .value_type = i32 },
+        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask), .value_type = Pixmap },
+        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset), .value_type = u32 },
+        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList), .value_type = u32 },
+        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode), .value_type = ArcMode },
+    };
+};
+
+pub const ChangeGC = struct {
+    pub const opcode: u8 = 56;
+    pub const Reply = void;
+
+    gc: Gcontext,
+    value_list: ChangeGCValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.valueListByteLen(ChangeGCValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(u32, wire.computeValueMask(ChangeGCValueListSpec, self.value_list), .little);
+        try wire.writeValueList(ChangeGCValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeHosts = struct {
+    pub const opcode: u8 = 109;
+    pub const Reply = void;
+
+    mode: HostMode,
+    family: Family,
+    address: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 1 + 1 + 2 + self.address.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.family)));
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.address.len), .little);
+        try writer.writeAll(self.address);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeKeyboardControlValueList = struct {
+    key_click_percent: ?i32 = null,
+    bell_percent: ?i32 = null,
+    bell_pitch: ?i32 = null,
+    bell_duration: ?i32 = null,
+    led: ?u32 = null,
+    led_mode: ?LedMode = null,
+    key: ?u32 = null,
+    auto_repeat_mode: ?AutoRepeatMode = null,
+};
+
+pub const ChangeKeyboardControlValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "key_click_percent", .bit = @intFromEnum(KB.KeyClickPercent), .value_type = i32 },
+        .{ .name = "bell_percent", .bit = @intFromEnum(KB.BellPercent), .value_type = i32 },
+        .{ .name = "bell_pitch", .bit = @intFromEnum(KB.BellPitch), .value_type = i32 },
+        .{ .name = "bell_duration", .bit = @intFromEnum(KB.BellDuration), .value_type = i32 },
+        .{ .name = "led", .bit = @intFromEnum(KB.Led), .value_type = u32 },
+        .{ .name = "led_mode", .bit = @intFromEnum(KB.LedMode), .value_type = LedMode },
+        .{ .name = "key", .bit = @intFromEnum(KB.Key), .value_type = u32 },
+        .{ .name = "auto_repeat_mode", .bit = @intFromEnum(KB.AutoRepeatMode), .value_type = AutoRepeatMode },
+    };
+};
+
+pub const ChangeKeyboardControl = struct {
+    pub const opcode: u8 = 102;
+    pub const Reply = void;
+
+    value_list: ChangeKeyboardControlValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + wire.valueListByteLen(ChangeKeyboardControlValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, wire.computeValueMask(ChangeKeyboardControlValueListSpec, self.value_list), .little);
+        try wire.writeValueList(ChangeKeyboardControlValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeKeyboardMapping = struct {
+    pub const opcode: u8 = 100;
+    pub const Reply = void;
+
+    keycode_count: u8,
+    first_keycode: u8,
+    keysyms_per_keycode: u8,
+    keysyms: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 1 + 1 + 2 + self.keysyms.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.keycode_count);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeByte(self.first_keycode);
+        try writer.writeByte(self.keysyms_per_keycode);
+        try writer.splatByteAll(0, 2);
+        for (self.keysyms) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangePointerControl = struct {
+    pub const opcode: u8 = 105;
+    pub const Reply = void;
+
+    acceleration_numerator: i16,
+    acceleration_denominator: i16,
+    threshold: i16,
+    do_acceleration: bool,
+    do_threshold: bool,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 2 + 2 + 2 + 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(i16, self.acceleration_numerator, .little);
+        try writer.writeInt(i16, self.acceleration_denominator, .little);
+        try writer.writeInt(i16, self.threshold, .little);
+        try writer.writeByte(@intFromBool(self.do_acceleration));
+        try writer.writeByte(@intFromBool(self.do_threshold));
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeProperty = struct {
+    pub const opcode: u8 = 18;
+    pub const Reply = void;
+
+    mode: PropMode,
+    window: Window,
+    property: Atom,
+    type: Atom,
+    format: u8,
+    data_len: u32,
+    data: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 4 + 1 + 3 + 4 + self.data.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        try writer.writeInt(u32, @intFromEnum(self.type), .little);
+        try writer.writeByte(self.format);
+        try writer.splatByteAll(0, 3);
+        try writer.writeInt(u32, self.data_len, .little);
+        try writer.writeAll(self.data);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeSaveSet = struct {
+    pub const opcode: u8 = 6;
+    pub const Reply = void;
+
+    mode: SetMode,
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ChangeWindowAttributesValueList = struct {
+    background_pixmap: ?Pixmap = null,
+    background_pixel: ?u32 = null,
+    border_pixmap: ?Pixmap = null,
+    border_pixel: ?u32 = null,
+    bit_gravity: ?Gravity = null,
+    win_gravity: ?Gravity = null,
+    backing_store: ?BackingStore = null,
+    backing_planes: ?u32 = null,
+    backing_pixel: ?u32 = null,
+    override_redirect: ?u32 = null,
+    save_under: ?u32 = null,
+    event_mask: ?u32 = null,
+    do_not_propogate_mask: ?u32 = null,
+    colormap: ?Colormap = null,
+    cursor: ?Cursor = null,
+};
+
+pub const ChangeWindowAttributesValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
+        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
+        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap), .value_type = Pixmap },
+        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel), .value_type = u32 },
+        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = Gravity },
+        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = Gravity },
+        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = BackingStore },
+        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes), .value_type = u32 },
+        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel), .value_type = u32 },
+        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect), .value_type = u32 },
+        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder), .value_type = u32 },
+        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask), .value_type = u32 },
+        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate), .value_type = u32 },
+        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap), .value_type = Colormap },
+        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor), .value_type = Cursor },
+    };
+};
+
+pub const ChangeWindowAttributes = struct {
+    pub const opcode: u8 = 2;
+    pub const Reply = void;
+
+    window: Window,
+    value_list: ChangeWindowAttributesValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.valueListByteLen(ChangeWindowAttributesValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, wire.computeValueMask(ChangeWindowAttributesValueListSpec, self.value_list), .little);
+        try wire.writeValueList(ChangeWindowAttributesValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CirculateWindow = struct {
+    pub const opcode: u8 = 13;
+    pub const Reply = void;
+
+    direction: Circulate,
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.direction)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ClearArea = struct {
+    pub const opcode: u8 = 61;
+    pub const Reply = void;
+
+    exposures: bool,
+    window: Window,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.exposures));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CloseFont = struct {
+    pub const opcode: u8 = 46;
+    pub const Reply = void;
+
+    font: Font,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.font), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ConfigureWindowValueList = struct {
+    x: ?i32 = null,
+    y: ?i32 = null,
+    width: ?u32 = null,
+    height: ?u32 = null,
+    border_width: ?u32 = null,
+    sibling: ?Window = null,
+    stack_mode: ?StackMode = null,
+};
+
+pub const ConfigureWindowValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "x", .bit = @intFromEnum(ConfigWindow.X), .value_type = i32 },
+        .{ .name = "y", .bit = @intFromEnum(ConfigWindow.Y), .value_type = i32 },
+        .{ .name = "width", .bit = @intFromEnum(ConfigWindow.Width), .value_type = u32 },
+        .{ .name = "height", .bit = @intFromEnum(ConfigWindow.Height), .value_type = u32 },
+        .{ .name = "border_width", .bit = @intFromEnum(ConfigWindow.BorderWidth), .value_type = u32 },
+        .{ .name = "sibling", .bit = @intFromEnum(ConfigWindow.Sibling), .value_type = Window },
+        .{ .name = "stack_mode", .bit = @intFromEnum(ConfigWindow.StackMode), .value_type = StackMode },
+    };
+};
+
+pub const ConfigureWindow = struct {
+    pub const opcode: u8 = 12;
+    pub const Reply = void;
+
+    window: Window,
+    value_list: ConfigureWindowValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + wire.valueListByteLen(ConfigureWindowValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u16, wire.computeValueMask(ConfigureWindowValueListSpec, self.value_list), .little);
+        try writer.splatByteAll(0, 2);
+        try wire.writeValueList(ConfigureWindowValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ConvertSelection = struct {
+    pub const opcode: u8 = 24;
+    pub const Reply = void;
+
+    requestor: Window,
+    selection: Atom,
+    target: Atom,
+    property: Atom,
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.requestor), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        try writer.writeInt(u32, @intFromEnum(self.target), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CopyArea = struct {
+    pub const opcode: u8 = 62;
+    pub const Reply = void;
+
+    src_drawable: Drawable,
+    dst_drawable: Drawable,
+    gc: Gcontext,
+    src_x: i16,
+    src_y: i16,
+    dst_x: i16,
+    dst_y: i16,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.dst_drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.src_x, .little);
+        try writer.writeInt(i16, self.src_y, .little);
+        try writer.writeInt(i16, self.dst_x, .little);
+        try writer.writeInt(i16, self.dst_y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CopyColormapAndFree = struct {
+    pub const opcode: u8 = 80;
+    pub const Reply = void;
+
+    mid: Colormap,
+    src_cmap: Colormap,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.mid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_cmap), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CopyGC = struct {
+    pub const opcode: u8 = 57;
+    pub const Reply = void;
+
+    src_gc: Gcontext,
+    dst_gc: Gcontext,
+    value_mask: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_gc), .little);
+        try writer.writeInt(u32, @intFromEnum(self.dst_gc), .little);
+        try writer.writeInt(u32, self.value_mask, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CopyPlane = struct {
+    pub const opcode: u8 = 63;
+    pub const Reply = void;
+
+    src_drawable: Drawable,
+    dst_drawable: Drawable,
+    gc: Gcontext,
+    src_x: i16,
+    src_y: i16,
+    dst_x: i16,
+    dst_y: i16,
+    width: u16,
+    height: u16,
+    bit_plane: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.dst_drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.src_x, .little);
+        try writer.writeInt(i16, self.src_y, .little);
+        try writer.writeInt(i16, self.dst_x, .little);
+        try writer.writeInt(i16, self.dst_y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u32, self.bit_plane, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CreateColormap = struct {
+    pub const opcode: u8 = 78;
+    pub const Reply = void;
+
+    alloc: ColormapAlloc,
+    mid: Colormap,
+    window: Window,
+    visual: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.alloc)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.mid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, self.visual, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CreateCursor = struct {
+    pub const opcode: u8 = 93;
+    pub const Reply = void;
+
+    cid: Cursor,
+    source: Pixmap,
+    mask: Pixmap,
+    fore_red: u16,
+    fore_green: u16,
+    fore_blue: u16,
+    back_red: u16,
+    back_green: u16,
+    back_blue: u16,
+    x: u16,
+    y: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.source), .little);
+        try writer.writeInt(u32, @intFromEnum(self.mask), .little);
+        try writer.writeInt(u16, self.fore_red, .little);
+        try writer.writeInt(u16, self.fore_green, .little);
+        try writer.writeInt(u16, self.fore_blue, .little);
+        try writer.writeInt(u16, self.back_red, .little);
+        try writer.writeInt(u16, self.back_green, .little);
+        try writer.writeInt(u16, self.back_blue, .little);
+        try writer.writeInt(u16, self.x, .little);
+        try writer.writeInt(u16, self.y, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CreateGCValueList = struct {
+    function: ?GX = null,
+    plane_mask: ?u32 = null,
+    foreground: ?u32 = null,
+    background: ?u32 = null,
+    line_width: ?u32 = null,
+    line_style: ?LineStyle = null,
+    cap_style: ?CapStyle = null,
+    join_style: ?JoinStyle = null,
+    fill_style: ?FillStyle = null,
+    fill_rule: ?FillRule = null,
+    tile: ?Pixmap = null,
+    stipple: ?Pixmap = null,
+    tile_stipple_x_origin: ?i32 = null,
+    tile_stipple_y_origin: ?i32 = null,
+    font: ?Font = null,
+    subwindow_mode: ?SubwindowMode = null,
+    graphics_exposures: ?u32 = null,
+    clip_x_origin: ?i32 = null,
+    clip_y_origin: ?i32 = null,
+    clip_mask: ?Pixmap = null,
+    dash_offset: ?u32 = null,
+    dashes: ?u32 = null,
+    arc_mode: ?ArcMode = null,
+};
+
+pub const CreateGCValueListSpec = struct {
+    pub const fields = .{
+        .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
+        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
+        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground), .value_type = u32 },
+        .{ .name = "background", .bit = @intFromEnum(GC.Background), .value_type = u32 },
+        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth), .value_type = u32 },
+        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle), .value_type = LineStyle },
+        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle), .value_type = CapStyle },
+        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle), .value_type = JoinStyle },
+        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle), .value_type = FillStyle },
+        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule), .value_type = FillRule },
+        .{ .name = "tile", .bit = @intFromEnum(GC.Tile), .value_type = Pixmap },
+        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple), .value_type = Pixmap },
+        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX), .value_type = i32 },
+        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY), .value_type = i32 },
+        .{ .name = "font", .bit = @intFromEnum(GC.Font), .value_type = Font },
+        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode), .value_type = SubwindowMode },
+        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures), .value_type = u32 },
+        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX), .value_type = i32 },
+        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY), .value_type = i32 },
+        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask), .value_type = Pixmap },
+        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset), .value_type = u32 },
+        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList), .value_type = u32 },
+        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode), .value_type = ArcMode },
+    };
+};
+
+pub const CreateGC = struct {
+    pub const opcode: u8 = 55;
+    pub const Reply = void;
+
+    cid: Gcontext,
+    drawable: Drawable,
+    value_list: CreateGCValueList,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 4 + wire.valueListByteLen(CreateGCValueListSpec, self.value_list);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, wire.computeValueMask(CreateGCValueListSpec, self.value_list), .little);
+        try wire.writeValueList(CreateGCValueListSpec, self.value_list, writer);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CreateGlyphCursor = struct {
+    pub const opcode: u8 = 94;
+    pub const Reply = void;
+
+    cid: Cursor,
+    source_font: Font,
+    mask_font: Font,
+    source_char: u16,
+    mask_char: u16,
+    fore_red: u16,
+    fore_green: u16,
+    fore_blue: u16,
+    back_red: u16,
+    back_green: u16,
+    back_blue: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.source_font), .little);
+        try writer.writeInt(u32, @intFromEnum(self.mask_font), .little);
+        try writer.writeInt(u16, self.source_char, .little);
+        try writer.writeInt(u16, self.mask_char, .little);
+        try writer.writeInt(u16, self.fore_red, .little);
+        try writer.writeInt(u16, self.fore_green, .little);
+        try writer.writeInt(u16, self.fore_blue, .little);
+        try writer.writeInt(u16, self.back_red, .little);
+        try writer.writeInt(u16, self.back_green, .little);
+        try writer.writeInt(u16, self.back_blue, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const CreatePixmap = struct {
+    pub const opcode: u8 = 53;
+    pub const Reply = void;
+
+    depth: u8,
+    pid: Pixmap,
+    drawable: Drawable,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.depth);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.pid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
 };
 
 pub const CreateWindowValueList = struct {
@@ -1378,6 +2841,2155 @@ pub const CreateWindow = struct {
         try wire.writeValueList(CreateWindowValueListSpec, self.value_list, writer);
         try writer.splatByteAll(0, pad);
     }
+
+};
+
+pub const DeleteProperty = struct {
+    pub const opcode: u8 = 19;
+    pub const Reply = void;
+
+    window: Window,
+    property: Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const DestroySubwindows = struct {
+    pub const opcode: u8 = 5;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const DestroyWindow = struct {
+    pub const opcode: u8 = 4;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FillPoly = struct {
+    pub const opcode: u8 = 69;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    shape: PolyShape,
+    coordinate_mode: CoordMode,
+    points: []POINT,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 1 + 1 + 2 + wire.structListByteLen(self.points);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.shape)));
+        try writer.writeByte(@intCast(@intFromEnum(self.coordinate_mode)));
+        try writer.splatByteAll(0, 2);
+        for (self.points) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ForceScreenSaver = struct {
+    pub const opcode: u8 = 115;
+    pub const Reply = void;
+
+    mode: ScreenSaver,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FreeColormap = struct {
+    pub const opcode: u8 = 79;
+    pub const Reply = void;
+
+    cmap: Colormap,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FreeColors = struct {
+    pub const opcode: u8 = 88;
+    pub const Reply = void;
+
+    cmap: Colormap,
+    plane_mask: u32,
+    pixels: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + self.pixels.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u32, self.plane_mask, .little);
+        for (self.pixels) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FreeCursor = struct {
+    pub const opcode: u8 = 95;
+    pub const Reply = void;
+
+    cursor: Cursor,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cursor), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FreeGC = struct {
+    pub const opcode: u8 = 60;
+    pub const Reply = void;
+
+    gc: Gcontext,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const FreePixmap = struct {
+    pub const opcode: u8 = 54;
+    pub const Reply = void;
+
+    pixmap: Pixmap,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.pixmap), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetAtomNameReply = struct {
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 22);
+        try writer.writeAll(self.name);
+    }
+
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        var scratch_used: usize = 0;
+        const name_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const name_byte_len = @as(usize, name_len);
+        const name_temp = try reader.take(name_byte_len);
+        if (scratch_used + name_byte_len > scratch.len) return error.BufferTooSmall;
+        @memcpy(scratch[scratch_used..][0..name_byte_len], name_temp);
+        const name = scratch[scratch_used..][0..name_byte_len];
+        scratch_used += name_byte_len;
+        return .{
+            .name = name,
+        };
+    }
+
+};
+
+pub const GetAtomName = struct {
+    pub const opcode: u8 = 17;
+    pub const Reply = GetAtomNameReply;
+
+    atom: Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.atom), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetFontPathReply = struct {
+    path: []STR,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + wire.structListByteLen(self.path);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.path.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.path) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const path_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const path = try allocator.alloc(STR, @as(usize, path_len));
+        errdefer allocator.free(path);
+        var path_decoded: usize = 0;
+        errdefer for (path[0..path_decoded]) |*elem| elem.deinit(allocator);
+        for (path) |*elem| {
+            const elem_value = try STR.decode(allocator, reader);
+            elem.* = elem_value;
+            path_decoded += 1;
+        }
+        return .{
+            .path = path,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        for (self.path) |*elem| elem.deinit(allocator);
+        allocator.free(self.path);
+    }
+
+};
+
+pub const GetFontPath = struct {
+    pub const opcode: u8 = 52;
+    pub const Reply = GetFontPathReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetGeometryReply = struct {
+    depth: u8,
+    root: Window,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    border_width: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.depth);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.border_width, .little);
+        try writer.splatByteAll(0, 2);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const depth = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const x = try reader.takeInt(i16, .little);
+        const y = try reader.takeInt(i16, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        const border_width = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        return .{
+            .depth = depth,
+            .root = root,
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .border_width = border_width,
+        };
+    }
+
+};
+
+pub const GetGeometry = struct {
+    pub const opcode: u8 = 14;
+    pub const Reply = GetGeometryReply;
+
+    drawable: Drawable,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetImageReply = struct {
+    depth: u8,
+    visual: u32,
+    data: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 4 + 20 + self.data.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.depth);
+        try writer.writeInt(u32, self.visual, .little);
+        try writer.splatByteAll(0, 20);
+        try writer.writeAll(self.data);
+    }
+
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const depth = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const length = try reader.takeInt(u32, .little);
+        var scratch_used: usize = 0;
+        const visual = try reader.takeInt(u32, .little);
+        _ = try reader.take(20);
+        const data_byte_len = @as(usize, (length * 4));
+        const data_temp = try reader.take(data_byte_len);
+        if (scratch_used + data_byte_len > scratch.len) return error.BufferTooSmall;
+        @memcpy(scratch[scratch_used..][0..data_byte_len], data_temp);
+        const data = scratch[scratch_used..][0..data_byte_len];
+        scratch_used += data_byte_len;
+        return .{
+            .depth = depth,
+            .visual = visual,
+            .data = data,
+        };
+    }
+
+};
+
+pub const GetImage = struct {
+    pub const opcode: u8 = 73;
+    pub const Reply = GetImageReply;
+
+    format: ImageFormat,
+    drawable: Drawable,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    plane_mask: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2 + 2 + 2 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.format)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u32, self.plane_mask, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetInputFocusReply = struct {
+    revert_to: InputFocus,
+    focus: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.revert_to)));
+        try writer.writeInt(u32, @intFromEnum(self.focus), .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const revert_to = @as(InputFocus, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const focus = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        return .{
+            .revert_to = revert_to,
+            .focus = focus,
+        };
+    }
+
+};
+
+pub const GetInputFocus = struct {
+    pub const opcode: u8 = 43;
+    pub const Reply = GetInputFocusReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetKeyboardControlReply = struct {
+    global_auto_repeat: AutoRepeatMode,
+    led_mask: u32,
+    key_click_percent: u8,
+    bell_percent: u8,
+    bell_pitch: u16,
+    bell_duration: u16,
+    auto_repeats: [32]u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 1 + 1 + 2 + 2 + 2 + 32;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.global_auto_repeat)));
+        try writer.writeInt(u32, self.led_mask, .little);
+        try writer.writeByte(self.key_click_percent);
+        try writer.writeByte(self.bell_percent);
+        try writer.writeInt(u16, self.bell_pitch, .little);
+        try writer.writeInt(u16, self.bell_duration, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.auto_repeats[0..]);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const global_auto_repeat = @as(AutoRepeatMode, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const led_mask = try reader.takeInt(u32, .little);
+        const key_click_percent = try reader.takeByte();
+        const bell_percent = try reader.takeByte();
+        const bell_pitch = try reader.takeInt(u16, .little);
+        const bell_duration = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        var auto_repeats: [32]u8 = undefined;
+        @memcpy(auto_repeats[0..], try reader.take(32));
+        return .{
+            .global_auto_repeat = global_auto_repeat,
+            .led_mask = led_mask,
+            .key_click_percent = key_click_percent,
+            .bell_percent = bell_percent,
+            .bell_pitch = bell_pitch,
+            .bell_duration = bell_duration,
+            .auto_repeats = auto_repeats,
+        };
+    }
+
+};
+
+pub const GetKeyboardControl = struct {
+    pub const opcode: u8 = 103;
+    pub const Reply = GetKeyboardControlReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetKeyboardMappingReply = struct {
+    keysyms_per_keycode: u8,
+    keysyms: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 24 + self.keysyms.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.keysyms_per_keycode);
+        try writer.splatByteAll(0, 24);
+        for (self.keysyms) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const keysyms_per_keycode = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        const length = try reader.takeInt(u32, .little);
+        _ = try reader.take(24);
+        const keysyms = try allocator.alloc(u32, @as(usize, length));
+        errdefer allocator.free(keysyms);
+        var keysyms_decoded: usize = 0;
+        for (keysyms) |*elem| {
+            const elem_value = try reader.takeInt(u32, .little);
+            elem.* = elem_value;
+            keysyms_decoded += 1;
+        }
+        return .{
+            .keysyms_per_keycode = keysyms_per_keycode,
+            .keysyms = keysyms,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.keysyms);
+    }
+
+};
+
+pub const GetKeyboardMapping = struct {
+    pub const opcode: u8 = 101;
+    pub const Reply = GetKeyboardMappingReply;
+
+    first_keycode: u8,
+    count: u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeByte(self.first_keycode);
+        try writer.writeByte(self.count);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetModifierMappingReply = struct {
+    keycodes_per_modifier: u8,
+    keycodes: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 24 + self.keycodes.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.keycodes_per_modifier);
+        try writer.splatByteAll(0, 24);
+        try writer.writeAll(self.keycodes);
+    }
+
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const keycodes_per_modifier = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        var scratch_used: usize = 0;
+        _ = try reader.take(24);
+        const keycodes_byte_len = @as(usize, (keycodes_per_modifier * 8));
+        const keycodes_temp = try reader.take(keycodes_byte_len);
+        if (scratch_used + keycodes_byte_len > scratch.len) return error.BufferTooSmall;
+        @memcpy(scratch[scratch_used..][0..keycodes_byte_len], keycodes_temp);
+        const keycodes = scratch[scratch_used..][0..keycodes_byte_len];
+        scratch_used += keycodes_byte_len;
+        return .{
+            .keycodes_per_modifier = keycodes_per_modifier,
+            .keycodes = keycodes,
+        };
+    }
+
+};
+
+pub const GetModifierMapping = struct {
+    pub const opcode: u8 = 119;
+    pub const Reply = GetModifierMappingReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetMotionEventsReply = struct {
+    events: []TIMECOORD,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 4 + 20 + wire.structListByteLen(self.events);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u32, @intCast(self.events.len), .little);
+        try writer.splatByteAll(0, 20);
+        for (self.events) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const events_len = try reader.takeInt(u32, .little);
+        _ = try reader.take(20);
+        const events = try allocator.alloc(TIMECOORD, @as(usize, events_len));
+        errdefer allocator.free(events);
+        var events_decoded: usize = 0;
+        for (events) |*elem| {
+            const elem_value = try TIMECOORD.decode(reader);
+            elem.* = elem_value;
+            events_decoded += 1;
+        }
+        return .{
+            .events = events,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.events);
+    }
+
+};
+
+pub const GetMotionEvents = struct {
+    pub const opcode: u8 = 39;
+    pub const Reply = GetMotionEventsReply;
+
+    window: Window,
+    start: u32,
+    stop: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, self.start, .little);
+        try writer.writeInt(u32, self.stop, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetPointerControlReply = struct {
+    acceleration_numerator: u16,
+    acceleration_denominator: u16,
+    threshold: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 2 + 2 + 2 + 18;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, self.acceleration_numerator, .little);
+        try writer.writeInt(u16, self.acceleration_denominator, .little);
+        try writer.writeInt(u16, self.threshold, .little);
+        try writer.splatByteAll(0, 18);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const acceleration_numerator = try reader.takeInt(u16, .little);
+        const acceleration_denominator = try reader.takeInt(u16, .little);
+        const threshold = try reader.takeInt(u16, .little);
+        _ = try reader.take(18);
+        return .{
+            .acceleration_numerator = acceleration_numerator,
+            .acceleration_denominator = acceleration_denominator,
+            .threshold = threshold,
+        };
+    }
+
+};
+
+pub const GetPointerControl = struct {
+    pub const opcode: u8 = 106;
+    pub const Reply = GetPointerControlReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetPointerMappingReply = struct {
+    map: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 24 + self.map.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(self.map.len));
+        try writer.splatByteAll(0, 24);
+        try writer.writeAll(self.map);
+    }
+
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const map_len = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        var scratch_used: usize = 0;
+        _ = try reader.take(24);
+        const map_byte_len = @as(usize, map_len);
+        const map_temp = try reader.take(map_byte_len);
+        if (scratch_used + map_byte_len > scratch.len) return error.BufferTooSmall;
+        @memcpy(scratch[scratch_used..][0..map_byte_len], map_temp);
+        const map = scratch[scratch_used..][0..map_byte_len];
+        scratch_used += map_byte_len;
+        return .{
+            .map = map,
+        };
+    }
+
+};
+
+pub const GetPointerMapping = struct {
+    pub const opcode: u8 = 117;
+    pub const Reply = GetPointerMappingReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetPropertyReply = struct {
+    format: u8,
+    type: Atom,
+    bytes_after: u32,
+    value_len: u32,
+    value: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 4 + 4 + 4 + 12 + self.value.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(self.format);
+        try writer.writeInt(u32, @intFromEnum(self.type), .little);
+        try writer.writeInt(u32, self.bytes_after, .little);
+        try writer.writeInt(u32, self.value_len, .little);
+        try writer.splatByteAll(0, 12);
+        try writer.writeAll(self.value);
+    }
+
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const format = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        var scratch_used: usize = 0;
+        const @"type" = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
+        const bytes_after = try reader.takeInt(u32, .little);
+        const value_len = try reader.takeInt(u32, .little);
+        _ = try reader.take(12);
+        const value_byte_len = @as(usize, (value_len * (format / 8)));
+        const value_temp = try reader.take(value_byte_len);
+        if (scratch_used + value_byte_len > scratch.len) return error.BufferTooSmall;
+        @memcpy(scratch[scratch_used..][0..value_byte_len], value_temp);
+        const value = scratch[scratch_used..][0..value_byte_len];
+        scratch_used += value_byte_len;
+        return .{
+            .format = format,
+            .type = @"type",
+            .bytes_after = bytes_after,
+            .value_len = value_len,
+            .value = value,
+        };
+    }
+
+};
+
+pub const GetProperty = struct {
+    pub const opcode: u8 = 20;
+    pub const Reply = GetPropertyReply;
+
+    delete: bool,
+    window: Window,
+    property: Atom,
+    type: Atom,
+    long_offset: u32,
+    long_length: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.delete));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        try writer.writeInt(u32, @intFromEnum(self.type), .little);
+        try writer.writeInt(u32, self.long_offset, .little);
+        try writer.writeInt(u32, self.long_length, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetScreenSaverReply = struct {
+    timeout: u16,
+    interval: u16,
+    prefer_blanking: Blanking,
+    allow_exposures: Exposures,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 2 + 2 + 1 + 1 + 18;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, self.timeout, .little);
+        try writer.writeInt(u16, self.interval, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.prefer_blanking)));
+        try writer.writeByte(@intCast(@intFromEnum(self.allow_exposures)));
+        try writer.splatByteAll(0, 18);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const timeout = try reader.takeInt(u16, .little);
+        const interval = try reader.takeInt(u16, .little);
+        const prefer_blanking = @as(Blanking, @enumFromInt(try reader.takeInt(u8, .little)));
+        const allow_exposures = @as(Exposures, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.take(18);
+        return .{
+            .timeout = timeout,
+            .interval = interval,
+            .prefer_blanking = prefer_blanking,
+            .allow_exposures = allow_exposures,
+        };
+    }
+
+};
+
+pub const GetScreenSaver = struct {
+    pub const opcode: u8 = 108;
+    pub const Reply = GetScreenSaverReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetSelectionOwnerReply = struct {
+    owner: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u32, @intFromEnum(self.owner), .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const owner = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        return .{
+            .owner = owner,
+        };
+    }
+
+};
+
+pub const GetSelectionOwner = struct {
+    pub const opcode: u8 = 23;
+    pub const Reply = GetSelectionOwnerReply;
+
+    selection: Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GetWindowAttributesReply = struct {
+    backing_store: BackingStore,
+    visual: u32,
+    class: WindowClass,
+    bit_gravity: Gravity,
+    win_gravity: Gravity,
+    backing_planes: u32,
+    backing_pixel: u32,
+    save_under: bool,
+    map_is_installed: bool,
+    map_state: MapState,
+    override_redirect: bool,
+    colormap: Colormap,
+    all_event_masks: u32,
+    your_event_mask: u32,
+    do_not_propagate_mask: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 2 + 1 + 1 + 4 + 4 + 1 + 1 + 1 + 1 + 4 + 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.backing_store)));
+        try writer.writeInt(u32, self.visual, .little);
+        try writer.writeInt(u16, @intCast(@intFromEnum(self.class)), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.bit_gravity)));
+        try writer.writeByte(@intCast(@intFromEnum(self.win_gravity)));
+        try writer.writeInt(u32, self.backing_planes, .little);
+        try writer.writeInt(u32, self.backing_pixel, .little);
+        try writer.writeByte(@intFromBool(self.save_under));
+        try writer.writeByte(@intFromBool(self.map_is_installed));
+        try writer.writeByte(@intCast(@intFromEnum(self.map_state)));
+        try writer.writeByte(@intFromBool(self.override_redirect));
+        try writer.writeInt(u32, @intFromEnum(self.colormap), .little);
+        try writer.writeInt(u32, self.all_event_masks, .little);
+        try writer.writeInt(u32, self.your_event_mask, .little);
+        try writer.writeInt(u16, self.do_not_propagate_mask, .little);
+        try writer.splatByteAll(0, 2);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const visual = try reader.takeInt(u32, .little);
+        const class = @as(WindowClass, @enumFromInt(try reader.takeInt(u16, .little)));
+        const bit_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u8, .little)));
+        const win_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u8, .little)));
+        const backing_planes = try reader.takeInt(u32, .little);
+        const backing_pixel = try reader.takeInt(u32, .little);
+        const save_under = (try reader.takeByte()) != 0;
+        const map_is_installed = (try reader.takeByte()) != 0;
+        const map_state = @as(MapState, @enumFromInt(try reader.takeInt(u8, .little)));
+        const override_redirect = (try reader.takeByte()) != 0;
+        const colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .little)));
+        const all_event_masks = try reader.takeInt(u32, .little);
+        const your_event_mask = try reader.takeInt(u32, .little);
+        const do_not_propagate_mask = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        return .{
+            .backing_store = backing_store,
+            .visual = visual,
+            .class = class,
+            .bit_gravity = bit_gravity,
+            .win_gravity = win_gravity,
+            .backing_planes = backing_planes,
+            .backing_pixel = backing_pixel,
+            .save_under = save_under,
+            .map_is_installed = map_is_installed,
+            .map_state = map_state,
+            .override_redirect = override_redirect,
+            .colormap = colormap,
+            .all_event_masks = all_event_masks,
+            .your_event_mask = your_event_mask,
+            .do_not_propagate_mask = do_not_propagate_mask,
+        };
+    }
+
+};
+
+pub const GetWindowAttributes = struct {
+    pub const opcode: u8 = 3;
+    pub const Reply = GetWindowAttributesReply;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GrabButton = struct {
+    pub const opcode: u8 = 28;
+    pub const Reply = void;
+
+    owner_events: bool,
+    grab_window: Window,
+    event_mask: u16,
+    pointer_mode: GrabMode,
+    keyboard_mode: GrabMode,
+    confine_to: Window,
+    cursor: Cursor,
+    button: ButtonIndex,
+    modifiers: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 1 + 1 + 4 + 4 + 1 + 1 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.owner_events));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u16, self.event_mask, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.pointer_mode)));
+        try writer.writeByte(@intCast(@intFromEnum(self.keyboard_mode)));
+        try writer.writeInt(u32, @intFromEnum(self.confine_to), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cursor), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.button)));
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, self.modifiers, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GrabKey = struct {
+    pub const opcode: u8 = 33;
+    pub const Reply = void;
+
+    owner_events: bool,
+    grab_window: Window,
+    modifiers: u16,
+    key: u8,
+    pointer_mode: GrabMode,
+    keyboard_mode: GrabMode,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 1 + 1 + 1 + 3;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.owner_events));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u16, self.modifiers, .little);
+        try writer.writeByte(self.key);
+        try writer.writeByte(@intCast(@intFromEnum(self.pointer_mode)));
+        try writer.writeByte(@intCast(@intFromEnum(self.keyboard_mode)));
+        try writer.splatByteAll(0, 3);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GrabKeyboardReply = struct {
+    status: GrabStatus,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.status)));
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const status = @as(GrabStatus, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        return .{
+            .status = status,
+        };
+    }
+
+};
+
+pub const GrabKeyboard = struct {
+    pub const opcode: u8 = 31;
+    pub const Reply = GrabKeyboardReply;
+
+    owner_events: bool,
+    grab_window: Window,
+    time: u32,
+    pointer_mode: GrabMode,
+    keyboard_mode: GrabMode,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 1 + 1 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.owner_events));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.pointer_mode)));
+        try writer.writeByte(@intCast(@intFromEnum(self.keyboard_mode)));
+        try writer.splatByteAll(0, 2);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GrabPointerReply = struct {
+    status: GrabStatus,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.status)));
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const status = @as(GrabStatus, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        return .{
+            .status = status,
+        };
+    }
+
+};
+
+pub const GrabPointer = struct {
+    pub const opcode: u8 = 26;
+    pub const Reply = GrabPointerReply;
+
+    owner_events: bool,
+    grab_window: Window,
+    event_mask: u16,
+    pointer_mode: GrabMode,
+    keyboard_mode: GrabMode,
+    confine_to: Window,
+    cursor: Cursor,
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 1 + 1 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.owner_events));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u16, self.event_mask, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.pointer_mode)));
+        try writer.writeByte(@intCast(@intFromEnum(self.keyboard_mode)));
+        try writer.writeInt(u32, @intFromEnum(self.confine_to), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cursor), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const GrabServer = struct {
+    pub const opcode: u8 = 36;
+    pub const Reply = void;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ImageText16 = struct {
+    pub const opcode: u8 = 77;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    x: i16,
+    y: i16,
+    string: []CHAR2B,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.string);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(self.string.len));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        for (self.string) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ImageText8 = struct {
+    pub const opcode: u8 = 76;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    x: i16,
+    y: i16,
+    string: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + self.string.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(self.string.len));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeAll(self.string);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const InstallColormap = struct {
+    pub const opcode: u8 = 81;
+    pub const Reply = void;
+
+    cmap: Colormap,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const InternAtomReply = struct {
+    atom: Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u32, @intFromEnum(self.atom), .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
+        return .{
+            .atom = atom,
+        };
+    }
+
+};
+
+pub const InternAtom = struct {
+    pub const opcode: u8 = 16;
+    pub const Reply = InternAtomReply;
+
+    only_if_exists: bool,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.only_if_exists));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.name);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const KillClient = struct {
+    pub const opcode: u8 = 113;
+    pub const Reply = void;
+
+    resource: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, self.resource, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListExtensionsReply = struct {
+    names: []STR,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 24 + wire.structListByteLen(self.names);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(self.names.len));
+        try writer.splatByteAll(0, 24);
+        for (self.names) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const names_len = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        _ = try reader.take(24);
+        const names = try allocator.alloc(STR, @as(usize, names_len));
+        errdefer allocator.free(names);
+        var names_decoded: usize = 0;
+        errdefer for (names[0..names_decoded]) |*elem| elem.deinit(allocator);
+        for (names) |*elem| {
+            const elem_value = try STR.decode(allocator, reader);
+            elem.* = elem_value;
+            names_decoded += 1;
+        }
+        return .{
+            .names = names,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        for (self.names) |*elem| elem.deinit(allocator);
+        allocator.free(self.names);
+    }
+
+};
+
+pub const ListExtensions = struct {
+    pub const opcode: u8 = 99;
+    pub const Reply = ListExtensionsReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListFontsReply = struct {
+    names: []STR,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + wire.structListByteLen(self.names);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.names.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.names) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const names_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const names = try allocator.alloc(STR, @as(usize, names_len));
+        errdefer allocator.free(names);
+        var names_decoded: usize = 0;
+        errdefer for (names[0..names_decoded]) |*elem| elem.deinit(allocator);
+        for (names) |*elem| {
+            const elem_value = try STR.decode(allocator, reader);
+            elem.* = elem_value;
+            names_decoded += 1;
+        }
+        return .{
+            .names = names,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        for (self.names) |*elem| elem.deinit(allocator);
+        allocator.free(self.names);
+    }
+
+};
+
+pub const ListFonts = struct {
+    pub const opcode: u8 = 49;
+    pub const Reply = ListFontsReply;
+
+    max_names: u16,
+    pattern: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 2 + 2 + self.pattern.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, self.max_names, .little);
+        try writer.writeInt(u16, @intCast(self.pattern.len), .little);
+        try writer.writeAll(self.pattern);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListFontsWithInfoReply = struct {
+    min_bounds: CHARINFO,
+    max_bounds: CHARINFO,
+    min_char_or_byte2: u16,
+    max_char_or_byte2: u16,
+    default_char: u16,
+    draw_direction: FontDraw,
+    min_byte1: u8,
+    max_byte1: u8,
+    all_chars_exist: bool,
+    font_ascent: i16,
+    font_descent: i16,
+    replies_hint: u32,
+    properties: []FONTPROP,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(self.name.len));
+        try self.min_bounds.encode(writer);
+        try writer.splatByteAll(0, 4);
+        try self.max_bounds.encode(writer);
+        try writer.splatByteAll(0, 4);
+        try writer.writeInt(u16, self.min_char_or_byte2, .little);
+        try writer.writeInt(u16, self.max_char_or_byte2, .little);
+        try writer.writeInt(u16, self.default_char, .little);
+        try writer.writeInt(u16, @intCast(self.properties.len), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.draw_direction)));
+        try writer.writeByte(self.min_byte1);
+        try writer.writeByte(self.max_byte1);
+        try writer.writeByte(@intFromBool(self.all_chars_exist));
+        try writer.writeInt(i16, self.font_ascent, .little);
+        try writer.writeInt(i16, self.font_descent, .little);
+        try writer.writeInt(u32, self.replies_hint, .little);
+        for (self.properties) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.writeAll(self.name);
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const name_len = try reader.takeByte();
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const min_bounds = try CHARINFO.decode(reader);
+        _ = try reader.take(4);
+        const max_bounds = try CHARINFO.decode(reader);
+        _ = try reader.take(4);
+        const min_char_or_byte2 = try reader.takeInt(u16, .little);
+        const max_char_or_byte2 = try reader.takeInt(u16, .little);
+        const default_char = try reader.takeInt(u16, .little);
+        const properties_len = try reader.takeInt(u16, .little);
+        const draw_direction = @as(FontDraw, @enumFromInt(try reader.takeInt(u8, .little)));
+        const min_byte1 = try reader.takeByte();
+        const max_byte1 = try reader.takeByte();
+        const all_chars_exist = (try reader.takeByte()) != 0;
+        const font_ascent = try reader.takeInt(i16, .little);
+        const font_descent = try reader.takeInt(i16, .little);
+        const replies_hint = try reader.takeInt(u32, .little);
+        const properties = try allocator.alloc(FONTPROP, @as(usize, properties_len));
+        errdefer allocator.free(properties);
+        var properties_decoded: usize = 0;
+        for (properties) |*elem| {
+            const elem_value = try FONTPROP.decode(reader);
+            elem.* = elem_value;
+            properties_decoded += 1;
+        }
+        const name_byte_len = @as(usize, name_len);
+        const name_temp = try reader.take(name_byte_len);
+        const name = try allocator.dupe(u8, name_temp);
+        return .{
+            .min_bounds = min_bounds,
+            .max_bounds = max_bounds,
+            .min_char_or_byte2 = min_char_or_byte2,
+            .max_char_or_byte2 = max_char_or_byte2,
+            .default_char = default_char,
+            .draw_direction = draw_direction,
+            .min_byte1 = min_byte1,
+            .max_byte1 = max_byte1,
+            .all_chars_exist = all_chars_exist,
+            .font_ascent = font_ascent,
+            .font_descent = font_descent,
+            .replies_hint = replies_hint,
+            .properties = properties,
+            .name = name,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.properties);
+        allocator.free(self.name);
+    }
+
+};
+
+pub const ListFontsWithInfo = struct {
+    pub const opcode: u8 = 50;
+    pub const Reply = ListFontsWithInfoReply;
+
+    max_names: u16,
+    pattern: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 2 + 2 + self.pattern.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, self.max_names, .little);
+        try writer.writeInt(u16, @intCast(self.pattern.len), .little);
+        try writer.writeAll(self.pattern);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListHostsReply = struct {
+    mode: AccessControl,
+    hosts: []HOST,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + wire.structListByteLen(self.hosts);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast(self.hosts.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.hosts) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const mode = @as(AccessControl, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const hosts_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const hosts = try allocator.alloc(HOST, @as(usize, hosts_len));
+        errdefer allocator.free(hosts);
+        var hosts_decoded: usize = 0;
+        errdefer for (hosts[0..hosts_decoded]) |*elem| elem.deinit(allocator);
+        for (hosts) |*elem| {
+            const elem_value = try HOST.decode(allocator, reader);
+            elem.* = elem_value;
+            hosts_decoded += 1;
+        }
+        return .{
+            .mode = mode,
+            .hosts = hosts,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        for (self.hosts) |*elem| elem.deinit(allocator);
+        allocator.free(self.hosts);
+    }
+
+};
+
+pub const ListHosts = struct {
+    pub const opcode: u8 = 110;
+    pub const Reply = ListHostsReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListInstalledColormapsReply = struct {
+    cmaps: []const Colormap,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + self.cmaps.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.cmaps.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.cmaps) |elem| {
+            try writer.writeInt(u32, @intFromEnum(elem), .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const cmaps_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const cmaps = try allocator.alloc(Colormap, @as(usize, cmaps_len));
+        errdefer allocator.free(cmaps);
+        var cmaps_decoded: usize = 0;
+        for (cmaps) |*elem| {
+            const elem_value = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .little)));
+            elem.* = elem_value;
+            cmaps_decoded += 1;
+        }
+        return .{
+            .cmaps = cmaps,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.cmaps);
+    }
+
+};
+
+pub const ListInstalledColormaps = struct {
+    pub const opcode: u8 = 83;
+    pub const Reply = ListInstalledColormapsReply;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ListPropertiesReply = struct {
+    atoms: []const Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + self.atoms.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.atoms.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.atoms) |elem| {
+            try writer.writeInt(u32, @intFromEnum(elem), .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const atoms_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const atoms = try allocator.alloc(Atom, @as(usize, atoms_len));
+        errdefer allocator.free(atoms);
+        var atoms_decoded: usize = 0;
+        for (atoms) |*elem| {
+            const elem_value = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
+            elem.* = elem_value;
+            atoms_decoded += 1;
+        }
+        return .{
+            .atoms = atoms,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.atoms);
+    }
+
+};
+
+pub const ListProperties = struct {
+    pub const opcode: u8 = 21;
+    pub const Reply = ListPropertiesReply;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const LookupColorReply = struct {
+    exact_red: u16,
+    exact_green: u16,
+    exact_blue: u16,
+    visual_red: u16,
+    visual_green: u16,
+    visual_blue: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, self.exact_red, .little);
+        try writer.writeInt(u16, self.exact_green, .little);
+        try writer.writeInt(u16, self.exact_blue, .little);
+        try writer.writeInt(u16, self.visual_red, .little);
+        try writer.writeInt(u16, self.visual_green, .little);
+        try writer.writeInt(u16, self.visual_blue, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const exact_red = try reader.takeInt(u16, .little);
+        const exact_green = try reader.takeInt(u16, .little);
+        const exact_blue = try reader.takeInt(u16, .little);
+        const visual_red = try reader.takeInt(u16, .little);
+        const visual_green = try reader.takeInt(u16, .little);
+        const visual_blue = try reader.takeInt(u16, .little);
+        return .{
+            .exact_red = exact_red,
+            .exact_green = exact_green,
+            .exact_blue = exact_blue,
+            .visual_red = visual_red,
+            .visual_green = visual_green,
+            .visual_blue = visual_blue,
+        };
+    }
+
+};
+
+pub const LookupColor = struct {
+    pub const opcode: u8 = 92;
+    pub const Reply = LookupColorReply;
+
+    cmap: Colormap,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.name);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const MapSubwindows = struct {
+    pub const opcode: u8 = 9;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
 };
 
 pub const MapWindow = struct {
@@ -1400,6 +5012,1636 @@ pub const MapWindow = struct {
         try writer.writeInt(u32, @intFromEnum(self.window), .little);
         try writer.splatByteAll(0, pad);
     }
+
+};
+
+pub const NoOperation = struct {
+    pub const opcode: u8 = 127;
+    pub const Reply = void;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const OpenFont = struct {
+    pub const opcode: u8 = 45;
+    pub const Reply = void;
+
+    fid: Font,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.fid), .little);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.name);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyArc = struct {
+    pub const opcode: u8 = 68;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    arcs: []ARC,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.arcs);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.arcs) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyFillArc = struct {
+    pub const opcode: u8 = 71;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    arcs: []ARC,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.arcs);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.arcs) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyFillRectangle = struct {
+    pub const opcode: u8 = 70;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    rectangles: []RECTANGLE,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.rectangles);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.rectangles) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyLine = struct {
+    pub const opcode: u8 = 65;
+    pub const Reply = void;
+
+    coordinate_mode: CoordMode,
+    drawable: Drawable,
+    gc: Gcontext,
+    points: []POINT,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.points);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.coordinate_mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.points) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyPoint = struct {
+    pub const opcode: u8 = 64;
+    pub const Reply = void;
+
+    coordinate_mode: CoordMode,
+    drawable: Drawable,
+    gc: Gcontext,
+    points: []POINT,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.points);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.coordinate_mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.points) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyRectangle = struct {
+    pub const opcode: u8 = 67;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    rectangles: []RECTANGLE,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.rectangles);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.rectangles) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolySegment = struct {
+    pub const opcode: u8 = 66;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    segments: []SEGMENT,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + wire.structListByteLen(self.segments);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        for (self.segments) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyText16 = struct {
+    pub const opcode: u8 = 75;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    x: i16,
+    y: i16,
+    items: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + self.items.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeAll(self.items);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PolyText8 = struct {
+    pub const opcode: u8 = 74;
+    pub const Reply = void;
+
+    drawable: Drawable,
+    gc: Gcontext,
+    x: i16,
+    y: i16,
+    items: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + self.items.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeAll(self.items);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const PutImage = struct {
+    pub const opcode: u8 = 72;
+    pub const Reply = void;
+
+    format: ImageFormat,
+    drawable: Drawable,
+    gc: Gcontext,
+    width: u16,
+    height: u16,
+    dst_x: i16,
+    dst_y: i16,
+    left_pad: u8,
+    depth: u8,
+    data: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 2 + self.data.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.format)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(i16, self.dst_x, .little);
+        try writer.writeInt(i16, self.dst_y, .little);
+        try writer.writeByte(self.left_pad);
+        try writer.writeByte(self.depth);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.data);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryBestSizeReply = struct {
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const width = try reader.takeInt(u16, .little);
+        const height = try reader.takeInt(u16, .little);
+        return .{
+            .width = width,
+            .height = height,
+        };
+    }
+
+};
+
+pub const QueryBestSize = struct {
+    pub const opcode: u8 = 97;
+    pub const Reply = QueryBestSizeReply;
+
+    class: QueryShapeOf,
+    drawable: Drawable,
+    width: u16,
+    height: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.class)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryColorsReply = struct {
+    colors: []RGB,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 2 + 22 + wire.structListByteLen(self.colors);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast(self.colors.len), .little);
+        try writer.splatByteAll(0, 22);
+        for (self.colors) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const colors_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(22);
+        const colors = try allocator.alloc(RGB, @as(usize, colors_len));
+        errdefer allocator.free(colors);
+        var colors_decoded: usize = 0;
+        for (colors) |*elem| {
+            const elem_value = try RGB.decode(reader);
+            elem.* = elem_value;
+            colors_decoded += 1;
+        }
+        return .{
+            .colors = colors,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.colors);
+    }
+
+};
+
+pub const QueryColors = struct {
+    pub const opcode: u8 = 91;
+    pub const Reply = QueryColorsReply;
+
+    cmap: Colormap,
+    pixels: []const u32,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + self.pixels.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        for (self.pixels) |elem| {
+            try writer.writeInt(u32, elem, .little);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryExtensionReply = struct {
+    present: bool,
+    major_opcode: u8,
+    first_event: u8,
+    first_error: u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 1 + 1 + 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeByte(@intFromBool(self.present));
+        try writer.writeByte(self.major_opcode);
+        try writer.writeByte(self.first_event);
+        try writer.writeByte(self.first_error);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const present = (try reader.takeByte()) != 0;
+        const major_opcode = try reader.takeByte();
+        const first_event = try reader.takeByte();
+        const first_error = try reader.takeByte();
+        return .{
+            .present = present,
+            .major_opcode = major_opcode,
+            .first_event = first_event,
+            .first_error = first_error,
+        };
+    }
+
+};
+
+pub const QueryExtension = struct {
+    pub const opcode: u8 = 98;
+    pub const Reply = QueryExtensionReply;
+
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.name);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryFontReply = struct {
+    min_bounds: CHARINFO,
+    max_bounds: CHARINFO,
+    min_char_or_byte2: u16,
+    max_char_or_byte2: u16,
+    default_char: u16,
+    draw_direction: FontDraw,
+    min_byte1: u8,
+    max_byte1: u8,
+    all_chars_exist: bool,
+    font_ascent: i16,
+    font_descent: i16,
+    properties: []FONTPROP,
+    char_infos: []CHARINFO,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + wire.structListByteLen(self.char_infos);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try self.min_bounds.encode(writer);
+        try writer.splatByteAll(0, 4);
+        try self.max_bounds.encode(writer);
+        try writer.splatByteAll(0, 4);
+        try writer.writeInt(u16, self.min_char_or_byte2, .little);
+        try writer.writeInt(u16, self.max_char_or_byte2, .little);
+        try writer.writeInt(u16, self.default_char, .little);
+        try writer.writeInt(u16, @intCast(self.properties.len), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.draw_direction)));
+        try writer.writeByte(self.min_byte1);
+        try writer.writeByte(self.max_byte1);
+        try writer.writeByte(@intFromBool(self.all_chars_exist));
+        try writer.writeInt(i16, self.font_ascent, .little);
+        try writer.writeInt(i16, self.font_descent, .little);
+        try writer.writeInt(u32, @intCast(self.char_infos.len), .little);
+        for (self.properties) |elem| {
+            try elem.encode(writer);
+        }
+        for (self.char_infos) |elem| {
+            try elem.encode(writer);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const min_bounds = try CHARINFO.decode(reader);
+        _ = try reader.take(4);
+        const max_bounds = try CHARINFO.decode(reader);
+        _ = try reader.take(4);
+        const min_char_or_byte2 = try reader.takeInt(u16, .little);
+        const max_char_or_byte2 = try reader.takeInt(u16, .little);
+        const default_char = try reader.takeInt(u16, .little);
+        const properties_len = try reader.takeInt(u16, .little);
+        const draw_direction = @as(FontDraw, @enumFromInt(try reader.takeInt(u8, .little)));
+        const min_byte1 = try reader.takeByte();
+        const max_byte1 = try reader.takeByte();
+        const all_chars_exist = (try reader.takeByte()) != 0;
+        const font_ascent = try reader.takeInt(i16, .little);
+        const font_descent = try reader.takeInt(i16, .little);
+        const char_infos_len = try reader.takeInt(u32, .little);
+        const properties = try allocator.alloc(FONTPROP, @as(usize, properties_len));
+        errdefer allocator.free(properties);
+        var properties_decoded: usize = 0;
+        for (properties) |*elem| {
+            const elem_value = try FONTPROP.decode(reader);
+            elem.* = elem_value;
+            properties_decoded += 1;
+        }
+        const char_infos = try allocator.alloc(CHARINFO, @as(usize, char_infos_len));
+        errdefer allocator.free(char_infos);
+        var char_infos_decoded: usize = 0;
+        for (char_infos) |*elem| {
+            const elem_value = try CHARINFO.decode(reader);
+            elem.* = elem_value;
+            char_infos_decoded += 1;
+        }
+        return .{
+            .min_bounds = min_bounds,
+            .max_bounds = max_bounds,
+            .min_char_or_byte2 = min_char_or_byte2,
+            .max_char_or_byte2 = max_char_or_byte2,
+            .default_char = default_char,
+            .draw_direction = draw_direction,
+            .min_byte1 = min_byte1,
+            .max_byte1 = max_byte1,
+            .all_chars_exist = all_chars_exist,
+            .font_ascent = font_ascent,
+            .font_descent = font_descent,
+            .properties = properties,
+            .char_infos = char_infos,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.properties);
+        allocator.free(self.char_infos);
+    }
+
+};
+
+pub const QueryFont = struct {
+    pub const opcode: u8 = 47;
+    pub const Reply = QueryFontReply;
+
+    font: Fontable,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.font), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryKeymapReply = struct {
+    keys: [32]u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 32;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeAll(self.keys[0..]);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        var keys: [32]u8 = undefined;
+        @memcpy(keys[0..], try reader.take(32));
+        return .{
+            .keys = keys,
+        };
+    }
+
+};
+
+pub const QueryKeymap = struct {
+    pub const opcode: u8 = 44;
+    pub const Reply = QueryKeymapReply;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryPointerReply = struct {
+    same_screen: bool,
+    root: Window,
+    child: Window,
+    root_x: i16,
+    root_y: i16,
+    win_x: i16,
+    win_y: i16,
+    mask: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.win_x, .little);
+        try writer.writeInt(i16, self.win_y, .little);
+        try writer.writeInt(u16, self.mask, .little);
+        try writer.splatByteAll(0, 2);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const same_screen = (try reader.takeByte()) != 0;
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const child = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const root_x = try reader.takeInt(i16, .little);
+        const root_y = try reader.takeInt(i16, .little);
+        const win_x = try reader.takeInt(i16, .little);
+        const win_y = try reader.takeInt(i16, .little);
+        const mask = try reader.takeInt(u16, .little);
+        _ = try reader.take(2);
+        return .{
+            .same_screen = same_screen,
+            .root = root,
+            .child = child,
+            .root_x = root_x,
+            .root_y = root_y,
+            .win_x = win_x,
+            .win_y = win_y,
+            .mask = mask,
+        };
+    }
+
+};
+
+pub const QueryPointer = struct {
+    pub const opcode: u8 = 38;
+    pub const Reply = QueryPointerReply;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const QueryTreeReply = struct {
+    root: Window,
+    parent: Window,
+    children: []const Window,
+
+    pub fn byteLen(self: @This()) usize {
+        return 1 + 4 + 4 + 2 + 14 + self.children.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(u16, @intCast(self.children.len), .little);
+        try writer.splatByteAll(0, 14);
+        for (self.children) |elem| {
+            try writer.writeInt(u32, @intFromEnum(elem), .little);
+        }
+    }
+
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        _ = try reader.take(1);
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const parent = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const children_len = try reader.takeInt(u16, .little);
+        _ = try reader.take(14);
+        const children = try allocator.alloc(Window, @as(usize, children_len));
+        errdefer allocator.free(children);
+        var children_decoded: usize = 0;
+        for (children) |*elem| {
+            const elem_value = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+            elem.* = elem_value;
+            children_decoded += 1;
+        }
+        return .{
+            .root = root,
+            .parent = parent,
+            .children = children,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.children);
+    }
+
+};
+
+pub const QueryTree = struct {
+    pub const opcode: u8 = 15;
+    pub const Reply = QueryTreeReply;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const RecolorCursor = struct {
+    pub const opcode: u8 = 96;
+    pub const Reply = void;
+
+    cursor: Cursor,
+    fore_red: u16,
+    fore_green: u16,
+    fore_blue: u16,
+    back_red: u16,
+    back_green: u16,
+    back_blue: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cursor), .little);
+        try writer.writeInt(u16, self.fore_red, .little);
+        try writer.writeInt(u16, self.fore_green, .little);
+        try writer.writeInt(u16, self.fore_blue, .little);
+        try writer.writeInt(u16, self.back_red, .little);
+        try writer.writeInt(u16, self.back_green, .little);
+        try writer.writeInt(u16, self.back_blue, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const ReparentWindow = struct {
+    pub const opcode: u8 = 7;
+    pub const Reply = void;
+
+    window: Window,
+    parent: Window,
+    x: i16,
+    y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const RotateProperties = struct {
+    pub const opcode: u8 = 114;
+    pub const Reply = void;
+
+    window: Window,
+    delta: i16,
+    atoms: []const Atom,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + self.atoms.len * 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u16, @intCast(self.atoms.len), .little);
+        try writer.writeInt(i16, self.delta, .little);
+        for (self.atoms) |elem| {
+            try writer.writeInt(u32, @intFromEnum(elem), .little);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SendEvent = struct {
+    pub const opcode: u8 = 25;
+    pub const Reply = void;
+
+    propagate: bool,
+    destination: Window,
+    event_mask: u32,
+    event: [32]u8,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 32;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intFromBool(self.propagate));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.destination), .little);
+        try writer.writeInt(u32, self.event_mask, .little);
+        try writer.writeAll(self.event[0..]);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetAccessControl = struct {
+    pub const opcode: u8 = 111;
+    pub const Reply = void;
+
+    mode: AccessControl,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetClipRectangles = struct {
+    pub const opcode: u8 = 59;
+    pub const Reply = void;
+
+    ordering: ClipOrdering,
+    gc: Gcontext,
+    clip_x_origin: i16,
+    clip_y_origin: i16,
+    rectangles: []RECTANGLE,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.ordering)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(i16, self.clip_x_origin, .little);
+        try writer.writeInt(i16, self.clip_y_origin, .little);
+        for (self.rectangles) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetCloseDownMode = struct {
+    pub const opcode: u8 = 112;
+    pub const Reply = void;
+
+    mode: CloseDown,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetDashes = struct {
+    pub const opcode: u8 = 58;
+    pub const Reply = void;
+
+    gc: Gcontext,
+    dash_offset: u16,
+    dashes: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 2 + 2 + self.dashes.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
+        try writer.writeInt(u16, self.dash_offset, .little);
+        try writer.writeInt(u16, @intCast(self.dashes.len), .little);
+        try writer.writeAll(self.dashes);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetFontPath = struct {
+    pub const opcode: u8 = 51;
+    pub const Reply = void;
+
+    font: []STR,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 2 + 2 + wire.structListByteLen(self.font);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, @intCast(self.font.len), .little);
+        try writer.splatByteAll(0, 2);
+        for (self.font) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetInputFocus = struct {
+    pub const opcode: u8 = 42;
+    pub const Reply = void;
+
+    revert_to: InputFocus,
+    focus: Window,
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.revert_to)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.focus), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetModifierMappingReply = struct {
+    status: MappingStatus,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.status)));
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const status = @as(MappingStatus, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        return .{
+            .status = status,
+        };
+    }
+
+};
+
+pub const SetModifierMapping = struct {
+    pub const opcode: u8 = 118;
+    pub const Reply = SetModifierMappingReply;
+
+    keycodes_per_modifier: u8,
+    keycodes: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + self.keycodes.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.keycodes_per_modifier);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeAll(self.keycodes);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetPointerMappingReply = struct {
+    status: MappingStatus,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intCast(@intFromEnum(self.status)));
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const status = @as(MappingStatus, @enumFromInt(try reader.takeInt(u8, .little)));
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        return .{
+            .status = status,
+        };
+    }
+
+};
+
+pub const SetPointerMapping = struct {
+    pub const opcode: u8 = 116;
+    pub const Reply = SetPointerMappingReply;
+
+    map: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + self.map.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(self.map.len));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeAll(self.map);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetScreenSaver = struct {
+    pub const opcode: u8 = 107;
+    pub const Reply = void;
+
+    timeout: i16,
+    interval: i16,
+    prefer_blanking: Blanking,
+    allow_exposures: Exposures,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 2 + 2 + 1 + 1;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(i16, self.timeout, .little);
+        try writer.writeInt(i16, self.interval, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.prefer_blanking)));
+        try writer.writeByte(@intCast(@intFromEnum(self.allow_exposures)));
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const SetSelectionOwner = struct {
+    pub const opcode: u8 = 22;
+    pub const Reply = void;
+
+    owner: Window,
+    selection: Atom,
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.owner), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const StoreColors = struct {
+    pub const opcode: u8 = 89;
+    pub const Reply = void;
+
+    cmap: Colormap,
+    items: []COLORITEM,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + wire.structListByteLen(self.items);
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        for (self.items) |elem| {
+            try elem.encode(writer);
+        }
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const StoreNamedColor = struct {
+    pub const opcode: u8 = 90;
+    pub const Reply = void;
+
+    flags: u8,
+    cmap: Colormap,
+    pixel: u32,
+    name: []const u8,
+
+    pub fn byteLen(self: @This()) usize {
+        return 4 + 4 + 4 + 2 + 2 + self.name.len;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.flags);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.writeInt(u32, self.pixel, .little);
+        try writer.writeInt(u16, @intCast(self.name.len), .little);
+        try writer.splatByteAll(0, 2);
+        try writer.writeAll(self.name);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const TranslateCoordinatesReply = struct {
+    same_screen: bool,
+    child: Window,
+    dst_x: i16,
+    dst_y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 1 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.dst_x, .little);
+        try writer.writeInt(i16, self.dst_y, .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+        _ = try reader.takeByte();
+        const same_screen = (try reader.takeByte()) != 0;
+        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u32, .little);
+        const child = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
+        const dst_x = try reader.takeInt(i16, .little);
+        const dst_y = try reader.takeInt(i16, .little);
+        return .{
+            .same_screen = same_screen,
+            .child = child,
+            .dst_x = dst_x,
+            .dst_y = dst_y,
+        };
+    }
+
+};
+
+pub const TranslateCoordinates = struct {
+    pub const opcode: u8 = 40;
+    pub const Reply = TranslateCoordinatesReply;
+
+    src_window: Window,
+    dst_window: Window,
+    src_x: i16,
+    src_y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.dst_window), .little);
+        try writer.writeInt(i16, self.src_x, .little);
+        try writer.writeInt(i16, self.src_y, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UngrabButton = struct {
+    pub const opcode: u8 = 29;
+    pub const Reply = void;
+
+    button: ButtonIndex,
+    grab_window: Window,
+    modifiers: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(@intCast(@intFromEnum(self.button)));
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u16, self.modifiers, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UngrabKey = struct {
+    pub const opcode: u8 = 34;
+    pub const Reply = void;
+
+    key: u8,
+    grab_window: Window,
+    modifiers: u16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.writeByte(self.key);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.grab_window), .little);
+        try writer.writeInt(u16, self.modifiers, .little);
+        try writer.splatByteAll(0, 2);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UngrabKeyboard = struct {
+    pub const opcode: u8 = 32;
+    pub const Reply = void;
+
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UngrabPointer = struct {
+    pub const opcode: u8 = 27;
+    pub const Reply = void;
+
+    time: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UngrabServer = struct {
+    pub const opcode: u8 = 37;
+    pub const Reply = void;
+
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 0;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UninstallColormap = struct {
+    pub const opcode: u8 = 82;
+    pub const Reply = void;
+
+    cmap: Colormap,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.cmap), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UnmapSubwindows = struct {
+    pub const opcode: u8 = 11;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const UnmapWindow = struct {
+    pub const opcode: u8 = 10;
+    pub const Reply = void;
+
+    window: Window,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, pad);
+    }
+
+};
+
+pub const WarpPointer = struct {
+    pub const opcode: u8 = 41;
+    pub const Reply = void;
+
+    src_window: Window,
+    dst_window: Window,
+    src_x: i16,
+    src_y: i16,
+    src_width: u16,
+    src_height: u16,
+    dst_x: i16,
+    dst_y: i16,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+        const len = self.byteLen();
+        const pad = wire.pad4(len);
+        try writer.writeByte(opcode);
+        try writer.splatByteAll(0, 1);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u32, @intFromEnum(self.src_window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.dst_window), .little);
+        try writer.writeInt(i16, self.src_x, .little);
+        try writer.writeInt(i16, self.src_y, .little);
+        try writer.writeInt(u16, self.src_width, .little);
+        try writer.writeInt(u16, self.src_height, .little);
+        try writer.writeInt(i16, self.dst_x, .little);
+        try writer.writeInt(i16, self.dst_y, .little);
+        try writer.splatByteAll(0, pad);
+    }
+
 };
 
 pub const KeyPressEvent = struct {
@@ -2464,3 +7706,4 @@ pub fn decodeEvent(reader: *std.Io.Reader) wire.Error!Event {
         },
     };
 }
+

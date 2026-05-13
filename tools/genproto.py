@@ -15,8 +15,6 @@ import xcbxml
 
 XML_PATH = Path("/usr/share/xcb/xproto.xml")
 OUT_PATH = Path("src/xproto.zig")
-SETUP_STRUCTS = ("SetupRequest", "SetupFailed", "SetupAuthenticate", "Setup")
-TARGET_REQUESTS = ("InternAtom", "GetProperty", "GetInputFocus", "CreateWindow", "MapWindow")
 
 
 @dataclass(frozen=True)
@@ -89,7 +87,9 @@ SCALAR_TYPES: dict[str, ScalarType] = {
     "CARD8": ScalarType("CARD8", "u8", 1),
     "CARD16": ScalarType("CARD16", "u16", 2),
     "CARD32": ScalarType("CARD32", "u32", 4),
+    "INT8": ScalarType("INT8", "i8", 1),
     "INT16": ScalarType("INT16", "i16", 2),
+    "INT32": ScalarType("INT32", "i32", 4),
     "char": ScalarType("char", "u8", 1),
     "void": ScalarType("void", "u8", 1),
 }
@@ -834,68 +834,6 @@ class Resolver:
             xge=event.xge,
         )
 
-def item_struct_deps(item: Item) -> set[str]:
-    deps: set[str] = set()
-
-    def visit_type(type_ref: TypeRef) -> None:
-        if isinstance(type_ref, StructType):
-            deps.add(type_ref.name)
-
-    match item:
-        case FieldItem(type_ref=type_ref):
-            visit_type(type_ref)
-        case ListItem(item_type=item_type):
-            visit_type(item_type)
-        case MaskListItem(cases=cases):
-            for case in cases:
-                visit_type(case.value_type)
-        case _:
-            pass
-
-    return deps
-
-
-def collect_struct_dependencies(module: ModuleIR, root_struct_names: set[str]) -> set[str]:
-    pending = list(root_struct_names)
-    seen: set[str] = set()
-
-    while pending:
-        name = pending.pop()
-        if name in seen:
-            continue
-        seen.add(name)
-
-        struct = module.structs.get(name)
-        if struct is None:
-            continue
-
-        for item in struct.items:
-            for dep_name in item_struct_deps(item):
-                if dep_name not in seen:
-                    pending.append(dep_name)
-
-    return seen
-
-
-def selected_requests(module: ModuleIR) -> dict[str, RequestDecl]:
-    return {name: module.requests[name] for name in TARGET_REQUESTS}
-
-
-def selected_emittable_requests(module: ModuleIR) -> dict[str, RequestDecl]:
-    return selected_requests(module)
-
-
-def selected_struct_names(module: ModuleIR) -> set[str]:
-    roots = set(SETUP_STRUCTS)
-    for request in selected_requests(module).values():
-        for item in request.items:
-            roots.update(item_struct_deps(item))
-        if request.reply is not None:
-            for item in request.reply.items:
-                roots.update(item_struct_deps(item))
-    return collect_struct_dependencies(module, roots)
-
-
 def zig_xid_name(name: str) -> str:
     return name.title().replace("_", "")
 
@@ -974,6 +912,24 @@ def render_expr(expr: Expr) -> str:
             raise NotImplementedError(f"unsupported expression operator: {expr.op}")
         return f"({render_expr(expr.left)} {op} {render_expr(expr.right)})"
     raise TypeError(f"unsupported expression: {expr!r}")
+
+
+def expr_uses_fieldref(expr: Expr | None, name: str) -> bool:
+    if expr is None:
+        return False
+    if isinstance(expr, int):
+        return False
+    if isinstance(expr, xcbxml.FieldRef):
+        return expr.ref == name
+    if isinstance(expr, xcbxml.Op):
+        return expr_uses_fieldref(expr.left, name) or expr_uses_fieldref(expr.right, name)
+    raise TypeError(f"unsupported expression: {expr!r}")
+
+
+def item_uses_fieldref(item: Item, name: str) -> bool:
+    if isinstance(item, ListItem):
+        return expr_uses_fieldref(item.len_expr, name)
+    return False
 
 
 def reply_name(request_name: str) -> str:
@@ -1171,6 +1127,7 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
     body = body_items(items)
     decl = StructDecl(name=reply_name(request.name), items=items)
     decode_mode = "fixed" if not decl.is_dynamic else reply_decode_mode(decl)
+    uses_reply_length = any(item_uses_fieldref(item, "length") for item in body)
 
     emit(f"pub const {reply_name(request.name)} = struct {{")
     with emit.block():
@@ -1193,7 +1150,10 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
             else:
                 emit("_ = try reader.take(1);")
             emit("_ = try reader.takeInt(u16, .little);")
-            emit("_ = try reader.takeInt(u32, .little);")
+            if uses_reply_length:
+                emit("const length = try reader.takeInt(u32, .little);")
+            else:
+                emit("_ = try reader.takeInt(u32, .little);")
             if decode_mode == "buf":
                 emit("var scratch_used: usize = 0;")
             emit_payload_decode_body(emit, body, header, decode_mode)
@@ -1392,12 +1352,6 @@ def render_module(module: ModuleIR) -> str:
     emit = Emit()
     emit_prelude(emit)
 
-    request_names = sorted(selected_emittable_requests(module))
-    struct_names = sorted(selected_struct_names(module))
-    emit(f"// selected requests: {', '.join(request_names)}")
-    emit(f"// selected structs: {', '.join(struct_names)}")
-    emit()
-
     for name in sorted(module.xidtypes):
         emit_xid_decl(emit, module.xidtypes[name])
     for name in sorted(module.xidunions):
@@ -1412,9 +1366,10 @@ def render_module(module: ModuleIR) -> str:
         if name in conflicting_enum_names:
             continue
         emit_enum_decl(emit, module.enums[name])
-    for name in struct_names:
+    for name in sorted(module.structs):
         emit_struct_decl(emit, module.structs[name])
-    for request in selected_emittable_requests(module).values():
+    for name in sorted(module.requests):
+        request = module.requests[name]
         if request.reply is not None:
             emit_reply_decl(emit, request)
         emit_request_decl(emit, request)
@@ -1438,13 +1393,11 @@ def main() -> None:
     bindings = gen_input.bindings
     module = Resolver(bindings).resolve_module()
     OUT_PATH.write_text(render_module(module) + "\n")
-    structs = selected_struct_names(module)
-    requests = selected_emittable_requests(module)
     print(
         "generated"
         f" file={OUT_PATH}"
-        f" requests={len(requests)}"
-        f" structs={len(structs)}"
+        f" requests={len(module.requests)}"
+        f" structs={len(module.structs)}"
         f" xids={len(module.xidtypes) + len(module.xidunions)}"
         f" enums={len(module.enums)}"
     )
