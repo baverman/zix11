@@ -100,7 +100,7 @@ test "GetProperty reply decode copies into caller scratch" {
     };
     var scratch: [8]u8 = undefined;
     var reader: std.Io.Reader = .fixed(&packet);
-    const reply = try xproto.GetPropertyReply.decode(&reader, &scratch);
+    const reply = try xproto.GetPropertyReply.decode(&scratch, &reader);
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
     try std.testing.expectEqual(@as(xproto.Atom, @enumFromInt(57)), reply.type);
