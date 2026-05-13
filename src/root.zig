@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const wire = @import("wire.zig");
+pub const errors = @import("errors.zig");
 pub const xproto = @import("xproto.zig");
 pub const Connection = @import("connection.zig").Connection;
 pub const ProtocolError = @import("connection.zig").ProtocolError;

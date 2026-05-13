@@ -1,27 +1,7 @@
 const std = @import("std");
 
-pub const Error = std.Io.Reader.Error || std.Io.Writer.Error || std.mem.Allocator.Error || error{
-    BufferTooSmall,
-    MalformedPacket,
-    UnexpectedReplyType,
-    UnexpectedEventType,
-    UnsupportedEvent,
-    UnsupportedFormat,
-};
-
 pub fn pad4(len: usize) usize {
     return (4 - (len & 3)) & 3;
-}
-
-pub fn valueByteLen(format: u8, units: u32) Error!usize {
-    const unit_bytes: usize = switch (format) {
-        0 => 0,
-        8 => 1,
-        16 => 2,
-        32 => 4,
-        else => return error.UnsupportedFormat,
-    };
-    return unit_bytes * units;
 }
 
 pub fn structListByteLen(list: anytype) usize {
@@ -50,7 +30,7 @@ pub fn valueListByteLen(comptime Spec: type, values: anytype) usize {
     return total;
 }
 
-pub fn writeValueList(comptime Spec: type, values: anytype, writer: *std.Io.Writer) Error!void {
+pub fn writeValueList(comptime Spec: type, values: anytype, writer: *std.Io.Writer) std.Io.Writer.Error!void {
     inline for (Spec.fields) |field| {
         if (@field(values, field.name)) |value| {
             try writeMaskedValue(field.value_type, writer, value);
@@ -71,7 +51,7 @@ fn maskedValueByteLen(comptime T: type) usize {
     };
 }
 
-fn writeMaskedValue(comptime T: type, writer: *std.Io.Writer, value: T) Error!void {
+fn writeMaskedValue(comptime T: type, writer: *std.Io.Writer, value: T) std.Io.Writer.Error!void {
     switch (@typeInfo(T)) {
         .@"enum" => |info| try writer.writeInt(info.tag_type, @intFromEnum(value), .little),
         .int => |info| {

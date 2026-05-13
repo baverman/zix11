@@ -852,6 +852,11 @@ def emit_prelude(emit: Emit) -> None:
     emit()
     emit('const std = @import("std");')
     emit('const wire = @import("wire.zig");')
+    emit('const errors = @import("errors.zig");')
+    emit("const EncodeError = errors.EncodeError;")
+    emit("const DecodeError = errors.DecodeError;")
+    emit("const AllocDecodeError = errors.AllocDecodeError;")
+    emit("const BufferDecodeError = errors.BufferDecodeError;")
     emit()
 
 
@@ -871,12 +876,12 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
             emit(f"return {decl.raw_size};")
         emit("}")
         emit()
-        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {")
+        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
         with emit.block():
             emit("try writer.writeAll(self.raw[0..]);")
         emit("}")
         emit()
-        emit("pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {")
+        emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             emit(f"var raw: [{decl.raw_size}]u8 = undefined;")
             emit(f"@memcpy(raw[0..], try reader.take({decl.raw_size}));")
@@ -1043,7 +1048,7 @@ def emit_payload_encode_body(
 
 
 def emit_struct_encode(emit: Emit, decl: StructDecl) -> None:
-    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {")
+    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
     with emit.block():
         emit_payload_encode_body(emit, decl.items, "self")
     emit("}")
@@ -1052,9 +1057,9 @@ def emit_struct_encode(emit: Emit, decl: StructDecl) -> None:
 
 def emit_struct_decode_signature(emit: Emit, decl: StructDecl) -> None:
     if decl.is_dynamic:
-        emit("pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {")
+        emit("pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {")
     else:
-        emit("pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {")
+        emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
 
 
 def emit_payload_decode_body(
@@ -1136,11 +1141,11 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
         emit_struct_byte_len(emit, decl)
         emit_struct_encode(emit, decl)
         if decode_mode == "alloc":
-            emit("pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {")
+            emit("pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {")
         elif decode_mode == "buf":
-            emit("pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {")
+            emit("pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {")
         else:
-            emit("pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {")
+            emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             emit("_ = try reader.takeByte();")
             if isinstance(header, FieldItem):
@@ -1207,7 +1212,7 @@ def emit_request_byte_len(emit: Emit, request: RequestDecl) -> None:
 
 
 def emit_request_encode(emit: Emit, request: RequestDecl) -> None:
-    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {")
+    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
     with emit.block():
         emit("const len = self.byteLen();")
         emit("const pad = wire.pad4(len);")
@@ -1263,7 +1268,7 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
         else:
             emit_payload_decl_fields(emit, decl.items)
         emit()
-        emit("pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {")
+        emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             emit("_ = try reader.takeByte();")
             if decl.xge == "true":
@@ -1321,7 +1326,7 @@ def emit_event_union(emit: Emit, events: dict[str, EventDecl]) -> None:
 
 
 def emit_decode_event(emit: Emit, events: dict[str, EventDecl]) -> None:
-    emit("pub fn decodeEvent(reader: *std.Io.Reader) wire.Error!Event {")
+    emit("pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {")
     with emit.block():
         emit("const code = (try reader.peek(1))[0] & 0x7f;")
         emit("return switch (code) {")

@@ -2,6 +2,11 @@
 
 const std = @import("std");
 const wire = @import("wire.zig");
+const errors = @import("errors.zig");
+const EncodeError = errors.EncodeError;
+const DecodeError = errors.DecodeError;
+const AllocDecodeError = errors.AllocDecodeError;
+const BufferDecodeError = errors.BufferDecodeError;
 
 pub const Atom = enum(u32) { _ };
 
@@ -29,11 +34,11 @@ pub const ClientMessageData = struct {
         return 20;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeAll(self.raw[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         var raw: [20]u8 = undefined;
         @memcpy(raw[0..], try reader.take(20));
         return .{ .raw = raw };
@@ -664,7 +669,7 @@ pub const ARC = struct {
         return 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
         try writer.writeInt(u16, self.width, .little);
@@ -673,7 +678,7 @@ pub const ARC = struct {
         try writer.writeInt(i16, self.angle2, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const x = try reader.takeInt(i16, .little);
         const y = try reader.takeInt(i16, .little);
         const width = try reader.takeInt(u16, .little);
@@ -701,12 +706,12 @@ pub const CHAR2B = struct {
         return 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.byte1);
         try writer.writeByte(self.byte2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const byte1 = try reader.takeByte();
         const byte2 = try reader.takeByte();
         return .{
@@ -730,7 +735,7 @@ pub const CHARINFO = struct {
         return 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(i16, self.left_side_bearing, .little);
         try writer.writeInt(i16, self.right_side_bearing, .little);
         try writer.writeInt(i16, self.character_width, .little);
@@ -739,7 +744,7 @@ pub const CHARINFO = struct {
         try writer.writeInt(u16, self.attributes, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const left_side_bearing = try reader.takeInt(i16, .little);
         const right_side_bearing = try reader.takeInt(i16, .little);
         const character_width = try reader.takeInt(i16, .little);
@@ -770,7 +775,7 @@ pub const COLORITEM = struct {
         return 4 + 2 + 2 + 2 + 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, self.pixel, .little);
         try writer.writeInt(u16, self.red, .little);
         try writer.writeInt(u16, self.green, .little);
@@ -779,7 +784,7 @@ pub const COLORITEM = struct {
         try writer.splatByteAll(0, 1);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const pixel = try reader.takeInt(u32, .little);
         const red = try reader.takeInt(u16, .little);
         const green = try reader.takeInt(u16, .little);
@@ -805,7 +810,7 @@ pub const DEPTH = struct {
         return 1 + 1 + 2 + 4 + wire.structListByteLen(self.visuals);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.depth);
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.visuals.len), .little);
@@ -815,7 +820,7 @@ pub const DEPTH = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const depth = try reader.takeByte();
         _ = try reader.take(1);
         const visuals_len = try reader.takeInt(u16, .little);
@@ -849,12 +854,12 @@ pub const FONTPROP = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, @intFromEnum(self.name), .little);
         try writer.writeInt(u32, self.value, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const name = @as(Atom, @enumFromInt(try reader.takeInt(u32, .little)));
         const value = try reader.takeInt(u32, .little);
         return .{
@@ -875,14 +880,14 @@ pub const FORMAT = struct {
         return 1 + 1 + 1 + 5;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.depth);
         try writer.writeByte(self.bits_per_pixel);
         try writer.writeByte(self.scanline_pad);
         try writer.splatByteAll(0, 5);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const depth = try reader.takeByte();
         const bits_per_pixel = try reader.takeByte();
         const scanline_pad = try reader.takeByte();
@@ -904,7 +909,7 @@ pub const HOST = struct {
         return 1 + 1 + 2 + self.address.len + wire.pad4(self.address.len);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.family)));
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.address.len), .little);
@@ -912,7 +917,7 @@ pub const HOST = struct {
         try writer.splatByteAll(0, wire.pad4(self.address.len));
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const family = @as(Family, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.take(1);
         const address_len = try reader.takeInt(u16, .little);
@@ -941,12 +946,12 @@ pub const POINT = struct {
         return 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const x = try reader.takeInt(i16, .little);
         const y = try reader.takeInt(i16, .little);
         return .{
@@ -968,14 +973,14 @@ pub const RECTANGLE = struct {
         return 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const x = try reader.takeInt(i16, .little);
         const y = try reader.takeInt(i16, .little);
         const width = try reader.takeInt(u16, .little);
@@ -1000,14 +1005,14 @@ pub const RGB = struct {
         return 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u16, self.red, .little);
         try writer.writeInt(u16, self.green, .little);
         try writer.writeInt(u16, self.blue, .little);
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const red = try reader.takeInt(u16, .little);
         const green = try reader.takeInt(u16, .little);
         const blue = try reader.takeInt(u16, .little);
@@ -1043,7 +1048,7 @@ pub const SCREEN = struct {
         return 4 + 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4 + 1 + 1 + 1 + 1 + wire.structListByteLen(self.allowed_depths);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, @intFromEnum(self.root), .little);
         try writer.writeInt(u32, @intFromEnum(self.default_colormap), .little);
         try writer.writeInt(u32, self.white_pixel, .little);
@@ -1065,7 +1070,7 @@ pub const SCREEN = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const root = @as(Window, @enumFromInt(try reader.takeInt(u32, .little)));
         const default_colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .little)));
         const white_pixel = try reader.takeInt(u32, .little);
@@ -1129,14 +1134,14 @@ pub const SEGMENT = struct {
         return 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(i16, self.x1, .little);
         try writer.writeInt(i16, self.y1, .little);
         try writer.writeInt(i16, self.x2, .little);
         try writer.writeInt(i16, self.y2, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const x1 = try reader.takeInt(i16, .little);
         const y1 = try reader.takeInt(i16, .little);
         const x2 = try reader.takeInt(i16, .little);
@@ -1158,12 +1163,12 @@ pub const STR = struct {
         return 1 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(self.name.len));
         try writer.writeAll(self.name);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const name_len = try reader.takeByte();
         const name_byte_len = @as(usize, name_len);
         const name_temp = try reader.take(name_byte_len);
@@ -1203,7 +1208,7 @@ pub const Setup = struct {
         return 1 + 1 + 2 + 2 + 2 + 4 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + self.vendor.len + wire.pad4(self.vendor.len) + wire.structListByteLen(self.pixmap_formats) + wire.structListByteLen(self.roots);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.status);
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.protocol_major_version, .little);
@@ -1234,7 +1239,7 @@ pub const Setup = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const status = try reader.takeByte();
         _ = try reader.take(1);
         const protocol_major_version = try reader.takeInt(u16, .little);
@@ -1316,14 +1321,14 @@ pub const SetupAuthenticate = struct {
         return 1 + 5 + 2 + self.reason.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.status);
         try writer.splatByteAll(0, 5);
         try writer.writeInt(u16, self.length, .little);
         try writer.writeAll(self.reason);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const status = try reader.takeByte();
         _ = try reader.take(5);
         const length = try reader.takeInt(u16, .little);
@@ -1354,7 +1359,7 @@ pub const SetupFailed = struct {
         return 1 + 1 + 2 + 2 + 2 + self.reason.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.status);
         try writer.writeByte(@intCast(self.reason.len));
         try writer.writeInt(u16, self.protocol_major_version, .little);
@@ -1363,7 +1368,7 @@ pub const SetupFailed = struct {
         try writer.writeAll(self.reason);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const status = try reader.takeByte();
         const reason_len = try reader.takeByte();
         const protocol_major_version = try reader.takeInt(u16, .little);
@@ -1398,7 +1403,7 @@ pub const SetupRequest = struct {
         return 1 + 1 + 2 + 2 + 2 + 2 + 2 + self.authorization_protocol_name.len + wire.pad4(self.authorization_protocol_name.len) + self.authorization_protocol_data.len + wire.pad4(self.authorization_protocol_data.len);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.byte_order);
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.protocol_major_version, .little);
@@ -1412,7 +1417,7 @@ pub const SetupRequest = struct {
         try writer.splatByteAll(0, wire.pad4(self.authorization_protocol_data.len));
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         const byte_order = try reader.takeByte();
         _ = try reader.take(1);
         const protocol_major_version = try reader.takeInt(u16, .little);
@@ -1454,13 +1459,13 @@ pub const TIMECOORD = struct {
         return 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, self.time, .little);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const time = try reader.takeInt(u32, .little);
         const x = try reader.takeInt(i16, .little);
         const y = try reader.takeInt(i16, .little);
@@ -1487,7 +1492,7 @@ pub const VISUALTYPE = struct {
         return 4 + 1 + 1 + 2 + 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, self.visual_id, .little);
         try writer.writeByte(@intCast(@intFromEnum(self.class)));
         try writer.writeByte(self.bits_per_rgb_value);
@@ -1498,7 +1503,7 @@ pub const VISUALTYPE = struct {
         try writer.splatByteAll(0, 4);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         const visual_id = try reader.takeInt(u32, .little);
         const class = @as(VisualClass, @enumFromInt(try reader.takeInt(u8, .little)));
         const bits_per_rgb_value = try reader.takeByte();
@@ -1531,7 +1536,7 @@ pub const AllocColorReply = struct {
         return 1 + 2 + 2 + 2 + 2 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.red, .little);
         try writer.writeInt(u16, self.green, .little);
@@ -1540,7 +1545,7 @@ pub const AllocColorReply = struct {
         try writer.writeInt(u32, self.pixel, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -1574,7 +1579,7 @@ pub const AllocColor = struct {
         return 4 + 4 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1598,7 +1603,7 @@ pub const AllocColorCellsReply = struct {
         return 1 + 2 + 2 + 20 + self.pixels.len * 4 + self.masks.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.pixels.len), .little);
         try writer.writeInt(u16, @intCast(self.masks.len), .little);
@@ -1611,7 +1616,7 @@ pub const AllocColorCellsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -1662,7 +1667,7 @@ pub const AllocColorCells = struct {
         return 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1686,7 +1691,7 @@ pub const AllocColorPlanesReply = struct {
         return 1 + 2 + 2 + 4 + 4 + 4 + 8 + self.pixels.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.pixels.len), .little);
         try writer.splatByteAll(0, 2);
@@ -1699,7 +1704,7 @@ pub const AllocColorPlanesReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -1748,7 +1753,7 @@ pub const AllocColorPlanes = struct {
         return 4 + 4 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1778,7 +1783,7 @@ pub const AllocNamedColorReply = struct {
         return 1 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u32, self.pixel, .little);
         try writer.writeInt(u16, self.exact_red, .little);
@@ -1789,7 +1794,7 @@ pub const AllocNamedColorReply = struct {
         try writer.writeInt(u16, self.visual_blue, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -1825,7 +1830,7 @@ pub const AllocNamedColor = struct {
         return 4 + 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1852,7 +1857,7 @@ pub const AllowEvents = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1875,7 +1880,7 @@ pub const Bell = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1899,7 +1904,7 @@ pub const ChangeActivePointerGrab = struct {
         return 4 + 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -1979,7 +1984,7 @@ pub const ChangeGC = struct {
         return 4 + 4 + 4 + wire.valueListByteLen(ChangeGCValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2005,7 +2010,7 @@ pub const ChangeHosts = struct {
         return 4 + 1 + 1 + 2 + self.address.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2054,7 +2059,7 @@ pub const ChangeKeyboardControl = struct {
         return 4 + 4 + wire.valueListByteLen(ChangeKeyboardControlValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2080,7 +2085,7 @@ pub const ChangeKeyboardMapping = struct {
         return 4 + 1 + 1 + 2 + self.keysyms.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2112,7 +2117,7 @@ pub const ChangePointerControl = struct {
         return 4 + 2 + 2 + 2 + 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2144,7 +2149,7 @@ pub const ChangeProperty = struct {
         return 4 + 4 + 4 + 4 + 1 + 3 + 4 + self.data.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2174,7 +2179,7 @@ pub const ChangeSaveSet = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2235,7 +2240,7 @@ pub const ChangeWindowAttributes = struct {
         return 4 + 4 + 4 + wire.valueListByteLen(ChangeWindowAttributesValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2261,7 +2266,7 @@ pub const CirculateWindow = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2289,7 +2294,7 @@ pub const ClearArea = struct {
         return 4 + 4 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2316,7 +2321,7 @@ pub const CloseFont = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2361,7 +2366,7 @@ pub const ConfigureWindow = struct {
         return 4 + 4 + 2 + 2 + wire.valueListByteLen(ConfigureWindowValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2391,7 +2396,7 @@ pub const ConvertSelection = struct {
         return 4 + 4 + 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2426,7 +2431,7 @@ pub const CopyArea = struct {
         return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2458,7 +2463,7 @@ pub const CopyColormapAndFree = struct {
         return 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2484,7 +2489,7 @@ pub const CopyGC = struct {
         return 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2518,7 +2523,7 @@ pub const CopyPlane = struct {
         return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2553,7 +2558,7 @@ pub const CreateColormap = struct {
         return 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2588,7 +2593,7 @@ pub const CreateCursor = struct {
         return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2676,7 +2681,7 @@ pub const CreateGC = struct {
         return 4 + 4 + 4 + 4 + wire.valueListByteLen(CreateGCValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2712,7 +2717,7 @@ pub const CreateGlyphCursor = struct {
         return 4 + 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2749,7 +2754,7 @@ pub const CreatePixmap = struct {
         return 4 + 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2822,7 +2827,7 @@ pub const CreateWindow = struct {
         return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + wire.valueListByteLen(CreateWindowValueListSpec, self.value_list);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2856,7 +2861,7 @@ pub const DeleteProperty = struct {
         return 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2880,7 +2885,7 @@ pub const DestroySubwindows = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2903,7 +2908,7 @@ pub const DestroyWindow = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2929,7 +2934,7 @@ pub const FillPoly = struct {
         return 4 + 4 + 4 + 1 + 1 + 2 + wire.structListByteLen(self.points);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2959,7 +2964,7 @@ pub const ForceScreenSaver = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -2981,7 +2986,7 @@ pub const FreeColormap = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3005,7 +3010,7 @@ pub const FreeColors = struct {
         return 4 + 4 + 4 + self.pixels.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3032,7 +3037,7 @@ pub const FreeCursor = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3055,7 +3060,7 @@ pub const FreeGC = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3078,7 +3083,7 @@ pub const FreePixmap = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3097,14 +3102,14 @@ pub const GetAtomNameReply = struct {
         return 1 + 2 + 22 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.name.len), .little);
         try writer.splatByteAll(0, 22);
         try writer.writeAll(self.name);
     }
 
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3136,7 +3141,7 @@ pub const GetAtomName = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3155,7 +3160,7 @@ pub const GetFontPathReply = struct {
         return 1 + 2 + 22 + wire.structListByteLen(self.path);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.path.len), .little);
         try writer.splatByteAll(0, 22);
@@ -3164,7 +3169,7 @@ pub const GetFontPathReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3202,7 +3207,7 @@ pub const GetFontPath = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3227,7 +3232,7 @@ pub const GetGeometryReply = struct {
         return 1 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.depth);
         try writer.writeInt(u32, @intFromEnum(self.root), .little);
         try writer.writeInt(i16, self.x, .little);
@@ -3238,7 +3243,7 @@ pub const GetGeometryReply = struct {
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const depth = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3274,7 +3279,7 @@ pub const GetGeometry = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3295,14 +3300,14 @@ pub const GetImageReply = struct {
         return 1 + 4 + 20 + self.data.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.depth);
         try writer.writeInt(u32, self.visual, .little);
         try writer.splatByteAll(0, 20);
         try writer.writeAll(self.data);
     }
 
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
         _ = try reader.takeByte();
         const depth = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3342,7 +3347,7 @@ pub const GetImage = struct {
         return 4 + 4 + 2 + 2 + 2 + 2 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3368,12 +3373,12 @@ pub const GetInputFocusReply = struct {
         return 1 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.revert_to)));
         try writer.writeInt(u32, @intFromEnum(self.focus), .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const revert_to = @as(InputFocus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -3397,7 +3402,7 @@ pub const GetInputFocus = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3422,7 +3427,7 @@ pub const GetKeyboardControlReply = struct {
         return 1 + 4 + 1 + 1 + 2 + 2 + 2 + 32;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.global_auto_repeat)));
         try writer.writeInt(u32, self.led_mask, .little);
         try writer.writeByte(self.key_click_percent);
@@ -3433,7 +3438,7 @@ pub const GetKeyboardControlReply = struct {
         try writer.writeAll(self.auto_repeats[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const global_auto_repeat = @as(AutoRepeatMode, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -3469,7 +3474,7 @@ pub const GetKeyboardControl = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3488,7 +3493,7 @@ pub const GetKeyboardMappingReply = struct {
         return 1 + 24 + self.keysyms.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.keysyms_per_keycode);
         try writer.splatByteAll(0, 24);
         for (self.keysyms) |elem| {
@@ -3496,7 +3501,7 @@ pub const GetKeyboardMappingReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         const keysyms_per_keycode = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3534,7 +3539,7 @@ pub const GetKeyboardMapping = struct {
         return 4 + 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3555,13 +3560,13 @@ pub const GetModifierMappingReply = struct {
         return 1 + 24 + self.keycodes.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.keycodes_per_modifier);
         try writer.splatByteAll(0, 24);
         try writer.writeAll(self.keycodes);
     }
 
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
         _ = try reader.takeByte();
         const keycodes_per_modifier = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3592,7 +3597,7 @@ pub const GetModifierMapping = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3610,7 +3615,7 @@ pub const GetMotionEventsReply = struct {
         return 1 + 4 + 20 + wire.structListByteLen(self.events);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u32, @intCast(self.events.len), .little);
         try writer.splatByteAll(0, 20);
@@ -3619,7 +3624,7 @@ pub const GetMotionEventsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3658,7 +3663,7 @@ pub const GetMotionEvents = struct {
         return 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3682,7 +3687,7 @@ pub const GetPointerControlReply = struct {
         return 1 + 2 + 2 + 2 + 18;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.acceleration_numerator, .little);
         try writer.writeInt(u16, self.acceleration_denominator, .little);
@@ -3690,7 +3695,7 @@ pub const GetPointerControlReply = struct {
         try writer.splatByteAll(0, 18);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3718,7 +3723,7 @@ pub const GetPointerControl = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3736,13 +3741,13 @@ pub const GetPointerMappingReply = struct {
         return 1 + 24 + self.map.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(self.map.len));
         try writer.splatByteAll(0, 24);
         try writer.writeAll(self.map);
     }
 
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
         _ = try reader.takeByte();
         const map_len = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3772,7 +3777,7 @@ pub const GetPointerMapping = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3794,7 +3799,7 @@ pub const GetPropertyReply = struct {
         return 1 + 4 + 4 + 4 + 12 + self.value.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.format);
         try writer.writeInt(u32, @intFromEnum(self.type), .little);
         try writer.writeInt(u32, self.bytes_after, .little);
@@ -3803,7 +3808,7 @@ pub const GetPropertyReply = struct {
         try writer.writeAll(self.value);
     }
 
-    pub fn decode(scratch: []u8, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
         _ = try reader.takeByte();
         const format = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -3846,7 +3851,7 @@ pub const GetProperty = struct {
         return 4 + 4 + 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3873,7 +3878,7 @@ pub const GetScreenSaverReply = struct {
         return 1 + 2 + 2 + 1 + 1 + 18;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.timeout, .little);
         try writer.writeInt(u16, self.interval, .little);
@@ -3882,7 +3887,7 @@ pub const GetScreenSaverReply = struct {
         try writer.splatByteAll(0, 18);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3912,7 +3917,7 @@ pub const GetScreenSaver = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3931,12 +3936,12 @@ pub const GetSelectionOwnerReply = struct {
         return 1 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u32, @intFromEnum(self.owner), .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -3960,7 +3965,7 @@ pub const GetSelectionOwner = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -3994,7 +3999,7 @@ pub const GetWindowAttributesReply = struct {
         return 1 + 4 + 2 + 1 + 1 + 4 + 4 + 1 + 1 + 1 + 1 + 4 + 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.backing_store)));
         try writer.writeInt(u32, self.visual, .little);
         try writer.writeInt(u16, @intCast(@intFromEnum(self.class)), .little);
@@ -4013,7 +4018,7 @@ pub const GetWindowAttributesReply = struct {
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -4065,7 +4070,7 @@ pub const GetWindowAttributes = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4096,7 +4101,7 @@ pub const GrabButton = struct {
         return 4 + 4 + 2 + 1 + 1 + 4 + 4 + 1 + 1 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4132,7 +4137,7 @@ pub const GrabKey = struct {
         return 4 + 4 + 2 + 1 + 1 + 1 + 3;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4157,11 +4162,11 @@ pub const GrabKeyboardReply = struct {
         return 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.status)));
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const status = @as(GrabStatus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -4188,7 +4193,7 @@ pub const GrabKeyboard = struct {
         return 4 + 4 + 4 + 1 + 1 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4212,11 +4217,11 @@ pub const GrabPointerReply = struct {
         return 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.status)));
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const status = @as(GrabStatus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -4246,7 +4251,7 @@ pub const GrabPointer = struct {
         return 4 + 4 + 2 + 1 + 1 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4274,7 +4279,7 @@ pub const GrabServer = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4299,7 +4304,7 @@ pub const ImageText16 = struct {
         return 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.string);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4331,7 +4336,7 @@ pub const ImageText8 = struct {
         return 4 + 4 + 4 + 2 + 2 + self.string.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4358,7 +4363,7 @@ pub const InstallColormap = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4378,12 +4383,12 @@ pub const InternAtomReply = struct {
         return 1 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u32, @intFromEnum(self.atom), .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -4407,7 +4412,7 @@ pub const InternAtom = struct {
         return 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4432,7 +4437,7 @@ pub const KillClient = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4451,7 +4456,7 @@ pub const ListExtensionsReply = struct {
         return 1 + 24 + wire.structListByteLen(self.names);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(self.names.len));
         try writer.splatByteAll(0, 24);
         for (self.names) |elem| {
@@ -4459,7 +4464,7 @@ pub const ListExtensionsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         const names_len = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -4496,7 +4501,7 @@ pub const ListExtensions = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4514,7 +4519,7 @@ pub const ListFontsReply = struct {
         return 1 + 2 + 22 + wire.structListByteLen(self.names);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.names.len), .little);
         try writer.splatByteAll(0, 22);
@@ -4523,7 +4528,7 @@ pub const ListFontsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -4562,7 +4567,7 @@ pub const ListFonts = struct {
         return 4 + 2 + 2 + self.pattern.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4596,7 +4601,7 @@ pub const ListFontsWithInfoReply = struct {
         return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(self.name.len));
         try self.min_bounds.encode(writer);
         try writer.splatByteAll(0, 4);
@@ -4619,7 +4624,7 @@ pub const ListFontsWithInfoReply = struct {
         try writer.writeAll(self.name);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         const name_len = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -4686,7 +4691,7 @@ pub const ListFontsWithInfo = struct {
         return 4 + 2 + 2 + self.pattern.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4708,7 +4713,7 @@ pub const ListHostsReply = struct {
         return 1 + 2 + 22 + wire.structListByteLen(self.hosts);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.writeInt(u16, @intCast(self.hosts.len), .little);
         try writer.splatByteAll(0, 22);
@@ -4717,7 +4722,7 @@ pub const ListHostsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         const mode = @as(AccessControl, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -4756,7 +4761,7 @@ pub const ListHosts = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4774,7 +4779,7 @@ pub const ListInstalledColormapsReply = struct {
         return 1 + 2 + 22 + self.cmaps.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.cmaps.len), .little);
         try writer.splatByteAll(0, 22);
@@ -4783,7 +4788,7 @@ pub const ListInstalledColormapsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -4820,7 +4825,7 @@ pub const ListInstalledColormaps = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4839,7 +4844,7 @@ pub const ListPropertiesReply = struct {
         return 1 + 2 + 22 + self.atoms.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.atoms.len), .little);
         try writer.splatByteAll(0, 22);
@@ -4848,7 +4853,7 @@ pub const ListPropertiesReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -4885,7 +4890,7 @@ pub const ListProperties = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4910,7 +4915,7 @@ pub const LookupColorReply = struct {
         return 1 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.exact_red, .little);
         try writer.writeInt(u16, self.exact_green, .little);
@@ -4920,7 +4925,7 @@ pub const LookupColorReply = struct {
         try writer.writeInt(u16, self.visual_blue, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -4954,7 +4959,7 @@ pub const LookupColor = struct {
         return 4 + 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -4980,7 +4985,7 @@ pub const MapSubwindows = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5003,7 +5008,7 @@ pub const MapWindow = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5025,7 +5030,7 @@ pub const NoOperation = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5047,7 +5052,7 @@ pub const OpenFont = struct {
         return 4 + 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5074,7 +5079,7 @@ pub const PolyArc = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.arcs);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5102,7 +5107,7 @@ pub const PolyFillArc = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.arcs);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5130,7 +5135,7 @@ pub const PolyFillRectangle = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.rectangles);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5159,7 +5164,7 @@ pub const PolyLine = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.points);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5188,7 +5193,7 @@ pub const PolyPoint = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.points);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5216,7 +5221,7 @@ pub const PolyRectangle = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.rectangles);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5244,7 +5249,7 @@ pub const PolySegment = struct {
         return 4 + 4 + 4 + wire.structListByteLen(self.segments);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5274,7 +5279,7 @@ pub const PolyText16 = struct {
         return 4 + 4 + 4 + 2 + 2 + self.items.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5304,7 +5309,7 @@ pub const PolyText8 = struct {
         return 4 + 4 + 4 + 2 + 2 + self.items.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5339,7 +5344,7 @@ pub const PutImage = struct {
         return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 2 + self.data.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5369,13 +5374,13 @@ pub const QueryBestSizeReply = struct {
         return 1 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5404,7 +5409,7 @@ pub const QueryBestSize = struct {
         return 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5425,7 +5430,7 @@ pub const QueryColorsReply = struct {
         return 1 + 2 + 22 + wire.structListByteLen(self.colors);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u16, @intCast(self.colors.len), .little);
         try writer.splatByteAll(0, 22);
@@ -5434,7 +5439,7 @@ pub const QueryColorsReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5471,7 +5476,7 @@ pub const QueryColors = struct {
         return 4 + 4 + self.pixels.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5497,7 +5502,7 @@ pub const QueryExtensionReply = struct {
         return 1 + 1 + 1 + 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeByte(@intFromBool(self.present));
         try writer.writeByte(self.major_opcode);
@@ -5505,7 +5510,7 @@ pub const QueryExtensionReply = struct {
         try writer.writeByte(self.first_error);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5534,7 +5539,7 @@ pub const QueryExtension = struct {
         return 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5567,7 +5572,7 @@ pub const QueryFontReply = struct {
         return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + wire.structListByteLen(self.char_infos);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try self.min_bounds.encode(writer);
         try writer.splatByteAll(0, 4);
@@ -5592,7 +5597,7 @@ pub const QueryFontReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5663,7 +5668,7 @@ pub const QueryFont = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5683,12 +5688,12 @@ pub const QueryKeymapReply = struct {
         return 1 + 32;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeAll(self.keys[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5712,7 +5717,7 @@ pub const QueryKeymap = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5738,7 +5743,7 @@ pub const QueryPointerReply = struct {
         return 1 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intFromBool(self.same_screen));
         try writer.writeInt(u32, @intFromEnum(self.root), .little);
         try writer.writeInt(u32, @intFromEnum(self.child), .little);
@@ -5750,7 +5755,7 @@ pub const QueryPointerReply = struct {
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const same_screen = (try reader.takeByte()) != 0;
         _ = try reader.takeInt(u16, .little);
@@ -5788,7 +5793,7 @@ pub const QueryPointer = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5809,7 +5814,7 @@ pub const QueryTreeReply = struct {
         return 1 + 4 + 4 + 2 + 14 + self.children.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.splatByteAll(0, 1);
         try writer.writeInt(u32, @intFromEnum(self.root), .little);
         try writer.writeInt(u32, @intFromEnum(self.parent), .little);
@@ -5820,7 +5825,7 @@ pub const QueryTreeReply = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -5861,7 +5866,7 @@ pub const QueryTree = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5890,7 +5895,7 @@ pub const RecolorCursor = struct {
         return 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5922,7 +5927,7 @@ pub const ReparentWindow = struct {
         return 4 + 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5949,7 +5954,7 @@ pub const RotateProperties = struct {
         return 4 + 4 + 2 + 2 + self.atoms.len * 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -5980,7 +5985,7 @@ pub const SendEvent = struct {
         return 4 + 4 + 4 + 32;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6005,7 +6010,7 @@ pub const SetAccessControl = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6030,7 +6035,7 @@ pub const SetClipRectangles = struct {
         return 4 + 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6058,7 +6063,7 @@ pub const SetCloseDownMode = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6081,7 +6086,7 @@ pub const SetDashes = struct {
         return 4 + 4 + 2 + 2 + self.dashes.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6106,7 +6111,7 @@ pub const SetFontPath = struct {
         return 4 + 2 + 2 + wire.structListByteLen(self.font);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6135,7 +6140,7 @@ pub const SetInputFocus = struct {
         return 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6156,11 +6161,11 @@ pub const SetModifierMappingReply = struct {
         return 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.status)));
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const status = @as(MappingStatus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6183,7 +6188,7 @@ pub const SetModifierMapping = struct {
         return 4 + self.keycodes.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6203,11 +6208,11 @@ pub const SetPointerMappingReply = struct {
         return 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.status)));
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const status = @as(MappingStatus, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6229,7 +6234,7 @@ pub const SetPointerMapping = struct {
         return 4 + self.map.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6255,7 +6260,7 @@ pub const SetScreenSaver = struct {
         return 4 + 2 + 2 + 1 + 1;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6283,7 +6288,7 @@ pub const SetSelectionOwner = struct {
         return 4 + 4 + 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6308,7 +6313,7 @@ pub const StoreColors = struct {
         return 4 + 4 + wire.structListByteLen(self.items);
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6336,7 +6341,7 @@ pub const StoreNamedColor = struct {
         return 4 + 4 + 4 + 2 + 2 + self.name.len;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6363,14 +6368,14 @@ pub const TranslateCoordinatesReply = struct {
         return 1 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intFromBool(self.same_screen));
         try writer.writeInt(u32, @intFromEnum(self.child), .little);
         try writer.writeInt(i16, self.dst_x, .little);
         try writer.writeInt(i16, self.dst_y, .little);
     }
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const same_screen = (try reader.takeByte()) != 0;
         _ = try reader.takeInt(u16, .little);
@@ -6402,7 +6407,7 @@ pub const TranslateCoordinates = struct {
         return 4 + 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6430,7 +6435,7 @@ pub const UngrabButton = struct {
         return 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6457,7 +6462,7 @@ pub const UngrabKey = struct {
         return 4 + 4 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6482,7 +6487,7 @@ pub const UngrabKeyboard = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6505,7 +6510,7 @@ pub const UngrabPointer = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6527,7 +6532,7 @@ pub const UngrabServer = struct {
         return 4 + 0;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6549,7 +6554,7 @@ pub const UninstallColormap = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6572,7 +6577,7 @@ pub const UnmapSubwindows = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6595,7 +6600,7 @@ pub const UnmapWindow = struct {
         return 4 + 4;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6625,7 +6630,7 @@ pub const WarpPointer = struct {
         return 4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) wire.Error!void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         const len = self.byteLen();
         const pad = wire.pad4(len);
         try writer.writeByte(opcode);
@@ -6657,7 +6662,7 @@ pub const KeyPressEvent = struct {
     state: u16,
     same_screen: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -6701,7 +6706,7 @@ pub const KeyReleaseEvent = struct {
     state: u16,
     same_screen: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -6745,7 +6750,7 @@ pub const ButtonPressEvent = struct {
     state: u16,
     same_screen: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -6789,7 +6794,7 @@ pub const ButtonReleaseEvent = struct {
     state: u16,
     same_screen: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -6833,7 +6838,7 @@ pub const MotionNotifyEvent = struct {
     state: u16,
     same_screen: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(Motion, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6878,7 +6883,7 @@ pub const EnterNotifyEvent = struct {
     mode: NotifyMode,
     same_screen_focus: u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6924,7 +6929,7 @@ pub const LeaveNotifyEvent = struct {
     mode: NotifyMode,
     same_screen_focus: u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6961,7 +6966,7 @@ pub const FocusInEvent = struct {
     event: Window,
     mode: NotifyMode,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6981,7 +6986,7 @@ pub const FocusOutEvent = struct {
     event: Window,
     mode: NotifyMode,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -6999,7 +7004,7 @@ pub const FocusOutEvent = struct {
 pub const KeymapNotifyEvent = struct {
     keys: [31]u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         var keys: [31]u8 = undefined;
         @memcpy(keys[0..], try reader.take(31));
@@ -7017,7 +7022,7 @@ pub const ExposeEvent = struct {
     height: u16,
     count: u16,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7049,7 +7054,7 @@ pub const GraphicsExposureEvent = struct {
     count: u16,
     major_opcode: u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7080,7 +7085,7 @@ pub const NoExposureEvent = struct {
     minor_opcode: u16,
     major_opcode: u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7100,7 +7105,7 @@ pub const VisibilityNotifyEvent = struct {
     window: Window,
     state: Visibility,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7124,7 +7129,7 @@ pub const CreateNotifyEvent = struct {
     border_width: u16,
     override_redirect: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7154,7 +7159,7 @@ pub const DestroyNotifyEvent = struct {
     event: Window,
     window: Window,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7172,7 +7177,7 @@ pub const UnmapNotifyEvent = struct {
     window: Window,
     from_configure: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7193,7 +7198,7 @@ pub const MapNotifyEvent = struct {
     window: Window,
     override_redirect: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7213,7 +7218,7 @@ pub const MapRequestEvent = struct {
     parent: Window,
     window: Window,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7234,7 +7239,7 @@ pub const ReparentNotifyEvent = struct {
     y: i16,
     override_redirect: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7267,7 +7272,7 @@ pub const ConfigureNotifyEvent = struct {
     border_width: u16,
     override_redirect: bool,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7307,7 +7312,7 @@ pub const ConfigureRequestEvent = struct {
     border_width: u16,
     value_mask: u16,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const stack_mode = @as(StackMode, @enumFromInt(try reader.takeInt(u8, .little)));
         _ = try reader.takeInt(u16, .little);
@@ -7341,7 +7346,7 @@ pub const GravityNotifyEvent = struct {
     x: i16,
     y: i16,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7363,7 +7368,7 @@ pub const ResizeRequestEvent = struct {
     width: u16,
     height: u16,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7383,7 +7388,7 @@ pub const CirculateNotifyEvent = struct {
     window: Window,
     place: Place,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7405,7 +7410,7 @@ pub const CirculateRequestEvent = struct {
     window: Window,
     place: Place,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7428,7 +7433,7 @@ pub const PropertyNotifyEvent = struct {
     time: u32,
     state: Property,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7451,7 +7456,7 @@ pub const SelectionClearEvent = struct {
     owner: Window,
     selection: Atom,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7474,7 +7479,7 @@ pub const SelectionRequestEvent = struct {
     target: Atom,
     property: Atom,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7502,7 +7507,7 @@ pub const SelectionNotifyEvent = struct {
     target: Atom,
     property: Atom,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7527,7 +7532,7 @@ pub const ColormapNotifyEvent = struct {
     new: bool,
     state: ColormapState,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7551,7 +7556,7 @@ pub const ClientMessageEvent = struct {
     type: Atom,
     data: ClientMessageData,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const format = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -7572,7 +7577,7 @@ pub const MappingNotifyEvent = struct {
     first_keycode: u8,
     count: u8,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
@@ -7594,7 +7599,7 @@ pub const GeGenericEvent = struct {
     event_type: u16,
     full_sequence: u32,
 
-    pub fn decode(reader: *std.Io.Reader) wire.Error!@This() {
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const extension = try reader.takeByte();
         _ = try reader.takeInt(u16, .little);
@@ -7657,7 +7662,7 @@ pub const Event = union(enum) {
     GeGeneric: GeGenericEvent,
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) wire.Error!Event {
+pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         2 => .{ .KeyPress = try KeyPressEvent.decode(reader) },
