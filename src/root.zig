@@ -1,7 +1,9 @@
 const std = @import("std");
 
 pub const errors = @import("errors.zig");
+pub const extensions = @import("extensions.zig");
 pub const xproto = @import("xproto.zig");
+pub const render = @import("render.zig");
 pub const Connection = @import("connection.zig").Connection;
 pub const ProtocolError = @import("connection.zig").ProtocolError;
 
@@ -51,18 +53,19 @@ fn propertyFormat(comptime T: type) u8 {
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    try (xproto.InternAtom{
+    const req = xproto.InternAtom{
         .only_if_exists = true,
         .name = "WM_NAME",
-    }).encode(&writer);
-    const packet = buf[0..writer.end];
+    };
+    try req.encode(&writer);
+    const body = buf[0..writer.end];
 
-    try std.testing.expectEqual(@as(usize, 16), packet.len);
-    try std.testing.expectEqual(@as(u8, 16), packet[0]);
-    try std.testing.expectEqual(@as(u8, 1), packet[1]);
-    try std.testing.expectEqual(@as(u16, 4), std.mem.readInt(u16, packet[2..4], .little));
-    try std.testing.expectEqualSlices(u8, "WM_NAME", packet[8..15]);
-    try std.testing.expectEqual(@as(u8, 0), packet[15]);
+    try std.testing.expect(xproto.InternAtom.extension == null);
+    try std.testing.expectEqual(@as(u8, 16), xproto.InternAtom.opcode);
+    try std.testing.expectEqual(@as(u8, 1), req.headerByte1());
+    try std.testing.expectEqual(@as(usize, req.byteLen()), body.len);
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[1..3], .little));
+    try std.testing.expectEqualSlices(u8, "WM_NAME", body[3..10]);
 }
 
 test "SetupRequest encoding" {

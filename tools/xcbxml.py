@@ -55,6 +55,7 @@ class ListField:
     name: str
     item_type: str
     len_expr: None | FieldRef | Op | int
+    enum: str | None = None
 
     @staticmethod
     def make(attrs: Attrs) -> ListField:
@@ -276,7 +277,7 @@ switch = Item[SwitchField](
 field_items_tup = (
     field_item,
     Item('pad', {'bytes', 'align'}, cnv=Pad.make),
-    Item('list', {'type', 'name'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item('list', {'type', 'name', 'enum'}, Seq(list_items, optional=True), cnv=ListField.make),
     IgnoreItem('doc'),
 )
 field_items = one_of(*field_items_tup)
@@ -335,6 +336,7 @@ errorcopy = Item('errorcopy', {'name', 'number', 'ref'}, cnv=simple(ErrorCopy))
 @dataclass
 class Bindings:
     header: str
+    imports: list[str]
     request: list[Request]
     struct: list[Struct]
     xidtype: list[XidType]
@@ -346,16 +348,24 @@ class Bindings:
     union: list[Union]
     error: list[Error]
     errorcopy: list[ErrorCopy]
+    extension_xname: str | None = None
+    extension_name: str | None = None
+    major_version: str | None = None
+    minor_version: str | None = None
 
     @staticmethod
     def make(attrs: Attrs) -> Bindings:
+        attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
         attrs.update(attrs.pop('@kids'))  # type: ignore[call-overload]
+        attrs['imports'] = attrs.pop('import')
         return Bindings(**attrs)  # type: ignore[arg-type]
 
 
+import_item = TextItem('import', cnv=node_text)
+
 root_item = Item(
     'xcb',
-    {'header'},
+    {'header', 'extension-xname', 'extension-name', 'major-version', 'minor-version'},
     StructItem(
         request=Many(request),
         struct=Many(struct),
@@ -368,6 +378,7 @@ root_item = Item(
         union=Many(union),
         error=Many(error),
         errorcopy=Many(errorcopy),
+        **{'import': Many(import_item)},
     ),
     cnv=Bindings.make,
 )

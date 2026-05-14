@@ -1,4 +1,6 @@
 const std = @import("std");
+const extensions = @import("extensions.zig");
+const wire = @import("wire.zig");
 const xproto = @import("xproto.zig");
 
 const AuthName = "MIT-MAGIC-COOKIE-1";
@@ -48,6 +50,7 @@ pub const Connection = struct {
     pending_events: std.ArrayList([32]u8),
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
+    extensions: std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo),
 
     pub fn connectFromEnv(
         allocator: std.mem.Allocator,
@@ -98,6 +101,7 @@ pub const Connection = struct {
             .next_resource_id = 0,
             .pending_events = .empty,
             .last_protocol_error = null,
+            .extensions = std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo).initFull(null),
         };
         errdefer conn.deinit();
 
@@ -182,9 +186,27 @@ pub const Connection = struct {
     }
 
     pub fn send(self: *Connection, request_value: anytype) !u16 {
+        const Request = @TypeOf(request_value);
         const sequence = self.sequence;
         self.sequence +%= 1;
+        const body_len = request_value.byteLen();
+        const len = 4 + body_len;
+        const pad = wire.pad4(len);
+        const opcode = if (Request.extension) |ext| blk: {
+            const maybe_info = self.extensions.get(ext) orelse return error.ExtensionNotRegistered;
+            const info = maybe_info orelse return error.ExtensionNotRegistered;
+            break :blk info.major_opcode;
+        } else Request.opcode;
+
+        try self.writer().writeByte(opcode);
+        if (Request.extension == null) {
+            try self.writer().writeByte(request_value.headerByte1());
+        } else {
+            try self.writer().writeByte(Request.opcode);
+        }
+        try self.writer().writeInt(u16, @intCast((len + pad) / 4), .little);
         try request_value.encode(self.writer());
+        try self.writer().splatByteAll(0, pad);
         try self.writer().flush();
         return sequence;
     }
@@ -231,6 +253,18 @@ pub const Connection = struct {
 
     pub fn lastError(self: *const Connection) ProtocolError {
         return self.last_protocol_error orelse unreachable;
+    }
+
+    pub fn registerExtension(self: *Connection, ext: extensions.Extension) !void {
+        const reply = try self.request(xproto.QueryExtension, .{
+            .name = extensions.xname(ext),
+        });
+        if (!reply.present) return error.ExtensionUnavailable;
+        self.extensions.put(ext, .{
+            .major_opcode = reply.major_opcode,
+            .first_event = reply.first_event,
+            .first_error = reply.first_error,
+        });
     }
 
     pub fn sync(self: *Connection, request_sequence: u16) !void {

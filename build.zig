@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
     addExample(b, "read_properties", "examples/read_properties.zig", target, optimize, mod, false);
     addExample(b, "cairo", "examples/cairo.zig", target, optimize, mod, true);
     addExample(b, "cairo_animation", "examples/cairo_animation.zig", target, optimize, mod, true);
+    addExample(b, "transparent", "examples/transparent.zig", target, optimize, mod, true);
 
     const mod_tests = b.addTest(.{
         .root_module = mod,
