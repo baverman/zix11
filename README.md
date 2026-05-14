@@ -27,8 +27,7 @@ const zix11 = @import("zix11");
 const x = zix11.xproto;
 
 pub fn main(init: std.process.Init) !void {
-    // WIP. Temporary shortcut.
-    var conn = try zix11.Connection.connectFromInit(init, init.gpa);
+    var conn = try zix11.Connection.connectFromEnv(init.io, init.gpa, init.environ_map);
     defer conn.deinit();
 
     const window = try conn.allocId(x.Window);

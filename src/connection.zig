@@ -49,15 +49,19 @@ pub const Connection = struct {
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
 
-    pub fn connectFromInit(init: std.process.Init, allocator: std.mem.Allocator) !Connection {
-        const display = init.environ_map.get("DISPLAY") orelse return error.MissingDisplay;
+    pub fn connectFromEnv(
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        environ_map: *const std.process.Environ.Map,
+    ) !Connection {
+        const display = environ_map.get("DISPLAY") orelse return error.MissingDisplay;
         const display_spec = try parseDisplay(allocator, display);
         defer display_spec.deinit(allocator);
 
-        const cookie = try readXAuthorityCookie(init, allocator, display_spec);
+        const cookie = try readXAuthorityCookie(io, allocator, environ_map, display_spec);
         defer allocator.free(cookie);
 
-        return connect(allocator, init.io, cookie, display_spec);
+        return connect(allocator, io, cookie, display_spec);
     }
 
     pub fn connect(
@@ -327,14 +331,15 @@ pub const Connection = struct {
 };
 
 fn readXAuthorityCookie(
-    init: std.process.Init,
+    io: std.Io,
     allocator: std.mem.Allocator,
+    environ_map: *const std.process.Environ.Map,
     display: DisplaySpec,
 ) ![]u8 {
-    const path = try xauthorityPath(init, allocator);
+    const path = try xauthorityPath(allocator, environ_map);
     defer allocator.free(path);
 
-    const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, path, allocator, .limited(1024 * 1024));
+    const contents = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(1024 * 1024));
     defer allocator.free(contents);
 
     const host_name = try localHostName(allocator);
@@ -358,12 +363,12 @@ fn readXAuthorityCookie(
     return error.XAuthorityCookieNotFound;
 }
 
-fn xauthorityPath(init: std.process.Init, allocator: std.mem.Allocator) ![]u8 {
-    if (init.environ_map.get("XAUTHORITY")) |path| {
+fn xauthorityPath(allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) ![]u8 {
+    if (environ_map.get("XAUTHORITY")) |path| {
         return allocator.dupe(u8, path);
     }
 
-    const home = init.environ_map.get("HOME") orelse return error.MissingHome;
+    const home = environ_map.get("HOME") orelse return error.MissingHome;
     return std.fmt.allocPrint(allocator, "{s}/.Xauthority", .{home});
 }
 

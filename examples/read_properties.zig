@@ -3,7 +3,7 @@ const zix11 = @import("zix11");
 const x = zix11.xproto;
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromInit(init, init.gpa);
+    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
     defer conn.deinit();
 
     std.debug.print("root window: 0x{x}\n", .{@intFromEnum(conn.root_window)});
