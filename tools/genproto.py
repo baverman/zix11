@@ -1195,6 +1195,14 @@ def emit_payload_encode_body(
         current_previous = item
 
 
+def rewrite_last_encode_line_unchecked(emit: Emit) -> None:
+    line = emit.lines[-1]
+    assert line.endswith(";")
+    if "try " not in line:
+        raise AssertionError(f"expected try encode line, got: {line}")
+    emit.lines[-1] = line
+
+
 def emit_struct_encode(emit: Emit, decl: StructDecl) -> None:
     emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
     with emit.block():
@@ -1439,6 +1447,38 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
             emit("full_sequence: u32,")
         else:
             emit_payload_decl_fields(emit, decl.items)
+        emit()
+        emit("pub fn toBytes(self: @This()) EncodeError![32]u8 {")
+        with emit.block():
+            emit("var packet: [32]u8 = std.mem.zeroes([32]u8);")
+            emit("var writer: std.Io.Writer = .fixed(&packet);")
+            if decl.xge == "true":
+                emit(f"try writer.writeByte({decl.number});")
+                emit("try writer.writeByte(self.extension);")
+                emit("try writer.writeInt(u16, 0, .little);")
+                emit("try writer.writeInt(u32, self.length, .little);")
+                emit("try writer.writeInt(u16, self.event_type, .little);")
+                emit("try writer.writeInt(u16, 0, .little);")
+                emit("try writer.writeInt(u32, self.full_sequence, .little);")
+            elif decl.no_sequence_number == "true":
+                emit(f"try writer.writeByte({decl.number});")
+                for item in decl.items:
+                    item.emit_encode(emit, "self")
+            else:
+                header = header_item(decl.items)
+                body = body_items(decl.items, uses_header_slot=True)
+                emit(f"try writer.writeByte({decl.number});")
+                if isinstance(header, FieldItem):
+                    emit(f"try writer.writeByte({header_byte1_expr(header)});")
+                else:
+                    emit("try writer.writeByte(0);")
+                emit("try writer.writeInt(u16, 0, .little);")
+                current_previous = header
+                for item in body:
+                    item.emit_encode(emit, "self", current_previous)
+                    current_previous = item
+            emit("return packet;")
+        emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():

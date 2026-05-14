@@ -6711,6 +6711,26 @@ pub const KeyPressEvent = struct {
     state: u16,
     same_screen: bool,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(2);
+        try writer.writeByte(self.detail);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
@@ -6754,6 +6774,26 @@ pub const KeyReleaseEvent = struct {
     event_y: i16,
     state: u16,
     same_screen: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(3);
+        try writer.writeByte(self.detail);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -6799,6 +6839,26 @@ pub const ButtonPressEvent = struct {
     state: u16,
     same_screen: bool,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(4);
+        try writer.writeByte(self.detail);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = try reader.takeByte();
@@ -6842,6 +6902,26 @@ pub const ButtonReleaseEvent = struct {
     event_y: i16,
     state: u16,
     same_screen: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(5);
+        try writer.writeByte(self.detail);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -6887,6 +6967,26 @@ pub const MotionNotifyEvent = struct {
     state: u16,
     same_screen: bool,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(6);
+        try writer.writeByte(@intCast(@intFromEnum(self.detail)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intFromBool(self.same_screen));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(Motion, @enumFromInt(try reader.takeInt(u8, .little)));
@@ -6931,6 +7031,26 @@ pub const EnterNotifyEvent = struct {
     state: u16,
     mode: NotifyMode,
     same_screen_focus: u8,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(7);
+        try writer.writeByte(@intCast(@intFromEnum(self.detail)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeByte(self.same_screen_focus);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -6978,6 +7098,26 @@ pub const LeaveNotifyEvent = struct {
     mode: NotifyMode,
     same_screen_focus: u8,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(8);
+        try writer.writeByte(@intCast(@intFromEnum(self.detail)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.root), .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.child), .little);
+        try writer.writeInt(i16, self.root_x, .little);
+        try writer.writeInt(i16, self.root_y, .little);
+        try writer.writeInt(i16, self.event_x, .little);
+        try writer.writeInt(i16, self.event_y, .little);
+        try writer.writeInt(u16, self.state, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.writeByte(self.same_screen_focus);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
@@ -7015,6 +7155,18 @@ pub const FocusInEvent = struct {
     event: Window,
     mode: NotifyMode,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(9);
+        try writer.writeByte(@intCast(@intFromEnum(self.detail)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
@@ -7035,6 +7187,18 @@ pub const FocusOutEvent = struct {
     event: Window,
     mode: NotifyMode,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(10);
+        try writer.writeByte(@intCast(@intFromEnum(self.detail)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.mode)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const detail = @as(NotifyDetail, @enumFromInt(try reader.takeInt(u8, .little)));
@@ -7053,6 +7217,14 @@ pub const FocusOutEvent = struct {
 pub const KeymapNotifyEvent = struct {
     keys: [31]u8,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(11);
+        try writer.writeAll(self.keys[0..]);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         var keys: [31]u8 = undefined;
@@ -7070,6 +7242,22 @@ pub const ExposeEvent = struct {
     width: u16,
     height: u16,
     count: u16,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(12);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u16, self.x, .little);
+        try writer.writeInt(u16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.count, .little);
+        try writer.splatByteAll(0, 2);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7103,6 +7291,24 @@ pub const GraphicsExposureEvent = struct {
     count: u16,
     major_opcode: u8,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(13);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try self.drawable.encode(writer);
+        try writer.writeInt(u16, self.x, .little);
+        try writer.writeInt(u16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.minor_opcode, .little);
+        try writer.writeInt(u16, self.count, .little);
+        try writer.writeByte(self.major_opcode);
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7134,6 +7340,19 @@ pub const NoExposureEvent = struct {
     minor_opcode: u16,
     major_opcode: u8,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(14);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try self.drawable.encode(writer);
+        try writer.writeInt(u16, self.minor_opcode, .little);
+        try writer.writeByte(self.major_opcode);
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7153,6 +7372,18 @@ pub const NoExposureEvent = struct {
 pub const VisibilityNotifyEvent = struct {
     window: Window,
     state: Visibility,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(15);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.state)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7177,6 +7408,24 @@ pub const CreateNotifyEvent = struct {
     height: u16,
     border_width: u16,
     override_redirect: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(16);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.border_width, .little);
+        try writer.writeByte(@intFromBool(self.override_redirect));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7208,6 +7457,17 @@ pub const DestroyNotifyEvent = struct {
     event: Window,
     window: Window,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(17);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7225,6 +7485,19 @@ pub const UnmapNotifyEvent = struct {
     event: Window,
     window: Window,
     from_configure: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(18);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeByte(@intFromBool(self.from_configure));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7247,6 +7520,19 @@ pub const MapNotifyEvent = struct {
     window: Window,
     override_redirect: bool,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(19);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeByte(@intFromBool(self.override_redirect));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7266,6 +7552,17 @@ pub const MapNotifyEvent = struct {
 pub const MapRequestEvent = struct {
     parent: Window,
     window: Window,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(20);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7287,6 +7584,22 @@ pub const ReparentNotifyEvent = struct {
     x: i16,
     y: i16,
     override_redirect: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(21);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeByte(@intFromBool(self.override_redirect));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7320,6 +7633,25 @@ pub const ConfigureNotifyEvent = struct {
     height: u16,
     border_width: u16,
     override_redirect: bool,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(22);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.above_sibling), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.border_width, .little);
+        try writer.writeByte(@intFromBool(self.override_redirect));
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7361,6 +7693,24 @@ pub const ConfigureRequestEvent = struct {
     border_width: u16,
     value_mask: u16,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(23);
+        try writer.writeByte(@intCast(@intFromEnum(self.stack_mode)));
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.parent), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.sibling), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.border_width, .little);
+        try writer.writeInt(u16, self.value_mask, .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const stack_mode = @as(StackMode, @enumFromInt(try reader.takeInt(u8, .little)));
@@ -7395,6 +7745,19 @@ pub const GravityNotifyEvent = struct {
     x: i16,
     y: i16,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(24);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(i16, self.x, .little);
+        try writer.writeInt(i16, self.y, .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7417,6 +7780,18 @@ pub const ResizeRequestEvent = struct {
     width: u16,
     height: u16,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(25);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u16, self.width, .little);
+        try writer.writeInt(u16, self.height, .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7436,6 +7811,20 @@ pub const CirculateNotifyEvent = struct {
     event: Window,
     window: Window,
     place: Place,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(26);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, 4);
+        try writer.writeByte(@intCast(@intFromEnum(self.place)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7458,6 +7847,20 @@ pub const CirculateRequestEvent = struct {
     event: Window,
     window: Window,
     place: Place,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(27);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.event), .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.splatByteAll(0, 4);
+        try writer.writeByte(@intCast(@intFromEnum(self.place)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7482,6 +7885,20 @@ pub const PropertyNotifyEvent = struct {
     time: u32,
     state: Property,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(28);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.atom), .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.state)));
+        try writer.splatByteAll(0, 3);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7505,6 +7922,18 @@ pub const SelectionClearEvent = struct {
     owner: Window,
     selection: Atom,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(29);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.owner), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7527,6 +7956,21 @@ pub const SelectionRequestEvent = struct {
     selection: Atom,
     target: Atom,
     property: Atom,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(30);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.owner), .little);
+        try writer.writeInt(u32, @intFromEnum(self.requestor), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        try writer.writeInt(u32, @intFromEnum(self.target), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7556,6 +8000,20 @@ pub const SelectionNotifyEvent = struct {
     target: Atom,
     property: Atom,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(31);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.time, .little);
+        try writer.writeInt(u32, @intFromEnum(self.requestor), .little);
+        try writer.writeInt(u32, @intFromEnum(self.selection), .little);
+        try writer.writeInt(u32, @intFromEnum(self.target), .little);
+        try writer.writeInt(u32, @intFromEnum(self.property), .little);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7581,6 +8039,20 @@ pub const ColormapNotifyEvent = struct {
     new: bool,
     state: ColormapState,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(32);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.colormap), .little);
+        try writer.writeByte(@intFromBool(self.new));
+        try writer.writeByte(@intCast(@intFromEnum(self.state)));
+        try writer.splatByteAll(0, 2);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -7605,6 +8077,18 @@ pub const ClientMessageEvent = struct {
     type: Atom,
     data: ClientMessageData,
 
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(33);
+        try writer.writeByte(self.format);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, @intFromEnum(self.window), .little);
+        try writer.writeInt(u32, @intFromEnum(self.type), .little);
+        try self.data.encode(writer);
+        return packet;
+    }
+
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const format = try reader.takeByte();
@@ -7625,6 +8109,19 @@ pub const MappingNotifyEvent = struct {
     request: Mapping,
     first_keycode: u8,
     count: u8,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(34);
+        try writer.writeByte(0);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeByte(@intCast(@intFromEnum(self.request)));
+        try writer.writeByte(self.first_keycode);
+        try writer.writeByte(self.count);
+        try writer.splatByteAll(0, 1);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7647,6 +8144,19 @@ pub const GeGenericEvent = struct {
     length: u32,
     event_type: u16,
     full_sequence: u32,
+
+    pub fn toBytes(self: @This()) EncodeError![32]u8 {
+        var packet: [32]u8 = std.mem.zeroes([32]u8);
+        var writer: std.Io.Writer = .fixed(&packet);
+        try writer.writeByte(35);
+        try writer.writeByte(self.extension);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.length, .little);
+        try writer.writeInt(u16, self.event_type, .little);
+        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u32, self.full_sequence, .little);
+        return packet;
+    }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
