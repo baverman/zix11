@@ -50,6 +50,14 @@ fn propertyFormat(comptime T: type) u8 {
     @compileError("unsupported property element type");
 }
 
+pub fn clientMessageData(comptime T: type, data: []const T) xproto.ClientMessageData {
+    var result = std.mem.zeroes([20]u8);
+    const bdata = std.mem.sliceAsBytes(data);
+    const len = @min(result.len, bdata.len);
+    @memcpy(result[0..len], bdata[0..len]);
+    return .{ .raw = result };
+}
+
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
@@ -64,8 +72,8 @@ test "InternAtom request encoding" {
     try std.testing.expectEqual(@as(u8, 16), xproto.InternAtom.opcode);
     try std.testing.expectEqual(@as(u8, 1), req.headerByte1());
     try std.testing.expectEqual(@as(usize, req.byteLen()), body.len);
-    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[1..3], .little));
-    try std.testing.expectEqualSlices(u8, "WM_NAME", body[3..10]);
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[0..2], .little));
+    try std.testing.expectEqualSlices(u8, "WM_NAME", body[4..11]);
 }
 
 test "SetupRequest encoding" {
@@ -109,4 +117,16 @@ test "GetProperty reply decode copies into caller scratch" {
     try std.testing.expectEqual(@as(xproto.Atom, @enumFromInt(57)), reply.type);
     try std.testing.expectEqual(@as(u32, 2), reply.value_len);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 }, reply.value);
+}
+
+test "Event.toBytes" {
+    const event: xproto.ClientMessageEvent = .{
+        .window = @enumFromInt(0),
+        .type = @enumFromInt(0),
+        .format = 32,
+        .data = clientMessageData(u32, &.{ 10, 20 }),
+    };
+    const bytes = try event.toBytes();
+    _ = bytes;
+    try std.testing.expectEqualSlices(u8, &.{ 10, 0, 0, 0, 20, 0, 0, 0 }, event.data.raw[0..8]);
 }

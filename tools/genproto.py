@@ -1459,7 +1459,8 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
         emit("pub fn toBytes(self: @This()) EncodeError![32]u8 {")
         with emit.block():
             emit("var packet: [32]u8 = std.mem.zeroes([32]u8);")
-            emit("var writer: std.Io.Writer = .fixed(&packet);")
+            emit("var writer_impl: std.Io.Writer = .fixed(&packet);")
+            emit("const writer = &writer_impl;")
             if decl.xge == "true":
                 emit(f"try writer.writeByte({decl.number});")
                 emit("try writer.writeByte(self.extension);")

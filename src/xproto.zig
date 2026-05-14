@@ -6713,7 +6713,8 @@ pub const KeyPressEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(2);
         try writer.writeByte(self.detail);
         try writer.writeInt(u16, 0, .little);
@@ -6777,7 +6778,8 @@ pub const KeyReleaseEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(3);
         try writer.writeByte(self.detail);
         try writer.writeInt(u16, 0, .little);
@@ -6841,7 +6843,8 @@ pub const ButtonPressEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(4);
         try writer.writeByte(self.detail);
         try writer.writeInt(u16, 0, .little);
@@ -6905,7 +6908,8 @@ pub const ButtonReleaseEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(5);
         try writer.writeByte(self.detail);
         try writer.writeInt(u16, 0, .little);
@@ -6969,7 +6973,8 @@ pub const MotionNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(6);
         try writer.writeByte(@intCast(@intFromEnum(self.detail)));
         try writer.writeInt(u16, 0, .little);
@@ -7034,7 +7039,8 @@ pub const EnterNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(7);
         try writer.writeByte(@intCast(@intFromEnum(self.detail)));
         try writer.writeInt(u16, 0, .little);
@@ -7100,7 +7106,8 @@ pub const LeaveNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(8);
         try writer.writeByte(@intCast(@intFromEnum(self.detail)));
         try writer.writeInt(u16, 0, .little);
@@ -7157,7 +7164,8 @@ pub const FocusInEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(9);
         try writer.writeByte(@intCast(@intFromEnum(self.detail)));
         try writer.writeInt(u16, 0, .little);
@@ -7189,7 +7197,8 @@ pub const FocusOutEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(10);
         try writer.writeByte(@intCast(@intFromEnum(self.detail)));
         try writer.writeInt(u16, 0, .little);
@@ -7219,7 +7228,8 @@ pub const KeymapNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(11);
         try writer.writeAll(self.keys[0..]);
         return packet;
@@ -7245,7 +7255,8 @@ pub const ExposeEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(12);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7293,7 +7304,8 @@ pub const GraphicsExposureEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(13);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7342,7 +7354,8 @@ pub const NoExposureEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(14);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7375,7 +7388,8 @@ pub const VisibilityNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(15);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7411,7 +7425,8 @@ pub const CreateNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(16);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7459,7 +7474,8 @@ pub const DestroyNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(17);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7488,7 +7504,8 @@ pub const UnmapNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(18);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7522,7 +7539,8 @@ pub const MapNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(19);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7555,7 +7573,8 @@ pub const MapRequestEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(20);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7587,7 +7606,8 @@ pub const ReparentNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(21);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7636,7 +7656,8 @@ pub const ConfigureNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(22);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7695,7 +7716,8 @@ pub const ConfigureRequestEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(23);
         try writer.writeByte(@intCast(@intFromEnum(self.stack_mode)));
         try writer.writeInt(u16, 0, .little);
@@ -7747,7 +7769,8 @@ pub const GravityNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(24);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7782,7 +7805,8 @@ pub const ResizeRequestEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(25);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7814,7 +7838,8 @@ pub const CirculateNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(26);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7850,7 +7875,8 @@ pub const CirculateRequestEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(27);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7887,7 +7913,8 @@ pub const PropertyNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(28);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7924,7 +7951,8 @@ pub const SelectionClearEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(29);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -7959,7 +7987,8 @@ pub const SelectionRequestEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(30);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -8002,7 +8031,8 @@ pub const SelectionNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(31);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -8041,7 +8071,8 @@ pub const ColormapNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(32);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -8079,7 +8110,8 @@ pub const ClientMessageEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(33);
         try writer.writeByte(self.format);
         try writer.writeInt(u16, 0, .little);
@@ -8112,7 +8144,8 @@ pub const MappingNotifyEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(34);
         try writer.writeByte(0);
         try writer.writeInt(u16, 0, .little);
@@ -8147,7 +8180,8 @@ pub const GeGenericEvent = struct {
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer: std.Io.Writer = .fixed(&packet);
+        var writer_impl: std.Io.Writer = .fixed(&packet);
+        const writer = &writer_impl;
         try writer.writeByte(35);
         try writer.writeByte(self.extension);
         try writer.writeInt(u16, 0, .little);
