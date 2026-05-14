@@ -206,7 +206,7 @@ fn present(
 }
 
 fn clearPicture(conn: *zix11.Connection, picture: render.Picture) !void {
-    var rects = [_]x.RECTANGLE{.{
+    const rects = [_]x.RECTANGLE{.{
         .x = 0,
         .y = 0,
         .width = width,
@@ -221,7 +221,7 @@ fn clearPicture(conn: *zix11.Connection, picture: render.Picture) !void {
             .blue = 0,
             .alpha = 0,
         },
-        .rects = rects[0..],
+        .rects = &rects,
     });
 }
 

@@ -2970,7 +2970,7 @@ pub const FillPoly = struct {
     gc: Gcontext,
     shape: PolyShape,
     coordinate_mode: CoordMode,
-    points: []POINT,
+    points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + 1 + 1 + 2 + wire.structListByteLen(self.points);
@@ -4351,7 +4351,7 @@ pub const ImageText16 = struct {
     gc: Gcontext,
     x: i16,
     y: i16,
-    string: []CHAR2B,
+    string: []const CHAR2B,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + 2 + 2 + wire.structListByteLen(self.string);
@@ -5129,7 +5129,7 @@ pub const PolyArc = struct {
 
     drawable: Drawable,
     gc: Gcontext,
-    arcs: []ARC,
+    arcs: []const ARC,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.arcs);
@@ -5157,7 +5157,7 @@ pub const PolyFillArc = struct {
 
     drawable: Drawable,
     gc: Gcontext,
-    arcs: []ARC,
+    arcs: []const ARC,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.arcs);
@@ -5185,7 +5185,7 @@ pub const PolyFillRectangle = struct {
 
     drawable: Drawable,
     gc: Gcontext,
-    rectangles: []RECTANGLE,
+    rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.rectangles);
@@ -5214,7 +5214,7 @@ pub const PolyLine = struct {
     coordinate_mode: CoordMode,
     drawable: Drawable,
     gc: Gcontext,
-    points: []POINT,
+    points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.points);
@@ -5242,7 +5242,7 @@ pub const PolyPoint = struct {
     coordinate_mode: CoordMode,
     drawable: Drawable,
     gc: Gcontext,
-    points: []POINT,
+    points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.points);
@@ -5269,7 +5269,7 @@ pub const PolyRectangle = struct {
 
     drawable: Drawable,
     gc: Gcontext,
-    rectangles: []RECTANGLE,
+    rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.rectangles);
@@ -5297,7 +5297,7 @@ pub const PolySegment = struct {
 
     drawable: Drawable,
     gc: Gcontext,
-    segments: []SEGMENT,
+    segments: []const SEGMENT,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 4 + wire.structListByteLen(self.segments);
@@ -6083,7 +6083,7 @@ pub const SetClipRectangles = struct {
     gc: Gcontext,
     clip_x_origin: i16,
     clip_y_origin: i16,
-    rectangles: []RECTANGLE,
+    rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
@@ -6159,7 +6159,7 @@ pub const SetFontPath = struct {
     pub const extension: ?extensions.Extension = null;
     pub const Reply = void;
 
-    font: []STR,
+    font: []const STR,
 
     pub fn byteLen(self: @This()) usize {
         return 2 + 2 + wire.structListByteLen(self.font);
@@ -6358,7 +6358,7 @@ pub const StoreColors = struct {
     pub const Reply = void;
 
     cmap: Colormap,
-    items: []COLORITEM,
+    items: []const COLORITEM,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + wire.structListByteLen(self.items);

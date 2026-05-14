@@ -694,7 +694,7 @@ pub const AddGlyphs = struct {
 
     glyphset: Glyphset,
     glyphids: []const u32,
-    glyphs: []GLYPHINFO,
+    glyphs: []const GLYPHINFO,
     data: []const u8,
 
     pub fn byteLen(self: @This()) usize {
@@ -728,7 +728,7 @@ pub const AddTraps = struct {
     picture: Picture,
     x_off: i16,
     y_off: i16,
-    traps: []TRAP,
+    traps: []const TRAP,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 2 + 2 + wire.structListByteLen(self.traps);
@@ -972,7 +972,7 @@ pub const CreateAnimCursor = struct {
     pub const Reply = void;
 
     cid: xproto.Cursor,
-    cursors: []ANIMCURSORELT,
+    cursors: []const ANIMCURSORELT,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + wire.structListByteLen(self.cursors);
@@ -1001,7 +1001,7 @@ pub const CreateConicalGradient = struct {
     center: POINTFIX,
     angle: i32,
     stops: []const i32,
-    colors: []COLOR,
+    colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + self.center.byteLen() + 4 + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
@@ -1090,7 +1090,7 @@ pub const CreateLinearGradient = struct {
     p1: POINTFIX,
     p2: POINTFIX,
     stops: []const i32,
-    colors: []COLOR,
+    colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + self.p1.byteLen() + self.p2.byteLen() + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
@@ -1190,7 +1190,7 @@ pub const CreateRadialGradient = struct {
     inner_radius: i32,
     outer_radius: i32,
     stops: []const i32,
-    colors: []COLOR,
+    colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + self.inner.byteLen() + self.outer.byteLen() + 4 + 4 + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
@@ -1250,7 +1250,7 @@ pub const FillRectangles = struct {
     op: PictOp,
     dst: Picture,
     color: COLOR,
-    rects: []xproto.RECTANGLE,
+    rects: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 1 + 3 + 4 + self.color.byteLen() + wire.structListByteLen(self.rects);
@@ -1690,7 +1690,7 @@ pub const SetPictureClipRectangles = struct {
     picture: Picture,
     clip_x_origin: i16,
     clip_y_origin: i16,
-    rectangles: []xproto.RECTANGLE,
+    rectangles: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
@@ -1778,7 +1778,7 @@ pub const Trapezoids = struct {
     mask_format: Pictformat,
     src_x: i16,
     src_y: i16,
-    traps: []TRAPEZOID,
+    traps: []const TRAPEZOID,
 
     pub fn byteLen(self: @This()) usize {
         return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.traps);
@@ -1815,7 +1815,7 @@ pub const TriFan = struct {
     mask_format: Pictformat,
     src_x: i16,
     src_y: i16,
-    points: []POINTFIX,
+    points: []const POINTFIX,
 
     pub fn byteLen(self: @This()) usize {
         return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.points);
@@ -1852,7 +1852,7 @@ pub const TriStrip = struct {
     mask_format: Pictformat,
     src_x: i16,
     src_y: i16,
-    points: []POINTFIX,
+    points: []const POINTFIX,
 
     pub fn byteLen(self: @This()) usize {
         return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.points);
@@ -1889,7 +1889,7 @@ pub const Triangles = struct {
     mask_format: Pictformat,
     src_x: i16,
     src_y: i16,
-    triangles: []TRIANGLE,
+    triangles: []const TRIANGLE,
 
     pub fn byteLen(self: @This()) usize {
         return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.triangles);

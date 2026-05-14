@@ -348,11 +348,11 @@ class ListItem:
     def is_inline_fixed(self) -> bool:
         return self.fixed_count() is not None and self.item_type.fixed_wire_size() is not None
 
-    def emit_decl(self, emit: Emit) -> None:
+    def emit_decl(self, emit: Emit, *, const_struct_list: bool = False) -> None:
         rendered = self.item_type.render_zig()
         if self.is_inline_fixed():
             zig_type = f"[{self.fixed_count()}]{rendered}"
-        elif isinstance(self.item_type, StructType):
+        elif isinstance(self.item_type, StructType) and not const_struct_list:
             zig_type = f"[]{rendered}"
         else:
             zig_type = f"[]const {rendered}"
@@ -1151,11 +1151,19 @@ def emit_enum_decl(emit: Emit, decl: EnumDecl) -> None:
     emit()
 
 
-def emit_payload_decl_fields(emit: Emit, items: tuple[Item, ...]) -> None:
+def emit_payload_decl_fields(
+    emit: Emit,
+    items: tuple[Item, ...],
+    *,
+    const_struct_lists: bool = False,
+) -> None:
     for item in items:
         if isinstance(item, FieldItem) and item.derived_from is not None:
             continue
-        item.emit_decl(emit)
+        if isinstance(item, ListItem):
+            item.emit_decl(emit, const_struct_list=const_struct_lists)
+        else:
+            item.emit_decl(emit)
 
 
 def payload_byte_len_expr(items: tuple[Item, ...], owner_expr: str) -> str:
@@ -1420,7 +1428,7 @@ def emit_request_decl(emit: Emit, module: ModuleIR, request: RequestDecl) -> Non
         else:
             emit(f"pub const Reply = {reply_name(request.name)};")
         emit()
-        emit_payload_decl_fields(emit, request.items)
+        emit_payload_decl_fields(emit, request.items, const_struct_lists=True)
         emit()
         emit_request_byte_len(emit, module, request)
         emit_request_header_byte1(emit, module, request)
