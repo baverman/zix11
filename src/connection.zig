@@ -117,6 +117,10 @@ pub const Connection = struct {
         return &self.stream_writer.interface;
     }
 
+    pub fn fd(self: *const Connection) @TypeOf(self.stream.socket.handle) {
+        return self.stream.socket.handle;
+    }
+
     pub fn readReplyPacket(self: *Connection) ![]const u8 {
         const header = try self.reader().peek(32);
         const packet_kind = header[0];
@@ -133,6 +137,37 @@ pub const Connection = struct {
             var packet_reader: std.Io.Reader = .fixed(&raw);
             return try xproto.decodeEvent(&packet_reader);
         }
+        while (true) {
+            const packet = try self.readReplyPacket();
+            if (packet[0] == 0) {
+                self.last_protocol_error = parseProtocolError(packet);
+                continue;
+            }
+            var packet_reader: std.Io.Reader = .fixed(packet);
+            return try xproto.decodeEvent(&packet_reader);
+        }
+    }
+
+    pub fn pollEvent(self: *Connection) !?xproto.Event {
+        return self.pollEventTimeout(0);
+    }
+
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: c_int) !?xproto.Event {
+        if (self.pending_events.pop()) |raw| {
+            var packet_reader: std.Io.Reader = .fixed(&raw);
+            return try xproto.decodeEvent(&packet_reader);
+        }
+
+        if (self.reader().bufferedLen() == 0) {
+            var pollfd = [1]std.posix.pollfd{.{
+                .fd = self.fd(),
+                .events = std.posix.POLL.IN,
+                .revents = 0,
+            }};
+            const n = try std.posix.poll(&pollfd, timeout_ms);
+            if (n == 0) return null;
+        }
+
         while (true) {
             const packet = try self.readReplyPacket();
             if (packet[0] == 0) {

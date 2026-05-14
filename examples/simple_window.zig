@@ -42,20 +42,22 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("created window: 0x{x}\n", .{@intFromEnum(window)});
 
     while (true) {
-        const event = try conn.nextEvent();
-        switch (event) {
-            .Expose => |ev| {
-                if (ev.window == window and ev.count == 0) {
-                    std.debug.print("expose {}x{}\n", .{ ev.width, ev.height });
-                }
-            },
-            .ButtonPress => |ev| {
-                if (ev.event == window) {
-                    std.debug.print("button press at {}, {}\n", .{ ev.event_x, ev.event_y });
-                    break;
-                }
-            },
-            else => {},
+        while (try conn.pollEventTimeout(3000)) |event| {
+            switch (event) {
+                .Expose => |ev| {
+                    if (ev.window == window and ev.count == 0) {
+                        std.debug.print("expose {}x{}\n", .{ ev.width, ev.height });
+                    }
+                },
+                .ButtonPress => |ev| {
+                    if (ev.event == window) {
+                        std.debug.print("button press at {}, {}\n", .{ ev.event_x, ev.event_y });
+                        return;
+                    }
+                },
+                else => {},
+            }
         }
+        std.debug.print("No events, do something else\n", .{});
     }
 }
