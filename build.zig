@@ -9,31 +9,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
-    const simple_window = b.addExecutable(.{
-        .name = "simple_window",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/simple_window.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zix11", .module = mod },
-            },
-        }),
-    });
-    b.installArtifact(simple_window);
-
-    const read_properties = b.addExecutable(.{
-        .name = "read_properties",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/read_properties.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zix11", .module = mod },
-            },
-        }),
-    });
-    b.installArtifact(read_properties);
+    addExample(b, "simple_window", "examples/simple_window.zig", target, optimize, mod, false);
+    addExample(b, "read_properties", "examples/read_properties.zig", target, optimize, mod, false);
+    addExample(b, "cairo", "examples/cairo.zig", target, optimize, mod, true);
+    addExample(b, "cairo_animation", "examples/cairo_animation.zig", target, optimize, mod, true);
 
     const mod_tests = b.addTest(.{
         .root_module = mod,
@@ -42,4 +21,31 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
+}
+
+fn addExample(
+    b: *std.Build,
+    name: []const u8,
+    path: []const u8,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    mod: *std.Build.Module,
+    link_cairo: bool,
+) void {
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(path),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = link_cairo,
+            .imports = &.{
+                .{ .name = "zix11", .module = mod },
+            },
+        }),
+    });
+    if (link_cairo) {
+        exe.root_module.linkSystemLibrary("cairo", .{ .use_pkg_config = .force });
+    }
+    b.installArtifact(exe);
 }
