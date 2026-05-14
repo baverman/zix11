@@ -45,7 +45,7 @@ pub const Connection = struct {
     resource_id_mask: u32,
     resource_id_inc: u32,
     next_resource_id: u32,
-    pending_events: std.ArrayListUnmanaged([32]u8),
+    pending_events: std.ArrayList([32]u8),
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
 
@@ -132,11 +132,7 @@ pub const Connection = struct {
         return try self.reader().take(packet_len);
     }
 
-    pub fn nextEvent(self: *Connection) !xproto.Event {
-        if (self.pending_events.pop()) |raw| {
-            var packet_reader: std.Io.Reader = .fixed(&raw);
-            return try xproto.decodeEvent(&packet_reader);
-        }
+    fn readEvent(self: *Connection) !xproto.Event {
         while (true) {
             const packet = try self.readReplyPacket();
             if (packet[0] == 0) {
@@ -148,15 +144,21 @@ pub const Connection = struct {
         }
     }
 
-    pub fn pollEvent(self: *Connection) !?xproto.Event {
-        return self.pollEventTimeout(0);
-    }
-
-    pub fn pollEventTimeout(self: *Connection, timeout_ms: c_int) !?xproto.Event {
+    pub fn pendingEvent(self: *Connection) !?xproto.Event {
         if (self.pending_events.pop()) |raw| {
             var packet_reader: std.Io.Reader = .fixed(&raw);
             return try xproto.decodeEvent(&packet_reader);
         }
+        return null;
+    }
+
+    pub fn nextEvent(self: *Connection) !xproto.Event {
+        if (try self.pendingEvent()) |ev| return ev;
+        return self.readEvent();
+    }
+
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: c_int) !?xproto.Event {
+        if (try self.pendingEvent()) |ev| return ev;
 
         if (self.reader().bufferedLen() == 0) {
             var pollfd = [1]std.posix.pollfd{.{
@@ -168,15 +170,11 @@ pub const Connection = struct {
             if (n == 0) return null;
         }
 
-        while (true) {
-            const packet = try self.readReplyPacket();
-            if (packet[0] == 0) {
-                self.last_protocol_error = parseProtocolError(packet);
-                continue;
-            }
-            var packet_reader: std.Io.Reader = .fixed(packet);
-            return try xproto.decodeEvent(&packet_reader);
-        }
+        return try self.readEvent();
+    }
+
+    pub fn pollEvent(self: *Connection) !?xproto.Event {
+        return self.pollEventTimeout(0);
     }
 
     pub fn send(self: *Connection, request_value: anytype) !u16 {
