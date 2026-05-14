@@ -15,7 +15,7 @@ pub fn main(init: std.process.Init) !void {
     defer conn.deinit();
 
     const root_geometry = try conn.request(x.GetGeometry, .{
-        .drawable = @enumFromInt(@intFromEnum(conn.root_window)),
+        .drawable = .{ .window = conn.root_window },
     });
     const depth = root_geometry.depth;
 
@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreatePixmap, .{
         .depth = depth,
         .pid = pixmap,
-        .drawable = @enumFromInt(@intFromEnum(window)),
+        .drawable = .{ .window = window },
         .width = width,
         .height = height,
     });
@@ -52,7 +52,7 @@ pub fn main(init: std.process.Init) !void {
 
     try conn.request(x.CreateGC, .{
         .cid = gc,
-        .drawable = @enumFromInt(@intFromEnum(pixmap)),
+        .drawable = .{ .pixmap = pixmap },
         .value_list = .{},
     });
     defer conn.request(x.FreeGC, .{ .gc = gc }) catch {};
@@ -112,7 +112,7 @@ fn present(
         const end = start + row_count * stride;
         try conn.request(x.PutImage, .{
             .format = .ZPixmap,
-            .drawable = @enumFromInt(@intFromEnum(pixmap)),
+            .drawable = .{ .pixmap = pixmap },
             .gc = gc,
             .width = width,
             .height = @intCast(row_count),
@@ -126,8 +126,8 @@ fn present(
     }
 
     try conn.request(x.CopyArea, .{
-        .src_drawable = @enumFromInt(@intFromEnum(pixmap)),
-        .dst_drawable = @enumFromInt(@intFromEnum(window)),
+        .src_drawable = .{ .pixmap = pixmap },
+        .dst_drawable = .{ .window = window },
         .gc = gc,
         .src_x = 0,
         .src_y = 0,

@@ -64,7 +64,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreatePixmap, .{
         .depth = argb.depth,
         .pid = pixmap,
-        .drawable = @enumFromInt(@intFromEnum(window)),
+        .drawable = .{ .window = window },
         .width = width,
         .height = height,
     });
@@ -72,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
 
     try conn.request(x.CreateGC, .{
         .cid = gc,
-        .drawable = @enumFromInt(@intFromEnum(pixmap)),
+        .drawable = .{ .pixmap = pixmap },
         .value_list = .{
             .graphics_exposures = 0,
         },
@@ -81,7 +81,7 @@ pub fn main(init: std.process.Init) !void {
 
     try conn.request(render.CreatePicture, .{
         .pid = src_picture,
-        .drawable = @enumFromInt(@intFromEnum(pixmap)),
+        .drawable = .{ .pixmap = pixmap },
         .format = argb.format,
         .value_list = .{},
     });
@@ -89,7 +89,7 @@ pub fn main(init: std.process.Init) !void {
 
     try conn.request(render.CreatePicture, .{
         .pid = dst_picture,
-        .drawable = @enumFromInt(@intFromEnum(window)),
+        .drawable = .{ .window = window },
         .format = argb.format,
         .value_list = .{},
     });
@@ -175,7 +175,7 @@ fn present(
         const end = start + row_count * stride;
         try conn.request(x.PutImage, .{
             .format = .ZPixmap,
-            .drawable = @enumFromInt(@intFromEnum(pixmap)),
+            .drawable = .{ .pixmap = pixmap },
             .gc = gc,
             .width = width,
             .height = @intCast(row_count),

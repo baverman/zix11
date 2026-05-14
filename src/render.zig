@@ -1171,7 +1171,7 @@ pub const CreatePicture = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, @intFromEnum(self.pid), .little);
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.format), .little);
         try writer.writeInt(u32, wire.computeValueMask(CreatePictureValueListSpec, self.value_list), .little);
         try wire.writeValueList(CreatePictureValueListSpec, self.value_list, writer);
@@ -1423,7 +1423,7 @@ pub const QueryFilters = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
     }
 
 };

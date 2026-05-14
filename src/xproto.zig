@@ -24,9 +24,59 @@ pub const Pixmap = enum(u32) { _ };
 
 pub const Window = enum(u32) { _ };
 
-pub const Drawable = enum(u32) { _ };
+pub const Drawable = union(enum) {
+    window: Window,
+    pixmap: Pixmap,
+    raw: u32,
 
-pub const Fontable = enum(u32) { _ };
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4;
+    }
+
+    pub fn toInt(self: @This()) u32 {
+        return switch (self) {
+            .window => |value| @intFromEnum(value),
+            .pixmap => |value| @intFromEnum(value),
+            .raw => |value| value,
+        };
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
+        try writer.writeInt(u32, self.toInt(), .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+        return .{ .raw = try reader.takeInt(u32, .little) };
+    }
+};
+
+pub const Fontable = union(enum) {
+    font: Font,
+    gcontext: Gcontext,
+    raw: u32,
+
+    pub fn byteLen(self: @This()) usize {
+        _ = self;
+        return 4;
+    }
+
+    pub fn toInt(self: @This()) u32 {
+        return switch (self) {
+            .font => |value| @intFromEnum(value),
+            .gcontext => |value| @intFromEnum(value),
+            .raw => |value| value,
+        };
+    }
+
+    pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
+        try writer.writeInt(u32, self.toInt(), .little);
+    }
+
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+        return .{ .raw = try reader.takeInt(u32, .little) };
+    }
+};
 
 pub const ClientMessageData = struct {
     raw: [20]u8,
@@ -2432,8 +2482,8 @@ pub const CopyArea = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.src_drawable), .little);
-        try writer.writeInt(u32, @intFromEnum(self.dst_drawable), .little);
+        try self.src_drawable.encode(writer);
+        try self.dst_drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.src_x, .little);
         try writer.writeInt(i16, self.src_y, .little);
@@ -2524,8 +2574,8 @@ pub const CopyPlane = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.src_drawable), .little);
-        try writer.writeInt(u32, @intFromEnum(self.dst_drawable), .little);
+        try self.src_drawable.encode(writer);
+        try self.dst_drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.src_x, .little);
         try writer.writeInt(i16, self.src_y, .little);
@@ -2682,7 +2732,7 @@ pub const CreateGC = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, @intFromEnum(self.cid), .little);
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, wire.computeValueMask(CreateGCValueListSpec, self.value_list), .little);
         try wire.writeValueList(CreateGCValueListSpec, self.value_list, writer);
     }
@@ -2754,7 +2804,7 @@ pub const CreatePixmap = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeInt(u32, @intFromEnum(self.pid), .little);
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
     }
@@ -2932,7 +2982,7 @@ pub const FillPoly = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeByte(@intCast(@intFromEnum(self.shape)));
         try writer.writeByte(@intCast(@intFromEnum(self.coordinate_mode)));
@@ -3280,7 +3330,7 @@ pub const GetGeometry = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
     }
 
 };
@@ -3347,7 +3397,7 @@ pub const GetImage = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
         try writer.writeInt(u16, self.width, .little);
@@ -4312,7 +4362,7 @@ pub const ImageText16 = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
@@ -4343,7 +4393,7 @@ pub const ImageText8 = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
@@ -5091,7 +5141,7 @@ pub const PolyArc = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.arcs) |elem| {
             try elem.encode(writer);
@@ -5119,7 +5169,7 @@ pub const PolyFillArc = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.arcs) |elem| {
             try elem.encode(writer);
@@ -5147,7 +5197,7 @@ pub const PolyFillRectangle = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.rectangles) |elem| {
             try elem.encode(writer);
@@ -5175,7 +5225,7 @@ pub const PolyLine = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.points) |elem| {
             try elem.encode(writer);
@@ -5203,7 +5253,7 @@ pub const PolyPoint = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.points) |elem| {
             try elem.encode(writer);
@@ -5231,7 +5281,7 @@ pub const PolyRectangle = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.rectangles) |elem| {
             try elem.encode(writer);
@@ -5259,7 +5309,7 @@ pub const PolySegment = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         for (self.segments) |elem| {
             try elem.encode(writer);
@@ -5289,7 +5339,7 @@ pub const PolyText16 = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
@@ -5319,7 +5369,7 @@ pub const PolyText8 = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(i16, self.x, .little);
         try writer.writeInt(i16, self.y, .little);
@@ -5353,7 +5403,7 @@ pub const PutImage = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u32, @intFromEnum(self.gc), .little);
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
@@ -5417,7 +5467,7 @@ pub const QueryBestSize = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.drawable), .little);
+        try self.drawable.encode(writer);
         try writer.writeInt(u16, self.width, .little);
         try writer.writeInt(u16, self.height, .little);
     }
@@ -5676,7 +5726,7 @@ pub const QueryFont = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.font), .little);
+        try self.font.encode(writer);
     }
 
 };
@@ -7057,7 +7107,7 @@ pub const GraphicsExposureEvent = struct {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
-        const drawable = @as(Drawable, @enumFromInt(try reader.takeInt(u32, .little)));
+        const drawable = try Drawable.decode(reader);
         const x = try reader.takeInt(u16, .little);
         const y = try reader.takeInt(u16, .little);
         const width = try reader.takeInt(u16, .little);
@@ -7088,7 +7138,7 @@ pub const NoExposureEvent = struct {
         _ = try reader.takeByte();
         _ = try reader.take(1);
         _ = try reader.takeInt(u16, .little);
-        const drawable = @as(Drawable, @enumFromInt(try reader.takeInt(u32, .little)));
+        const drawable = try Drawable.decode(reader);
         const minor_opcode = try reader.takeInt(u16, .little);
         const major_opcode = try reader.takeByte();
         _ = try reader.take(1);

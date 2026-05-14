@@ -189,10 +189,10 @@ class XidUnionType:
         return 4
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try writer.writeInt(u32, @intFromEnum({value_expr}), .little);")
+        emit(f"try {value_expr}.encode(writer);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
-        emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt(u32, .little)));")
+        emit(f"const {target_name} = try {self.render_zig()}.decode(reader);")
 
 
 @dataclass
@@ -920,6 +920,11 @@ def zig_xid_name(name: str) -> str:
     return name.title().replace("_", "")
 
 
+def zig_xid_variant_name(name: str) -> str:
+    zig_name = zig_xid_name(name)
+    return zig_name[:1].lower() + zig_name[1:]
+
+
 def zig_enum_item_name(name: str) -> str:
     if name and name[0].isdigit():
         return f'@"{name}"'
@@ -947,7 +952,44 @@ def emit_prelude(emit: Emit, module: ModuleIR) -> None:
 
 
 def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
-    emit(f"pub const {zig_xid_name(decl.name)} = enum(u32) {{ _ }};")
+    if isinstance(decl, XidDecl):
+        emit(f"pub const {zig_xid_name(decl.name)} = enum(u32) {{ _ }};")
+        emit()
+        return
+
+    emit(f"pub const {zig_xid_name(decl.name)} = union(enum) {{")
+    with emit.block():
+        for member in decl.members:
+            emit(f"{zig_xid_variant_name(member)}: {zig_xid_name(member)},")
+        emit("raw: u32,")
+        emit()
+        emit("pub fn byteLen(self: @This()) usize {")
+        with emit.block():
+            emit("_ = self;")
+            emit("return 4;")
+        emit("}")
+        emit()
+        emit("pub fn toInt(self: @This()) u32 {")
+        with emit.block():
+            emit("return switch (self) {")
+            with emit.block():
+                for member in decl.members:
+                    variant = zig_xid_variant_name(member)
+                    emit(f".{variant} => |value| @intFromEnum(value),")
+                emit(".raw => |value| value,")
+            emit("};")
+        emit("}")
+        emit()
+        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
+        with emit.block():
+            emit("try writer.writeInt(u32, self.toInt(), .little);")
+        emit("}")
+        emit()
+        emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
+        with emit.block():
+            emit("return .{ .raw = try reader.takeInt(u32, .little) };")
+        emit("}")
+    emit("};")
     emit()
 
 
