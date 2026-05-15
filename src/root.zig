@@ -58,6 +58,14 @@ pub fn clientMessageData(comptime T: type, data: []const T) xproto.ClientMessage
     return .{ .raw = result };
 }
 
+pub fn internAtom(conn: *Connection, name: []const u8, only_if_exists: bool) !xproto.Atom {
+    const reply = try conn.request(xproto.InternAtom, .{
+        .only_if_exists = only_if_exists,
+        .name = name,
+    });
+    return reply.atom;
+}
+
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
