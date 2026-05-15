@@ -2088,6 +2088,7 @@ pub const ChangeGCValueList = struct {
 };
 
 pub const ChangeGCValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
         .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
@@ -2178,6 +2179,7 @@ pub const ChangeKeyboardControlValueList = struct {
 };
 
 pub const ChangeKeyboardControlValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "key_click_percent", .bit = @intFromEnum(KB.KeyClickPercent), .value_type = i32 },
         .{ .name = "bell_percent", .bit = @intFromEnum(KB.BellPercent), .value_type = i32 },
@@ -2348,6 +2350,7 @@ pub const ChangeWindowAttributesValueList = struct {
 };
 
 pub const ChangeWindowAttributesValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
         .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
@@ -2480,6 +2483,7 @@ pub const ConfigureWindowValueList = struct {
 };
 
 pub const ConfigureWindowValueListSpec = struct {
+    pub const mask_type = u16;
     pub const fields = .{
         .{ .name = "x", .bit = @intFromEnum(ConfigWindow.X), .value_type = i32 },
         .{ .name = "y", .bit = @intFromEnum(ConfigWindow.Y), .value_type = i32 },
@@ -2777,6 +2781,7 @@ pub const CreateGCValueList = struct {
 };
 
 pub const CreateGCValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
         .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
@@ -2922,6 +2927,7 @@ pub const CreateWindowValueList = struct {
 };
 
 pub const CreateWindowValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
         .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },

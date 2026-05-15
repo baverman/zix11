@@ -774,6 +774,7 @@ pub const ChangePictureValueList = struct {
 };
 
 pub const ChangePictureValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat), .value_type = Repeat },
         .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap), .value_type = Picture },
@@ -1140,6 +1141,7 @@ pub const CreatePictureValueList = struct {
 };
 
 pub const CreatePictureValueListSpec = struct {
+    pub const mask_type = u32;
     pub const fields = .{
         .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat), .value_type = Repeat },
         .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap), .value_type = Picture },

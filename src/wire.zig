@@ -10,8 +10,8 @@ pub fn structListByteLen(list: anytype) usize {
     return total;
 }
 
-pub fn computeValueMask(comptime Spec: type, values: anytype) u32 {
-    var mask: u32 = 0;
+pub fn computeValueMask(comptime Spec: type, values: anytype) Spec.mask_type {
+    var mask: Spec.mask_type = 0;
     inline for (Spec.fields) |field| {
         if (@field(values, field.name) != null) {
             mask |= field.bit;

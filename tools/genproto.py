@@ -481,6 +481,7 @@ class MaskListItem:
     cases: tuple[MaskCase, ...]
     type_name: str | None = None
     spec_name: str | None = None
+    mask_type: str | None = None
 
     def set_generated_names(self, request_name: str) -> None:
         suffix = "".join(part[:1].upper() + part[1:] for part in self.name.split("_"))
@@ -496,6 +497,11 @@ class MaskListItem:
         if self.spec_name is None:
             raise ValueError(f"mask-list spec name was not initialized for {self.name}")
         return self.spec_name
+
+    def require_mask_type(self) -> str:
+        if self.mask_type is None:
+            raise ValueError(f"mask-list mask type was not initialized for {self.name}")
+        return self.mask_type
 
     def emit_decl(self, emit: Emit) -> None:
         emit(f"{render_field_name(self.name)}: {self.require_type_name()},")
@@ -879,6 +885,10 @@ class Resolver:
             elif isinstance(item, MaskListItem):
                 if item.mask_field_name in fields:
                     fields[item.mask_field_name].derived_from = item
+                    type_ref = fields[item.mask_field_name].type_ref
+                    if not isinstance(type_ref, MaskType):
+                        raise TypeError(f"mask field must use MaskType: {item.mask_field_name}")
+                    item.mask_type = type_ref.render_zig()
 
     def resolve_struct(self, struct: xcbxml.Struct) -> StructDecl:
         items = self.resolve_items(struct.fields)
@@ -1402,6 +1412,7 @@ def emit_mask_list_decl(emit: Emit, item: MaskListItem) -> None:
 
     emit(f"pub const {item.require_spec_name()} = struct {{")
     with emit.block():
+        emit(f"pub const mask_type = {item.require_mask_type()};")
         emit("pub const fields = .{")
         with emit.block():
             for case in item.cases:

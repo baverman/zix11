@@ -139,3 +139,10 @@ test "Event.toBytes" {
     _ = bytes;
     try std.testing.expectEqualSlices(u8, &.{ 10, 0, 0, 0, 20, 0, 0, 0 }, event.data.raw[0..8]);
 }
+
+test "ConfigureWindow" {
+    var buf: [64]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    const cw: xproto.ConfigureWindow = .{ .window = xproto.Window.None, .value_list = .{} };
+    try cw.encode(&writer);
+}
