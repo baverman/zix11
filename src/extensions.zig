@@ -1,5 +1,6 @@
 pub const Extension = enum {
     RENDER,
+    MIT_SHM,
 };
 
 pub const ExtensionInfo = struct {
@@ -11,5 +12,6 @@ pub const ExtensionInfo = struct {
 pub fn xname(ext: Extension) []const u8 {
     return switch (ext) {
         .RENDER => "RENDER",
+        .MIT_SHM => "MIT-SHM",
     };
 }

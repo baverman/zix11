@@ -107,7 +107,13 @@ class Pad:
         assert obj.count or obj.align
         return obj
 
-DataFields = Field | ListField | Pad
+
+@dataclass
+class Fd:
+    name: str
+
+
+DataFields = Field | ListField | Pad | Fd
 RequestDataFields = DataFields | SwitchField
 
 @dataclass
@@ -174,6 +180,12 @@ class Request:
         attrs['reply'] = kids.pop('reply')  # type: ignore[attr-defined]
         attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
         return Request(**attrs)  # type: ignore[arg-type]
+
+    @property
+    def has_fd(self) -> bool:
+        if any(isinstance(field, Fd) for field in self.fields):
+            return True
+        return self.reply is not None and any(isinstance(field, Fd) for field in self.reply.fields)
 
 
 @dataclass
@@ -278,6 +290,7 @@ field_items_tup = (
     field_item,
     Item('pad', {'bytes', 'align'}, cnv=Pad.make),
     Item('list', {'type', 'name', 'enum'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item('fd', {'name'}, cnv=simple(Fd)),
     IgnoreItem('doc'),
 )
 field_items = one_of(*field_items_tup)
@@ -358,6 +371,7 @@ class Bindings:
         attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
         attrs.update(attrs.pop('@kids'))  # type: ignore[call-overload]
         attrs['imports'] = attrs.pop('import')
+        attrs['request'] = [request for request in attrs['request'] if not request.has_fd]  # type: ignore[index]
         return Bindings(**attrs)  # type: ignore[arg-type]
 
 

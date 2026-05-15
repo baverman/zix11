@@ -165,7 +165,7 @@ pub const Connection = struct {
         return self.readEvent();
     }
 
-    pub fn pollEventTimeout(self: *Connection, timeout_ms: c_int) !?xproto.Event {
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?xproto.Event {
         if (try self.pendingEvent()) |ev| return ev;
 
         if (self.reader().bufferedLen() == 0) {

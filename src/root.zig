@@ -4,6 +4,7 @@ pub const errors = @import("errors.zig");
 pub const extensions = @import("extensions.zig");
 pub const xproto = @import("xproto.zig");
 pub const render = @import("render.zig");
+pub const shm = @import("shm.zig");
 pub const Connection = @import("connection.zig").Connection;
 pub const ProtocolError = @import("connection.zig").ProtocolError;
 
