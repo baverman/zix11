@@ -11,11 +11,18 @@ const DecodeError = errors.DecodeError;
 const AllocDecodeError = errors.AllocDecodeError;
 const BufferDecodeError = errors.BufferDecodeError;
 
-pub const Glyphset = enum(u32) { _ };
+pub const Glyphset = enum(u32) {
+    _,
+};
 
-pub const Pictformat = enum(u32) { _ };
+pub const Pictformat = enum(u32) {
+    _,
+};
 
-pub const Picture = enum(u32) { _ };
+pub const Picture = enum(u32) {
+    None = 0,
+    _,
+};
 
 pub const Error = enum(u32) {
     PictFormat = 0,

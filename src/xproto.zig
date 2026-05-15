@@ -10,19 +10,111 @@ const DecodeError = errors.DecodeError;
 const AllocDecodeError = errors.AllocDecodeError;
 const BufferDecodeError = errors.BufferDecodeError;
 
-pub const Atom = enum(u32) { _ };
+pub const Atom = enum(u32) {
+    None = 0,
+    PRIMARY = 1,
+    SECONDARY = 2,
+    ARC = 3,
+    ATOM = 4,
+    BITMAP = 5,
+    CARDINAL = 6,
+    COLORMAP = 7,
+    CURSOR = 8,
+    CUTBUFFER0 = 9,
+    CUTBUFFER1 = 10,
+    CUTBUFFER2 = 11,
+    CUTBUFFER3 = 12,
+    CUTBUFFER4 = 13,
+    CUTBUFFER5 = 14,
+    CUTBUFFER6 = 15,
+    CUTBUFFER7 = 16,
+    DRAWABLE = 17,
+    FONT = 18,
+    INTEGER = 19,
+    PIXMAP = 20,
+    POINT = 21,
+    RECTANGLE = 22,
+    RESOURCEMANAGER = 23,
+    RGBCOLORMAP = 24,
+    RGBBESTMAP = 25,
+    RGBBLUEMAP = 26,
+    RGBDEFAULTMAP = 27,
+    RGBGRAYMAP = 28,
+    RGBGREENMAP = 29,
+    RGBREDMAP = 30,
+    STRING = 31,
+    VISUALID = 32,
+    WINDOW = 33,
+    WMCOMMAND = 34,
+    WMHINTS = 35,
+    WMCLIENTMACHINE = 36,
+    WMICONNAME = 37,
+    WMICONSIZE = 38,
+    WMNAME = 39,
+    WMNORMALHINTS = 40,
+    WMSIZEHINTS = 41,
+    WMZOOMHINTS = 42,
+    MINSPACE = 43,
+    NORMSPACE = 44,
+    MAXSPACE = 45,
+    ENDSPACE = 46,
+    SUPERSCRIPTX = 47,
+    SUPERSCRIPTY = 48,
+    SUBSCRIPTX = 49,
+    SUBSCRIPTY = 50,
+    UNDERLINEPOSITION = 51,
+    UNDERLINETHICKNESS = 52,
+    STRIKEOUTASCENT = 53,
+    STRIKEOUTDESCENT = 54,
+    ITALICANGLE = 55,
+    XHEIGHT = 56,
+    QUADWIDTH = 57,
+    WEIGHT = 58,
+    POINTSIZE = 59,
+    RESOLUTION = 60,
+    COPYRIGHT = 61,
+    NOTICE = 62,
+    FONTNAME = 63,
+    FAMILYNAME = 64,
+    FULLNAME = 65,
+    CAPHEIGHT = 66,
+    WMCLASS = 67,
+    WMTRANSIENTFOR = 68,
+    _,
+};
 
-pub const Colormap = enum(u32) { _ };
+pub const Atom_ = struct {
+    pub const Any = Atom.None;
+};
 
-pub const Cursor = enum(u32) { _ };
+pub const Colormap = enum(u32) {
+    None = 0,
+    _,
+};
 
-pub const Font = enum(u32) { _ };
+pub const Cursor = enum(u32) {
+    None = 0,
+    _,
+};
 
-pub const Gcontext = enum(u32) { _ };
+pub const Font = enum(u32) {
+    None = 0,
+    _,
+};
 
-pub const Pixmap = enum(u32) { _ };
+pub const Gcontext = enum(u32) {
+    _,
+};
 
-pub const Window = enum(u32) { _ };
+pub const Pixmap = enum(u32) {
+    None = 0,
+    _,
+};
+
+pub const Window = enum(u32) {
+    None = 0,
+    _,
+};
 
 pub const Drawable = union(enum) {
     window: Window,

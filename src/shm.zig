@@ -11,7 +11,9 @@ const DecodeError = errors.DecodeError;
 const AllocDecodeError = errors.AllocDecodeError;
 const BufferDecodeError = errors.BufferDecodeError;
 
-pub const Seg = enum(u32) { _ };
+pub const Seg = enum(u32) {
+    _,
+};
 
 pub const Error = enum(u32) {
     BadSeg = 0,
