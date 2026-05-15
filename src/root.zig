@@ -14,18 +14,18 @@ pub fn getProperty(
     property: xproto.Atom,
     expected_type: xproto.Atom,
     comptime T: type,
-    scratch: []align(@alignOf(T)) u8,
+    buffer: []T,
 ) ![]const T {
-    const reply = try conn.requestBuf(scratch, xproto.GetProperty, .{
+    const reply = try conn.requestBuf(std.mem.sliceAsBytes(buffer), xproto.GetProperty, .{
         .delete = false,
         .window = window,
         .property = property,
         .type = expected_type,
         .long_offset = 0,
-        .long_length = @intCast(scratch.len / 4),
+        .long_length = @intCast(buffer.len * @sizeOf(T) / 4),
     });
 
-    if (reply.type != expected_type) return error.UnexpectedType;
+    if (expected_type != xproto.Atom_.Any and reply.type != expected_type) return error.UnexpectedType;
     if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
     if (reply.bytes_after != 0) return error.PropertyTruncated;
 
@@ -33,9 +33,7 @@ pub fn getProperty(
     if (byte_len > reply.value.len) return error.MalformedProperty;
     if (byte_len % @sizeOf(T) != 0) return error.MalformedProperty;
 
-    const aligned_bytes: []align(@alignOf(T)) const u8 = @alignCast(reply.value[0..byte_len]);
-    const ptr: [*]align(@alignOf(T)) const T = @ptrCast(aligned_bytes.ptr);
-    return ptr[0 .. byte_len / @sizeOf(T)];
+    return buffer[0 .. byte_len / @sizeOf(T)];
 }
 
 fn propertyFormat(comptime T: type) u8 {
