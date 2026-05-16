@@ -47,7 +47,7 @@ pub const Connection = struct {
     resource_id_mask: u32,
     resource_id_inc: u32,
     next_resource_id: u32,
-    pending_events: std.ArrayList([32]u8),
+    pending_events: std.Deque([32]u8),
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
     extensions: std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo),
@@ -153,11 +153,15 @@ pub const Connection = struct {
     }
 
     pub fn pendingEvent(self: *Connection) !?xproto.Event {
-        if (self.pending_events.pop()) |raw| {
+        if (self.pending_events.popFront()) |raw| {
             var packet_reader: std.Io.Reader = .fixed(&raw);
             return try xproto.decodeEvent(&packet_reader);
         }
         return null;
+    }
+
+    pub fn hasPendingEvents(self: *Connection) bool {
+        return self.pending_events.len != 0;
     }
 
     pub fn nextEvent(self: *Connection) !xproto.Event {
@@ -165,20 +169,27 @@ pub const Connection = struct {
         return self.readEvent();
     }
 
+    pub fn waitForEvents(self: *Connection, timeout_ms: i32) !bool {
+        if (self.hasPendingEvents()) return true;
+        if (self.reader().bufferedLen() != 0) return true;
+
+        var pollfd = [1]std.posix.pollfd{.{
+            .fd = self.fd(),
+            .events = std.posix.POLL.IN,
+            .revents = 0,
+        }};
+        const n = try std.posix.poll(&pollfd, timeout_ms);
+        return n != 0;
+    }
+
     pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?xproto.Event {
         if (try self.pendingEvent()) |ev| return ev;
 
-        if (self.reader().bufferedLen() == 0) {
-            var pollfd = [1]std.posix.pollfd{.{
-                .fd = self.fd(),
-                .events = std.posix.POLL.IN,
-                .revents = 0,
-            }};
-            const n = try std.posix.poll(&pollfd, timeout_ms);
-            if (n == 0) return null;
+        if (try self.waitForEvents(timeout_ms)) {
+            return try self.readEvent();
         }
 
-        return try self.readEvent();
+        return null;
     }
 
     pub fn pollEvent(self: *Connection) !?xproto.Event {
@@ -360,7 +371,7 @@ pub const Connection = struct {
         std.debug.assert(packet.len == 32);
         var raw: [32]u8 = undefined;
         @memcpy(raw[0..], packet[0..32]);
-        try self.pending_events.append(self.allocator, raw);
+        try self.pending_events.pushBack(self.allocator, raw);
     }
 };
 

@@ -42,7 +42,7 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("created window: 0x{x}\n", .{@intFromEnum(window)});
 
     while (true) {
-        while (try conn.pollEventTimeout(3000)) |event| {
+        while (try conn.pollEvent()) |event| {
             switch (event) {
                 .Expose => |ev| {
                     if (ev.window == window and ev.count == 0) {
@@ -58,6 +58,8 @@ pub fn main(init: std.process.Init) !void {
                 else => {},
             }
         }
+
         std.debug.print("No events, do something else\n", .{});
+        _ = try conn.waitForEvents(3000);
     }
 }
