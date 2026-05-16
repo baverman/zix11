@@ -128,6 +128,7 @@ pub fn internAtom(conn: *Connection, name: []const u8, only_if_exists: bool) !xp
 pub fn AtomEnum(comptime E: type) type {
     const S = @Struct(.auto, null, std.meta.fieldNames(E), &@splat(xproto.Atom), &@splat(.{}));
     return struct {
+        pub const Struct = S;
         pub fn init(conn: *Connection) !S {
             var result: S = undefined;
             inline for (@typeInfo(E).@"enum".fields) |field| {
