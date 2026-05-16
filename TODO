@@ -1,0 +1,6 @@
+# API
+- add waitForEvent(timeout), pollEventTimeout has considerable drawbacks. Usually you have pending event processor
+  and timeout is a separate thing. Maybe remove all other options.
+- batch requests
+- make Connection copyable, allocate state with sream and r/w impls and which ensures stable references.
+- client message data union

@@ -8,14 +8,43 @@ pub const shm = @import("shm.zig");
 pub const Connection = @import("connection.zig").Connection;
 pub const ProtocolError = @import("connection.zig").ProtocolError;
 
+pub const PropertyType = struct {
+    pub fn make(comptime Type: type) type {
+        return struct {
+            property_type: xproto.Atom,
+
+            const Self = @This();
+            pub const T = Type;
+            pub const Buf = []T;
+            pub const Slice = []const T;
+
+            pub fn init(property_type: xproto.Atom) Self {
+                return .{ .property_type = property_type };
+            }
+
+            pub fn as(_: Self, property_type: xproto.Atom) Self {
+                return .{ .property_type = property_type };
+            }
+        };
+    }
+
+    pub const any: make(u8) = .init(xproto.Atom_.Any);
+    pub const cardinal: make(u32) = .init(xproto.Atom.CARDINAL);
+    pub const string: make(u8) = .init(xproto.Atom.STRING);
+    pub const window: make(xproto.Window) = .init(xproto.Atom.WINDOW);
+    pub const atom: make(xproto.Atom) = .init(xproto.Atom.ATOM);
+};
+
 pub fn getProperty(
     conn: *Connection,
     window: xproto.Window,
     property: xproto.Atom,
-    expected_type: xproto.Atom,
-    comptime T: type,
-    buffer: []T,
-) ![]const T {
+    property_type: anytype,
+    buffer: @TypeOf(property_type).Buf,
+) !@TypeOf(property_type).Slice {
+    const T = @TypeOf(property_type).T;
+    const expected_type = property_type.property_type;
+
     const reply = try conn.requestBuf(std.mem.sliceAsBytes(buffer), xproto.GetProperty, .{
         .delete = false,
         .window = window,
@@ -34,6 +63,18 @@ pub fn getProperty(
     if (byte_len % @sizeOf(T) != 0) return error.MalformedProperty;
 
     return buffer[0 .. byte_len / @sizeOf(T)];
+}
+
+pub fn getScalarProperty(
+    conn: *Connection,
+    window: xproto.Window,
+    property: xproto.Atom,
+    property_type: anytype,
+) !?@TypeOf(property_type).T {
+    const T = @TypeOf(property_type).T;
+    var buf: [1]T = undefined;
+    const values = try getProperty(conn, window, property, property_type, &buf);
+    return if (values.len == 0) null else values[0];
 }
 
 fn propertyFormat(comptime T: type) u8 {
