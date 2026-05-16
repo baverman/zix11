@@ -77,6 +77,25 @@ pub fn getScalarProperty(
     return if (values.len == 0) null else values[0];
 }
 
+pub fn setProperty(
+    conn: *Connection,
+    window: xproto.Window,
+    property: xproto.Atom,
+    property_type: anytype,
+    data: @TypeOf(property_type).Slice,
+) !void {
+    const T = @TypeOf(property_type).T;
+    try conn.request(xproto.ChangeProperty, .{
+        .mode = .Replace,
+        .window = window,
+        .property = property,
+        .type = property_type.property_type,
+        .format = propertyFormat(T),
+        .data_len = @intCast(data.len),
+        .data = std.mem.sliceAsBytes(data),
+    });
+}
+
 fn propertyFormat(comptime T: type) u8 {
     if (T == u8) return 8;
     if (T == u16) return 16;

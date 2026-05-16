@@ -25,6 +25,16 @@ pub fn main(init: std.process.Init) !void {
         },
     });
 
+    const utf8_string_atom = try zix11.internAtom(&conn, "UTF8_STRING", false);
+    const wm_name_atom = try zix11.internAtom(&conn, "_NET_WM_NAME", false);
+    try zix11.setProperty(
+        &conn,
+        window,
+        wm_name_atom,
+        zix11.PropertyType.string.as(utf8_string_atom),
+        "Simple Window",
+    );
+
     conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (err) {
         error.X11ProtocolError => {
             const e = conn.lastError();
