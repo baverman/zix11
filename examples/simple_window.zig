@@ -2,9 +2,16 @@ const std = @import("std");
 const zix11 = @import("zix11");
 const x = zix11.xproto;
 
+const Atoms = enum {
+    UTF8_STRING,
+    _NET_WM_NAME,
+};
+
 pub fn main(init: std.process.Init) !void {
     var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
     defer conn.deinit();
+
+    const atom = try zix11.AtomEnum(Atoms).init(&conn);
 
     const window = try conn.allocId(x.Window);
 
@@ -25,13 +32,11 @@ pub fn main(init: std.process.Init) !void {
         },
     });
 
-    const utf8_string_atom = try zix11.internAtom(&conn, "UTF8_STRING", false);
-    const wm_name_atom = try zix11.internAtom(&conn, "_NET_WM_NAME", false);
     try zix11.setProperty(
         &conn,
         window,
-        wm_name_atom,
-        zix11.PropertyType.string.as(utf8_string_atom),
+        atom._NET_WM_NAME,
+        zix11.PropertyType.string.as(atom.UTF8_STRING),
         "Simple Window",
     );
 

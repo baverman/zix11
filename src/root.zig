@@ -125,6 +125,19 @@ pub fn internAtom(conn: *Connection, name: []const u8, only_if_exists: bool) !xp
     return reply.atom;
 }
 
+pub fn AtomEnum(comptime E: type) type {
+    const S = @Struct(.auto, null, std.meta.fieldNames(E), &@splat(xproto.Atom), &@splat(.{}));
+    return struct {
+        pub fn init(conn: *Connection) !S {
+            var result: S = undefined;
+            inline for (@typeInfo(E).@"enum".fields) |field| {
+                @field(result, field.name) = try internAtom(conn, field.name, false);
+            }
+            return result;
+        }
+    };
+}
+
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
