@@ -7,6 +7,7 @@ pub const render = @import("render.zig");
 pub const shm = @import("shm.zig");
 pub const Connection = @import("connection.zig").Connection;
 pub const ProtocolError = @import("connection.zig").ProtocolError;
+pub const ewmh = @import("ewmh.zig");
 
 pub const PropertyType = struct {
     pub fn make(comptime Type: type) type {
