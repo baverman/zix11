@@ -170,8 +170,10 @@ pub const Fontable = union(enum) {
     }
 };
 
-pub const ClientMessageData = struct {
-    raw: [20]u8,
+pub const ClientMessageData = extern union {
+    data8: [20]u8,
+    data16: [10]u16,
+    data32: [5]u32,
 
     pub fn byteLen(self: @This()) usize {
         _ = self;
@@ -179,13 +181,14 @@ pub const ClientMessageData = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeAll(self.raw[0..]);
+        const raw: [20]u8 = @bitCast(self);
+        try writer.writeAll(raw[0..]);
     }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         var raw: [20]u8 = undefined;
         @memcpy(raw[0..], try reader.take(20));
-        return .{ .raw = raw };
+        return @bitCast(raw);
     }
 };
 

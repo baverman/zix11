@@ -111,11 +111,11 @@ fn propertyFormat(comptime T: type) u8 {
 }
 
 pub fn clientMessageData(comptime T: type, data: []const T) xproto.ClientMessageData {
-    var result = std.mem.zeroes([20]u8);
+    var result: xproto.ClientMessageData = .{ .data8 = std.mem.zeroes([20]u8)};
     const bdata = std.mem.sliceAsBytes(data);
-    const len = @min(result.len, bdata.len);
-    @memcpy(result[0..len], bdata[0..len]);
-    return .{ .raw = result };
+    const len = @min(result.data8.len, bdata.len);
+    @memcpy(result.data8[0..len], bdata[0..len]);
+    return result;
 }
 
 pub fn internAtom(conn: *Connection, name: []const u8, only_if_exists: bool) !xproto.Atom {
@@ -138,6 +138,10 @@ pub fn AtomEnum(comptime E: type) type {
             return result;
         }
     };
+}
+
+test {
+    _ = ewmh;
 }
 
 test "InternAtom request encoding" {
@@ -210,7 +214,7 @@ test "Event.toBytes" {
     };
     const bytes = try event.toBytes();
     _ = bytes;
-    try std.testing.expectEqualSlices(u8, &.{ 10, 0, 0, 0, 20, 0, 0, 0 }, event.data.raw[0..8]);
+    try std.testing.expectEqualSlices(u8, &.{ 10, 0, 0, 0, 20, 0, 0, 0 }, event.data.data8[0..8]);
 }
 
 test "ConfigureWindow" {

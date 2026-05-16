@@ -1061,9 +1061,19 @@ def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
 
 
 def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
-    emit(f"pub const {decl.name} = struct {{")
+    emit(f"pub const {decl.name} = extern union {{")
     with emit.block():
-        emit(f"raw: [{decl.raw_size}]u8,")
+        pad_index = 0
+        for item in decl.items:
+            if isinstance(item, FieldItem):
+                item.emit_decl(emit)
+            elif isinstance(item, ListItem):
+                item.emit_decl(emit)
+            elif isinstance(item, PadBytesItem):
+                emit(f"_pad{pad_index}: [{item.count}]u8,")
+                pad_index += 1
+            else:
+                raise NotImplementedError(f"unsupported union item emission: {item!r}")
         emit()
         emit("pub fn byteLen(self: @This()) usize {")
         with emit.block():
@@ -1073,14 +1083,15 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
         emit()
         emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
         with emit.block():
-            emit("try writer.writeAll(self.raw[0..]);")
+            emit(f"const raw: [{decl.raw_size}]u8 = @bitCast(self);")
+            emit("try writer.writeAll(raw[0..]);")
         emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             emit(f"var raw: [{decl.raw_size}]u8 = undefined;")
             emit(f"@memcpy(raw[0..], try reader.take({decl.raw_size}));")
-            emit("return .{ .raw = raw };")
+            emit("return @bitCast(raw);")
         emit("}")
     emit("};")
     emit()

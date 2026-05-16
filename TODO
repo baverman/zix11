@@ -1,4 +1,3 @@
 # API
 - batch requests
 - make Connection copyable, allocate state with sream and r/w impls and which ensures stable references.
-- client message data union

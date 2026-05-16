@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const SizeHints = union(enum) {
+pub const SizeHints = union(enum) {
     PPosition: struct { u32, u32 },
     PMinSize: struct { u32, u32 },
     PMaxSize: struct { u32, u32 },
