@@ -1,2 +1,4 @@
 # API
 - batch requests
+
+- CreateWindow background pixmap refers to Pixmap without additional enum values like relative.

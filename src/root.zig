@@ -55,6 +55,10 @@ pub fn getProperty(
         .long_length = @intCast(buffer.len * @sizeOf(T) / 4),
     });
 
+    if (reply.format == 0) {
+        return buffer[0..0];
+    }
+
     if (expected_type != xproto.Atom_.Any and reply.type != expected_type) return error.UnexpectedType;
     if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
     if (reply.bytes_after != 0) return error.PropertyTruncated;
