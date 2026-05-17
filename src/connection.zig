@@ -34,23 +34,76 @@ pub const ReplyMode = enum {
     buffer,
 };
 
-pub const Connection = struct {
-    allocator: std.mem.Allocator,
+pub const WriterReader = struct {
+    writer: *std.Io.Writer,
+    reader: *std.Io.Reader,
+};
+
+pub const StreamTransport = struct {
     io: std.Io,
     stream: std.Io.net.Stream,
     read_buffer: []u8,
     write_buffer: []u8,
     stream_reader: std.Io.net.Stream.Reader,
     stream_writer: std.Io.net.Stream.Writer,
+
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, stream: std.Io.net.Stream) !StreamTransport {
+        const read_buffer = try allocator.alloc(u8, read_buffer_size);
+        errdefer allocator.free(read_buffer);
+        const write_buffer = try allocator.alloc(u8, write_buffer_size);
+        errdefer allocator.free(write_buffer);
+
+        return .{
+            .io = io,
+            .stream = stream,
+            .read_buffer = read_buffer,
+            .write_buffer = write_buffer,
+            .stream_reader = stream.reader(io, read_buffer),
+            .stream_writer = stream.writer(io, write_buffer),
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        self.stream.close(self.io);
+        allocator.free(self.read_buffer);
+        allocator.free(self.write_buffer);
+    }
+
+    pub fn wait(self: *const @This(), timeout_ms: i32) !bool {
+        var pollfd = [1]std.posix.pollfd{.{
+            .fd = self.fd(),
+            .events = std.posix.POLL.IN,
+            .revents = 0,
+        }};
+        const n = try std.posix.poll(&pollfd, timeout_ms);
+        return n != 0;
+    }
+
+    pub fn fd(self: *const @This()) @TypeOf(self.stream.socket.handle) {
+        return self.stream.socket.handle;
+    }
+
+    pub fn reader(self: *@This()) *std.Io.Reader {
+        return &self.stream_reader.interface;
+    }
+
+    pub fn writer(self: *@This()) *std.Io.Writer {
+        return &self.stream_writer.interface;
+    }
+
+    pub fn writer_reader(self: *@This()) WriterReader {
+        return .{
+            .writer = &self.stream_writer.interface,
+            .reader = &self.stream_reader.interface,
+        };
+    }
+};
+
+pub const Connection = struct {
+    allocator: std.mem.Allocator,
+    proto: *Protocol,
+    transport: *StreamTransport,
     root_window: xproto.Window,
-    resource_id_base: u32,
-    resource_id_mask: u32,
-    resource_id_inc: u32,
-    next_resource_id: u32,
-    pending_events: std.Deque([32]u8),
-    last_protocol_error: ?ProtocolError,
-    sequence: u16 = 1,
-    extensions: std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo),
 
     pub fn connectFromEnv(
         allocator: std.mem.Allocator,
@@ -81,112 +134,53 @@ pub const Connection = struct {
             copy.close(io);
         }
 
-        const read_buffer = try allocator.alloc(u8, read_buffer_size);
-        errdefer allocator.free(read_buffer);
-        const write_buffer = try allocator.alloc(u8, write_buffer_size);
-        errdefer allocator.free(write_buffer);
+        const proto = try allocator.create(Protocol);
+        errdefer allocator.destroy(proto);
+        proto.* = .init(allocator);
+        errdefer proto.deinit();
 
-        var conn = Connection{
+        const transport = try allocator.create(StreamTransport);
+        errdefer allocator.destroy(transport);
+        transport.* = try .init(allocator, io, stream);
+        errdefer transport.deinit(allocator);
+
+        try proto.sendSetup(transport.writer(), cookie);
+        try proto.readSetupReply(transport.reader());
+
+        return .{
             .allocator = allocator,
-            .io = io,
-            .stream = stream,
-            .read_buffer = read_buffer,
-            .write_buffer = write_buffer,
-            .stream_reader = stream.reader(io, read_buffer),
-            .stream_writer = stream.writer(io, write_buffer),
-            .root_window = @enumFromInt(0),
-            .resource_id_base = 0,
-            .resource_id_mask = 0,
-            .resource_id_inc = 0,
-            .next_resource_id = 0,
-            .pending_events = .empty,
-            .last_protocol_error = null,
-            .extensions = std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo).initFull(null),
+            .proto = proto,
+            .transport = transport,
+            .root_window = proto.root_window,
         };
-        errdefer conn.deinit();
-
-        try conn.sendSetup(cookie);
-        try conn.readSetupReply();
-        return conn;
     }
 
-    pub fn deinit(self: *Connection) void {
-        self.stream.close(self.io);
-        self.pending_events.deinit(self.allocator);
-        self.allocator.free(self.read_buffer);
-        self.allocator.free(self.write_buffer);
-    }
+    pub fn deinit(self: *@This()) void {
+        self.proto.deinit();
+        self.allocator.destroy(self.proto);
 
-    pub fn reader(self: *Connection) *std.Io.Reader {
-        return &self.stream_reader.interface;
-    }
+        self.transport.deinit(self.allocator);
+        self.allocator.destroy(self.transport);
 
-    pub fn writer(self: *Connection) *std.Io.Writer {
-        return &self.stream_writer.interface;
-    }
-
-    pub fn fd(self: *const Connection) @TypeOf(self.stream.socket.handle) {
-        return self.stream.socket.handle;
-    }
-
-    pub fn readReplyPacket(self: *Connection) ![]const u8 {
-        const header = try self.reader().peek(32);
-        const packet_kind = header[0];
-        const extra_len = if (packet_kind == 1)
-            @as(usize, std.mem.readInt(u32, header[4..8], .little)) * 4
-        else
-            0;
-        const packet_len = 32 + extra_len;
-        return try self.reader().take(packet_len);
-    }
-
-    fn readEvent(self: *Connection) !xproto.Event {
-        while (true) {
-            const packet = try self.readReplyPacket();
-            if (packet[0] == 0) {
-                self.last_protocol_error = parseProtocolError(packet);
-                continue;
-            }
-            var packet_reader: std.Io.Reader = .fixed(packet);
-            return try xproto.decodeEvent(&packet_reader);
-        }
-    }
-
-    pub fn pendingEvent(self: *Connection) !?xproto.Event {
-        if (self.pending_events.popFront()) |raw| {
-            var packet_reader: std.Io.Reader = .fixed(&raw);
-            return try xproto.decodeEvent(&packet_reader);
-        }
-        return null;
-    }
-
-    pub fn hasPendingEvents(self: *Connection) bool {
-        return self.pending_events.len != 0;
+        self.* = undefined;
     }
 
     pub fn nextEvent(self: *Connection) !xproto.Event {
-        if (try self.pendingEvent()) |ev| return ev;
-        return self.readEvent();
+        if (try self.proto.pendingEvent()) |ev| return ev;
+        return self.proto.readEvent(self.transport.reader());
     }
 
     pub fn waitForEvents(self: *Connection, timeout_ms: i32) !bool {
         if (self.hasPendingEvents()) return true;
-        if (self.reader().bufferedLen() != 0) return true;
-
-        var pollfd = [1]std.posix.pollfd{.{
-            .fd = self.fd(),
-            .events = std.posix.POLL.IN,
-            .revents = 0,
-        }};
-        const n = try std.posix.poll(&pollfd, timeout_ms);
-        return n != 0;
+        if (self.transport.reader().bufferedLen() != 0) return true;
+        return self.transport.wait(timeout_ms);
     }
 
     pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?xproto.Event {
-        if (try self.pendingEvent()) |ev| return ev;
+        if (try self.proto.pendingEvent()) |ev| return ev;
 
         if (try self.waitForEvents(timeout_ms)) {
-            return try self.readEvent();
+            return try self.proto.readEvent(self.transport.reader());
         }
 
         return null;
@@ -196,7 +190,102 @@ pub const Connection = struct {
         return self.pollEventTimeout(0);
     }
 
-    pub fn send(self: *Connection, request_value: anytype) !u16 {
+    pub fn request(self: *Connection, comptime Request: type, req: Request) !Request.Reply {
+        return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .fixed, {});
+    }
+
+    pub fn requestAlloc(self: *Connection, allocator: std.mem.Allocator, comptime Request: type, req: Request) !Request.Reply {
+        return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .alloc, allocator);
+    }
+
+    pub fn requestBuf(self: *Connection, buffer: []u8, comptime Request: type, req: Request) !Request.Reply {
+        return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .buffer, buffer);
+    }
+
+    pub fn allocId(self: *Connection, comptime T: type) !T {
+        return self.proto.allocId(T);
+    }
+
+    pub fn lastError(self: *const Connection) ProtocolError {
+        return self.proto.last_protocol_error orelse unreachable;
+    }
+
+    pub fn hasPendingEvents(self: *const Connection) bool {
+        return self.proto.hasPendingEvents();
+    }
+
+    pub fn registerExtension(self: *Connection, ext: extensions.Extension) !void {
+        return self.proto.registerExtension(self.transport.writer_reader(), ext);
+    }
+};
+
+pub const Protocol = struct {
+    allocator: std.mem.Allocator,
+    root_window: xproto.Window,
+    resource_id_base: u32,
+    resource_id_mask: u32,
+    resource_id_inc: u32,
+    next_resource_id: u32,
+    pending_events: std.Deque([32]u8),
+    last_protocol_error: ?ProtocolError,
+    sequence: u16 = 1,
+    extensions: std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo),
+
+    pub fn init(allocator: std.mem.Allocator) Protocol {
+        return .{
+            .allocator = allocator,
+            .root_window = @enumFromInt(0),
+            .resource_id_base = 0,
+            .resource_id_mask = 0,
+            .resource_id_inc = 0,
+            .next_resource_id = 0,
+            .pending_events = .empty,
+            .last_protocol_error = null,
+            .extensions = std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo).initFull(null),
+        };
+    }
+
+    pub fn deinit(self: *Protocol) void {
+        self.pending_events.deinit(self.allocator);
+    }
+
+    pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) ![]const u8 {
+        _ = self;
+        const header = try reader.peek(32);
+        const packet_kind = header[0];
+        const extra_len = if (packet_kind == 1)
+            @as(usize, std.mem.readInt(u32, header[4..8], .little)) * 4
+        else
+            0;
+        const packet_len = 32 + extra_len;
+        return try reader.take(packet_len);
+    }
+
+    fn readEvent(self: *Protocol, reader: *std.Io.Reader) !xproto.Event {
+        while (true) {
+            const packet = try self.readReplyPacket(reader);
+            if (packet[0] == 0) {
+                self.last_protocol_error = parseProtocolError(packet);
+                continue;
+            }
+            var packet_reader: std.Io.Reader = .fixed(packet);
+            return try xproto.decodeEvent(&packet_reader);
+        }
+    }
+
+    pub fn pendingEvent(self: *Protocol) !?xproto.Event {
+        if (self.pending_events.popFront()) |raw| {
+            var packet_reader: std.Io.Reader = .fixed(&raw);
+            return try xproto.decodeEvent(&packet_reader);
+        }
+        return null;
+    }
+
+    pub fn hasPendingEvents(self: *Protocol) bool {
+        return self.pending_events.len != 0;
+    }
+
+    pub fn send(self: *Protocol, writer: *std.Io.Writer, request_value: anytype, flush: bool) !u16 {
         const Request = @TypeOf(request_value);
         const sequence = self.sequence;
         self.sequence +%= 1;
@@ -209,29 +298,36 @@ pub const Connection = struct {
             break :blk info.major_opcode;
         } else Request.opcode;
 
-        try self.writer().writeByte(opcode);
+        try writer.writeByte(opcode);
         if (Request.extension == null) {
-            try self.writer().writeByte(request_value.headerByte1());
+            try writer.writeByte(request_value.headerByte1());
         } else {
-            try self.writer().writeByte(Request.opcode);
+            try writer.writeByte(Request.opcode);
         }
-        try self.writer().writeInt(u16, @intCast((len + pad) / 4), .little);
-        try request_value.encode(self.writer());
-        try self.writer().splatByteAll(0, pad);
-        try self.writer().flush();
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try request_value.encode(writer);
+        try writer.splatByteAll(0, pad);
+        if (flush) try writer.flush();
         return sequence;
     }
 
-    pub fn _request(self: *Connection, comptime Request: type, req: Request, comptime reply_mode: ReplyMode, storage: anytype) !Request.Reply {
+    pub fn requestWithStorage(
+        self: *Protocol,
+        wr: WriterReader,
+        comptime Request: type,
+        req: Request,
+        comptime reply_mode: ReplyMode,
+        storage: anytype,
+    ) !Request.Reply {
         const Reply = Request.Reply;
         if (Reply == void) {
-            const request_sequence = try self.send(req);
-            try self.sync(request_sequence);
+            const request_sequence = try self.send(wr.writer, req, true);
+            try self.sync(wr, request_sequence);
             return;
         }
-        _ = try self.send(req);
+        _ = try self.send(wr.writer, req, true);
         while (true) {
-            const packet = try self.readReplyPacket();
+            const packet = try self.readReplyPacket(wr.reader);
             switch (packet[0]) {
                 0 => {
                     self.last_protocol_error = parseProtocolError(packet);
@@ -250,26 +346,10 @@ pub const Connection = struct {
         }
     }
 
-    pub fn request(self: *Connection, comptime Request: type, req: Request) !Request.Reply {
-        return self._request(Request, req, .fixed, {});
-    }
-
-    pub fn requestAlloc(self: *Connection, allocator: std.mem.Allocator, comptime Request: type, req: Request) !Request.Reply {
-        return self._request(Request, req, .alloc, allocator);
-    }
-
-    pub fn requestBuf(self: *Connection, buffer: []u8, comptime Request: type, req: Request) !Request.Reply {
-        return self._request(Request, req, .buffer, buffer);
-    }
-
-    pub fn lastError(self: *const Connection) ProtocolError {
-        return self.last_protocol_error orelse unreachable;
-    }
-
-    pub fn registerExtension(self: *Connection, ext: extensions.Extension) !void {
-        const reply = try self.request(xproto.QueryExtension, .{
+    pub fn registerExtension(self: *Protocol, wr: WriterReader, ext: extensions.Extension) !void {
+        const reply = try self.requestWithStorage(wr, xproto.QueryExtension, .{
             .name = extensions.xname(ext),
-        });
+        }, .fixed, .{});
         if (!reply.present) return error.ExtensionUnavailable;
         self.extensions.put(ext, .{
             .major_opcode = reply.major_opcode,
@@ -278,11 +358,11 @@ pub const Connection = struct {
         });
     }
 
-    pub fn sync(self: *Connection, request_sequence: u16) !void {
-        const sync_sequence = try self.send(xproto.GetInputFocus{});
+    pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) !void {
+        const sync_sequence = try self.send(wr.writer, xproto.GetInputFocus{}, true);
         var request_failed = false;
         while (true) {
-            const packet = try self.readReplyPacket();
+            const packet = try self.readReplyPacket(wr.reader);
             switch (packet[0]) {
                 0 => {
                     const protocol_error = parseProtocolError(packet);
@@ -311,7 +391,7 @@ pub const Connection = struct {
         }
     }
 
-    pub fn allocId(self: *Connection, comptime T: type) !T {
+    pub fn allocId(self: *Protocol, comptime T: type) !T {
         if (self.resource_id_mask == 0 or self.resource_id_inc == 0) return error.ResourceIdsExhausted;
         if ((self.next_resource_id & ~self.resource_id_mask) != 0) return error.ResourceIdsExhausted;
         const id = self.resource_id_base | self.next_resource_id;
@@ -319,19 +399,20 @@ pub const Connection = struct {
         return @as(T, @enumFromInt(id));
     }
 
-    fn sendSetup(self: *Connection, cookie: []const u8) !void {
+    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
+        _ = self;
         try (xproto.SetupRequest{
             .byte_order = 'l',
             .protocol_major_version = 11,
             .protocol_minor_version = 0,
             .authorization_protocol_name = AuthName,
             .authorization_protocol_data = cookie,
-        }).encode(self.writer());
-        try self.writer().flush();
+        }).encode(writer);
+        try writer.flush();
     }
 
-    fn readSetupReply(self: *Connection) !void {
-        const packet = try self.readSetupPacket();
+    pub fn readSetupReply(self: *Protocol, reader: *std.Io.Reader) !void {
+        const packet = try self.readSetupPacket(reader);
         const status = packet[0];
         var packet_reader: std.Io.Reader = .fixed(packet);
         switch (status) {
@@ -360,14 +441,15 @@ pub const Connection = struct {
         }
     }
 
-    fn readSetupPacket(self: *Connection) ![]const u8 {
-        const prefix = try self.reader().peek(8);
+    pub fn readSetupPacket(self: *const Protocol, reader: *std.Io.Reader) ![]const u8 {
+        _ = self;
+        const prefix = try reader.peek(8);
         const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .little)) * 4;
         const packet_len = 8 + extra_len;
-        return try self.reader().take(packet_len);
+        return try reader.take(packet_len);
     }
 
-    fn queueEventPacket(self: *Connection, packet: []const u8) !void {
+    pub fn queueEventPacket(self: *Protocol, packet: []const u8) !void {
         std.debug.assert(packet.len == 32);
         var raw: [32]u8 = undefined;
         @memcpy(raw[0..], packet[0..32]);
