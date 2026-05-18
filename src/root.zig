@@ -130,16 +130,14 @@ pub fn internAtom(conn: *Connection, name: []const u8, only_if_exists: bool) !xp
     return reply.atom;
 }
 
-pub fn AtomEnum(comptime E: type) type {
-    const S = @Struct(.auto, null, std.meta.fieldNames(E), &@splat(xproto.Atom), &@splat(.{}));
-    return struct {
-        pub const Struct = S;
-        pub fn init(conn: *Connection) !S {
-            var result: S = undefined;
-            inline for (@typeInfo(E).@"enum".fields) |field| {
-                @field(result, field.name) = try internAtom(conn, field.name, false);
-            }
-            return result;
-        }
-    };
+pub fn AtomStruct(comptime E: type) type {
+    return @Struct(.auto, null, std.meta.fieldNames(E), &@splat(xproto.Atom), &@splat(.{}));
+}
+
+pub fn initAtoms(comptime T: type, conn: *Connection) !T {
+    var result: T = undefined;
+    inline for (@typeInfo(T).@"struct".fields) |field| {
+        @field(result, field.name) = try internAtom(conn, field.name, false);
+    }
+    return result;
 }

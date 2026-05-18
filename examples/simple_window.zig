@@ -2,16 +2,16 @@ const std = @import("std");
 const zix11 = @import("zix11");
 const x = zix11.xproto;
 
-const Atoms = enum {
+const Atoms = zix11.AtomStruct(enum {
     UTF8_STRING,
     _NET_WM_NAME,
-};
+});
 
 pub fn main(init: std.process.Init) !void {
     var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
     defer conn.deinit();
 
-    const atom = try zix11.AtomEnum(Atoms).init(&conn);
+    const atom = try zix11.initAtoms(Atoms, &conn);
 
     const window = try conn.allocId(x.Window);
 

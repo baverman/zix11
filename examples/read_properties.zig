@@ -3,10 +3,10 @@ const zix11 = @import("zix11");
 const x = zix11.xproto;
 
 // Declare app wide atoms
-const Atoms = enum {
+const Atoms = zix11.AtomStruct(enum {
     _NET_ACTIVE_WINDOW,
     _NET_CLIENT_LIST,
-};
+});
 
 pub fn main(init: std.process.Init) !void {
     var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
@@ -15,7 +15,7 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("root window: 0x{x}\n", .{@intFromEnum(conn.root_window)});
 
     // Fill atom values
-    const atom = try zix11.AtomEnum(Atoms).init(&conn);
+    const atom = try zix11.initAtoms(Atoms, &conn);
 
     const active_window = try zix11.getScalarProperty(
         &conn,
