@@ -25,11 +25,11 @@ pub const Picture = enum(u32) {
 };
 
 pub const Error = enum(u32) {
-    PictFormat = 0,
-    Picture = 1,
-    PictOp = 2,
-    GlyphSet = 3,
-    Glyph = 4,
+    RenderPictFormat = 0,
+    RenderPicture = 1,
+    RenderPictOp = 2,
+    RenderGlyphSet = 3,
+    RenderGlyph = 4,
     _,
 };
 
@@ -1923,4 +1923,3 @@ pub const Triangles = struct {
     }
 
 };
-

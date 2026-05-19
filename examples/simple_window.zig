@@ -40,15 +40,9 @@ pub fn main(init: std.process.Init) !void {
         "Simple Window",
     );
 
-    conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (err) {
-        error.X11ProtocolError => {
-            const e = conn.lastError();
-            switch (e.code) {
-                .Window => {
-                    std.debug.print("BadWidnow: 0x{x}\n", .{e.bad_value});
-                },
-                else => return err,
-            }
+    conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (conn.lastError(err)) {
+        .Window => |e| {
+            std.debug.print("BadWidnow: 0x{x}\n", .{e.bad_value});
         },
         else => return err,
     };

@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
     // Handle errors directly. Try doing that with xlib :)
     conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (err) {
         error.X11ProtocolError => {
-            const e = conn.lastError();
+            const e = conn.lastRawError();
             switch (e.code) {
                 .Window => {
                     std.debug.print("BadWindow: 0x{x}\n", .{e.bad_value});

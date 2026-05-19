@@ -651,11 +651,12 @@ class Resolver:
             if name in xid_enum_names:
                 del self.enums[name]
         if bindings.error or bindings.errorcopy:
+            prefix = zig_extension_error_prefix(bindings.header) if bindings.extension_xname is not None else ""
             self.core_error_codes = EnumDecl(
                 "Error",
                 tuple(
-                    [EnumItemDecl(it.name, int(it.number)) for it in bindings.error]
-                    + [EnumItemDecl(it.name, int(it.number)) for it in bindings.errorcopy]
+                    [EnumItemDecl(f"{prefix}{it.name}", int(it.number)) for it in bindings.error]
+                    + [EnumItemDecl(f"{prefix}{it.name}", int(it.number)) for it in bindings.errorcopy]
                 ),
                 is_mask=False,
             )
@@ -959,6 +960,10 @@ def zig_enum_item_name(name: str) -> str:
 
 def zig_extension_name(name: str) -> str:
     return "".join(ch if ch.isalnum() else "_" for ch in name)
+
+
+def zig_extension_error_prefix(header: str) -> str:
+    return zig_enum_item_name(header)
 
 
 def unique_enum_items(items: tuple[EnumItemDecl, ...]) -> tuple[EnumItemDecl, ...]:

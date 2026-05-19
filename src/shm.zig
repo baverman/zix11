@@ -16,7 +16,7 @@ pub const Seg = enum(u32) {
 };
 
 pub const Error = enum(u32) {
-    BadSeg = 0,
+    ShmBadSeg = 0,
     _,
 };
 
@@ -370,4 +370,3 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
         },
     };
 }
-

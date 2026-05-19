@@ -86,3 +86,19 @@ test "ConfigureWindow" {
     const cw: xproto.ConfigureWindow = .{ .window = xproto.Window.None, .value_list = .{} };
     try cw.encode(&writer);
 }
+
+// const T1 = enum(u32) { Window = 0 };
+// const T2 = enum(u32) { Pict = 0 };
+// const TU = enum { Window, Pict, };
+//
+// fn decode(comptime T: type, value: u32) ?TU {
+//     const tag = std.enums.fromInt(T, value) orelse return null;
+//     const name = @tagName(tag);
+//     std.debug.print("@@ {any}\n", .{@field(TU, name)});
+//     return null;
+// }
+//
+// test "boo" {
+//     try std.testing.expectEqual(TU.Window, decode(T1, 0));
+//     try std.testing.expectEqual(TU.Pict, decode(T2, 0));
+// }

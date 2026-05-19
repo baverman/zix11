@@ -2,6 +2,7 @@ const std = @import("std");
 const extensions = @import("extensions.zig");
 const wire = @import("wire.zig");
 const xproto = @import("xproto.zig");
+const x11_errors = @import("x11_errors.zig");
 
 const AuthName = "MIT-MAGIC-COOKIE-1";
 const FamilyInternet: u16 = 0;
@@ -19,14 +20,8 @@ const DisplaySpec = struct {
     }
 };
 
-pub const ProtocolError = struct {
-    code: xproto.Error,
-    sequence: u16,
-    bad_value: u32,
-    minor_opcode: u16,
-    major_opcode: u8,
-    tail: [20]u8,
-};
+pub const ProtocolError = x11_errors.ProtocolError;
+pub const TaggedError = x11_errors.TaggedError;
 
 pub const ReplyMode = enum {
     fixed,
@@ -206,8 +201,13 @@ pub const Connection = struct {
         return self.proto.allocId(T);
     }
 
-    pub fn lastError(self: *const Connection) ProtocolError {
+    pub fn lastRawError(self: *const Connection) ProtocolError {
         return self.proto.last_protocol_error orelse unreachable;
+    }
+
+    pub fn lastError(self: *const Connection, err: anyerror) TaggedError {
+        if (err != error.X11ProtocolError) return .{ .NonX11 = err };
+        return x11_errors.taggedError(&self.proto.extensions, err, self.lastRawError());
     }
 
     pub fn hasPendingEvents(self: *const Connection) bool {
@@ -576,7 +576,7 @@ fn parseProtocolError(packet: []const u8) ProtocolError {
     var tail: [20]u8 = undefined;
     @memcpy(tail[0..], packet[12..32]);
     return .{
-        .code = @enumFromInt(packet[1]),
+        .code = packet[1],
         .sequence = std.mem.readInt(u16, packet[2..4], .little),
         .bad_value = std.mem.readInt(u32, packet[4..8], .little),
         .minor_opcode = std.mem.readInt(u16, packet[8..10], .little),
