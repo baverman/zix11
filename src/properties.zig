@@ -8,7 +8,7 @@ pub fn get(conn: *Connection, window: x.Window, property: x.Atom, arg: anytype) 
     @TypeOf(arg),
     if (@TypeOf(arg) == type) arg else null,
 ) {
-    const property_type = defaultPropertyAtom(
+    const property_type = defaultGetPropertyAtom(
         @TypeOf(arg),
         if (@TypeOf(arg) == type) arg else null,
     );
@@ -56,8 +56,8 @@ pub fn set(
     const T = @TypeOf(data);
 
     return switch (@typeInfo(T)) {
-        .pointer => setSliceImpl(conn, window, property, defaultPropertyAtomForElem(std.meta.Elem(T)), std.meta.Elem(T), data[0..]),
-        else => setSliceImpl(conn, window, property, defaultPropertyAtomForElem(T), T, &.{data}),
+        .pointer => setSliceImpl(conn, window, property, defaultSetPropertyAtomForElem(std.meta.Elem(T)), std.meta.Elem(T), data[0..]),
+        else => setSliceImpl(conn, window, property, defaultSetPropertyAtomForElem(T), T, &.{data}),
     };
 }
 
@@ -129,20 +129,28 @@ fn getSliceImpl(
     return buffer[0 .. byte_len / @sizeOf(T)];
 }
 
-fn defaultPropertyAtom(comptime Arg: type, comptime Elem: ?type) x.Atom {
+fn defaultGetPropertyAtom(comptime Arg: type, comptime Elem: ?type) x.Atom {
     return switch (@typeInfo(Arg)) {
-        .type => defaultPropertyAtomForElem(Elem.?),
-        .pointer => defaultPropertyAtomForElem(std.meta.Elem(Arg)),
+        .type => defaultGetPropertyAtomForElem(Elem.?),
+        .pointer => defaultGetPropertyAtomForElem(std.meta.Elem(Arg)),
         else => @compileError("expected type or slice buffer"),
     };
 }
 
-fn defaultPropertyAtomForElem(comptime T: type) x.Atom {
+fn defaultGetPropertyAtomForElem(comptime T: type) x.Atom {
     if (T == u8) return x.Atom_.Any;
     if (T == u32) return x.Atom.CARDINAL;
     if (T == x.Window) return x.Atom.WINDOW;
     if (T == x.Atom) return x.Atom.ATOM;
-    @compileError("no default property atom mapping for type");
+    @compileError("no default property atom mapping for read type");
+}
+
+fn defaultSetPropertyAtomForElem(comptime T: type) x.Atom {
+    if (T == u32) return x.Atom.CARDINAL;
+    if (T == x.Window) return x.Atom.WINDOW;
+    if (T == x.Atom) return x.Atom.ATOM;
+    if (T == u8) @compileError("set(..., []u8) is ambiguous; use setAs(..., property_type, data)");
+    @compileError("no default property atom mapping for write type");
 }
 
 fn propertyFormat(comptime T: type) u8 {
