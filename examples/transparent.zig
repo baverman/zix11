@@ -1,7 +1,7 @@
 const std = @import("std");
 const zix11 = @import("zix11");
-const x = zix11.xproto;
-const render = zix11.render;
+const x = zix11.x;
+const render = zix11.ext.render;
 const c = @cImport({
     @cInclude("cairo/cairo.h");
 });

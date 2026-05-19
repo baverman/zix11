@@ -30,7 +30,7 @@ Create a window, map it, and handle expose and button press events:
 ```zig
 const std = @import("std");
 const zix11 = @import("zix11");
-const x = zix11.xproto;
+const x = zix11.x;
 
 pub fn main(init: std.process.Init) !void {
     var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
@@ -61,15 +61,9 @@ pub fn main(init: std.process.Init) !void {
     });
 
     // Handle errors directly. Try doing that with xlib :)
-    conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (err) {
-        error.X11ProtocolError => {
-            const e = conn.lastRawError();
-            switch (e.code) {
-                .Window => {
-                    std.debug.print("BadWindow: 0x{x}\n", .{e.bad_value});
-                },
-                else => return err,
-            }
+    conn.request(x.MapWindow, .{ .window = @enumFromInt(0xbadbad) }) catch |err| switch (conn.lastError(err)) {
+        .Window => |e| {
+            std.debug.print("BadWindow: 0x{x}\n", .{e.bad_value});
         },
         else => return err,
     };

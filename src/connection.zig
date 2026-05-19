@@ -1,8 +1,8 @@
 const std = @import("std");
-const extensions = @import("extensions.zig");
-const wire = @import("wire.zig");
-const xproto = @import("xproto.zig");
-const x11_errors = @import("x11_errors.zig");
+const errors = @import("errors.zig");
+const ext = @import("ext.zig");
+const protocol_mod = @import("protocol.zig");
+const x = @import("gen/xproto.zig");
 
 const AuthName = "MIT-MAGIC-COOKIE-1";
 const FamilyInternet: u16 = 0;
@@ -20,19 +20,8 @@ const DisplaySpec = struct {
     }
 };
 
-pub const ProtocolError = x11_errors.ProtocolError;
-pub const TaggedError = x11_errors.TaggedError;
-
-pub const ReplyMode = enum {
-    fixed,
-    alloc,
-    buffer,
-};
-
-pub const WriterReader = struct {
-    writer: *std.Io.Writer,
-    reader: *std.Io.Reader,
-};
+pub const ProtocolError = errors.ProtocolError;
+pub const TaggedError = errors.TaggedError;
 
 pub const StreamTransport = struct {
     io: std.Io,
@@ -86,7 +75,7 @@ pub const StreamTransport = struct {
         return &self.stream_writer.interface;
     }
 
-    pub fn writer_reader(self: *@This()) WriterReader {
+    pub fn writer_reader(self: *@This()) protocol_mod.WriterReader {
         return .{
             .writer = &self.stream_writer.interface,
             .reader = &self.stream_reader.interface,
@@ -96,9 +85,9 @@ pub const StreamTransport = struct {
 
 pub const Connection = struct {
     allocator: std.mem.Allocator,
-    proto: *Protocol,
+    proto: *protocol_mod.Protocol,
     transport: *StreamTransport,
-    root_window: xproto.Window,
+    root_window: x.Window,
 
     pub fn connectFromEnv(
         allocator: std.mem.Allocator,
@@ -129,7 +118,7 @@ pub const Connection = struct {
             copy.close(io);
         }
 
-        const proto = try allocator.create(Protocol);
+        const proto = try allocator.create(protocol_mod.Protocol);
         errdefer allocator.destroy(proto);
         proto.* = .init(allocator);
         errdefer proto.deinit();
@@ -160,7 +149,7 @@ pub const Connection = struct {
         self.* = undefined;
     }
 
-    pub fn nextEvent(self: *Connection) !xproto.Event {
+    pub fn nextEvent(self: *Connection) !x.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
         return self.proto.readEvent(self.transport.reader());
     }
@@ -171,7 +160,7 @@ pub const Connection = struct {
         return self.transport.wait(timeout_ms);
     }
 
-    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?xproto.Event {
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?x.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
 
         if (try self.waitForEvents(timeout_ms)) {
@@ -181,7 +170,7 @@ pub const Connection = struct {
         return null;
     }
 
-    pub fn pollEvent(self: *Connection) !?xproto.Event {
+    pub fn pollEvent(self: *Connection) !?x.Event {
         return self.pollEventTimeout(0);
     }
 
@@ -207,253 +196,15 @@ pub const Connection = struct {
 
     pub fn lastError(self: *const Connection, err: anyerror) TaggedError {
         if (err != error.X11ProtocolError) return .{ .NonX11 = err };
-        return x11_errors.taggedError(&self.proto.extensions, err, self.lastRawError());
+        return errors.taggedError(&self.proto.extensions, err, self.lastRawError());
     }
 
     pub fn hasPendingEvents(self: *const Connection) bool {
         return self.proto.hasPendingEvents();
     }
 
-    pub fn registerExtension(self: *Connection, ext: extensions.Extension) !void {
-        return self.proto.registerExtension(self.transport.writer_reader(), ext);
-    }
-};
-
-pub const Protocol = struct {
-    allocator: std.mem.Allocator,
-    root_window: xproto.Window,
-    resource_id_base: u32,
-    resource_id_mask: u32,
-    resource_id_inc: u32,
-    next_resource_id: u32,
-    pending_events: std.Deque([32]u8),
-    last_protocol_error: ?ProtocolError,
-    sequence: u16 = 1,
-    extensions: std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo),
-
-    pub fn init(allocator: std.mem.Allocator) Protocol {
-        return .{
-            .allocator = allocator,
-            .root_window = @enumFromInt(0),
-            .resource_id_base = 0,
-            .resource_id_mask = 0,
-            .resource_id_inc = 0,
-            .next_resource_id = 0,
-            .pending_events = .empty,
-            .last_protocol_error = null,
-            .extensions = std.enums.EnumMap(extensions.Extension, ?extensions.ExtensionInfo).initFull(null),
-        };
-    }
-
-    pub fn deinit(self: *Protocol) void {
-        self.pending_events.deinit(self.allocator);
-    }
-
-    pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) ![]const u8 {
-        _ = self;
-        const header = try reader.peek(32);
-        const packet_kind = header[0];
-        const extra_len = if (packet_kind == 1)
-            @as(usize, std.mem.readInt(u32, header[4..8], .little)) * 4
-        else
-            0;
-        const packet_len = 32 + extra_len;
-        return try reader.take(packet_len);
-    }
-
-    fn readEvent(self: *Protocol, reader: *std.Io.Reader) !xproto.Event {
-        while (true) {
-            const packet = try self.readReplyPacket(reader);
-            if (packet[0] == 0) {
-                self.last_protocol_error = parseProtocolError(packet);
-                continue;
-            }
-            var packet_reader: std.Io.Reader = .fixed(packet);
-            return try xproto.decodeEvent(&packet_reader);
-        }
-    }
-
-    pub fn pendingEvent(self: *Protocol) !?xproto.Event {
-        if (self.pending_events.popFront()) |raw| {
-            var packet_reader: std.Io.Reader = .fixed(&raw);
-            return try xproto.decodeEvent(&packet_reader);
-        }
-        return null;
-    }
-
-    pub fn hasPendingEvents(self: *Protocol) bool {
-        return self.pending_events.len != 0;
-    }
-
-    pub fn send(self: *Protocol, writer: *std.Io.Writer, request_value: anytype, flush: bool) !u16 {
-        const Request = @TypeOf(request_value);
-        const sequence = self.sequence;
-        self.sequence +%= 1;
-        const body_len = request_value.byteLen();
-        const len = 4 + body_len;
-        const pad = wire.pad4(len);
-        const opcode = if (Request.extension) |ext| blk: {
-            const maybe_info = self.extensions.get(ext) orelse return error.ExtensionNotRegistered;
-            const info = maybe_info orelse return error.ExtensionNotRegistered;
-            break :blk info.major_opcode;
-        } else Request.opcode;
-
-        try writer.writeByte(opcode);
-        if (Request.extension == null) {
-            try writer.writeByte(request_value.headerByte1());
-        } else {
-            try writer.writeByte(Request.opcode);
-        }
-        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
-        try request_value.encode(writer);
-        try writer.splatByteAll(0, pad);
-        if (flush) try writer.flush();
-        return sequence;
-    }
-
-    pub fn requestWithStorage(
-        self: *Protocol,
-        wr: WriterReader,
-        comptime Request: type,
-        req: Request,
-        comptime reply_mode: ReplyMode,
-        storage: anytype,
-    ) !Request.Reply {
-        const Reply = Request.Reply;
-        if (Reply == void) {
-            const request_sequence = try self.send(wr.writer, req, true);
-            try self.sync(wr, request_sequence);
-            return;
-        }
-        _ = try self.send(wr.writer, req, true);
-        while (true) {
-            const packet = try self.readReplyPacket(wr.reader);
-            switch (packet[0]) {
-                0 => {
-                    self.last_protocol_error = parseProtocolError(packet);
-                    return error.X11ProtocolError;
-                },
-                1 => {
-                    var packet_reader: std.Io.Reader = .fixed(packet);
-                    return switch (reply_mode) {
-                        .fixed => try Reply.decode(&packet_reader),
-                        .alloc => try Reply.decode(storage, &packet_reader),
-                        .buffer => try Reply.decode(storage, &packet_reader),
-                    };
-                },
-                else => try self.queueEventPacket(packet),
-            }
-        }
-    }
-
-    pub fn registerExtension(self: *Protocol, wr: WriterReader, ext: extensions.Extension) !void {
-        const reply = try self.requestWithStorage(wr, xproto.QueryExtension, .{
-            .name = extensions.xname(ext),
-        }, .fixed, .{});
-        if (!reply.present) return error.ExtensionUnavailable;
-        self.extensions.put(ext, .{
-            .major_opcode = reply.major_opcode,
-            .first_event = reply.first_event,
-            .first_error = reply.first_error,
-        });
-    }
-
-    pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) !void {
-        const sync_sequence = try self.send(wr.writer, xproto.GetInputFocus{}, true);
-        var request_failed = false;
-        while (true) {
-            const packet = try self.readReplyPacket(wr.reader);
-            switch (packet[0]) {
-                0 => {
-                    const protocol_error = parseProtocolError(packet);
-                    self.last_protocol_error = protocol_error;
-                    if (protocol_error.sequence == request_sequence) {
-                        request_failed = true;
-                        continue;
-                    }
-                    return error.UnexpectedProtocolError;
-                },
-                1 => {
-                    const reply_sequence = std.mem.readInt(u16, packet[2..4], .little);
-                    var packet_reader: std.Io.Reader = .fixed(packet);
-                    const reply = try xproto.GetInputFocusReply.decode(&packet_reader);
-                    _ = reply;
-                    if (reply_sequence != sync_sequence) {
-                        return error.UnexpectedReply;
-                    }
-                    if (request_failed) {
-                        return error.X11ProtocolError;
-                    }
-                    return;
-                },
-                else => try self.queueEventPacket(packet),
-            }
-        }
-    }
-
-    pub fn allocId(self: *Protocol, comptime T: type) !T {
-        if (self.resource_id_mask == 0 or self.resource_id_inc == 0) return error.ResourceIdsExhausted;
-        if ((self.next_resource_id & ~self.resource_id_mask) != 0) return error.ResourceIdsExhausted;
-        const id = self.resource_id_base | self.next_resource_id;
-        self.next_resource_id +%= self.resource_id_inc;
-        return @as(T, @enumFromInt(id));
-    }
-
-    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
-        _ = self;
-        try (xproto.SetupRequest{
-            .byte_order = 'l',
-            .protocol_major_version = 11,
-            .protocol_minor_version = 0,
-            .authorization_protocol_name = AuthName,
-            .authorization_protocol_data = cookie,
-        }).encode(writer);
-        try writer.flush();
-    }
-
-    pub fn readSetupReply(self: *Protocol, reader: *std.Io.Reader) !void {
-        const packet = try self.readSetupPacket(reader);
-        const status = packet[0];
-        var packet_reader: std.Io.Reader = .fixed(packet);
-        switch (status) {
-            1 => {
-                var setup = try xproto.Setup.decode(self.allocator, &packet_reader);
-                defer setup.deinit(self.allocator);
-                if (setup.roots.len == 0) return error.MalformedPacket;
-                const screen = setup.roots[0];
-                self.root_window = screen.root;
-                self.resource_id_base = setup.resource_id_base;
-                self.resource_id_mask = setup.resource_id_mask;
-                self.resource_id_inc = lowestSetBit(setup.resource_id_mask);
-                self.next_resource_id = 0;
-            },
-            0 => {
-                var failed = try xproto.SetupFailed.decode(self.allocator, &packet_reader);
-                defer failed.deinit(self.allocator);
-                return error.X11SetupFailed;
-            },
-            2 => {
-                var auth = try xproto.SetupAuthenticate.decode(self.allocator, &packet_reader);
-                defer auth.deinit(self.allocator);
-                return error.X11SetupAuthenticate;
-            },
-            else => return error.X11SetupUnknown,
-        }
-    }
-
-    pub fn readSetupPacket(self: *const Protocol, reader: *std.Io.Reader) ![]const u8 {
-        _ = self;
-        const prefix = try reader.peek(8);
-        const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .little)) * 4;
-        const packet_len = 8 + extra_len;
-        return try reader.take(packet_len);
-    }
-
-    pub fn queueEventPacket(self: *Protocol, packet: []const u8) !void {
-        std.debug.assert(packet.len == 32);
-        var raw: [32]u8 = undefined;
-        @memcpy(raw[0..], packet[0..32]);
-        try self.pending_events.pushBack(self.allocator, raw);
+    pub fn registerExtension(self: *Connection, extension: ext.Extension) !void {
+        return self.proto.registerExtension(self.transport.writer_reader(), extension);
     }
 };
 
@@ -565,22 +316,4 @@ fn connectUnix(io: std.Io, display_number: u16) !std.Io.net.Stream {
     const path = try std.fmt.bufPrint(&path_buf, "/tmp/.X11-unix/X{}", .{display_number});
     const address = try std.Io.net.UnixAddress.init(path);
     return address.connect(io);
-}
-
-fn lowestSetBit(mask: u32) u32 {
-    if (mask == 0) return 0;
-    return mask & (~mask +% 1);
-}
-
-fn parseProtocolError(packet: []const u8) ProtocolError {
-    var tail: [20]u8 = undefined;
-    @memcpy(tail[0..], packet[12..32]);
-    return .{
-        .code = packet[1],
-        .sequence = std.mem.readInt(u16, packet[2..4], .little),
-        .bad_value = std.mem.readInt(u32, packet[4..8], .little),
-        .minor_opcode = std.mem.readInt(u16, packet[8..10], .little),
-        .major_opcode = packet[10],
-        .tail = tail,
-    };
 }

@@ -1,7 +1,7 @@
 const std = @import("std");
 const zix11 = @import("zix11");
-const x = zix11.xproto;
-const shm = zix11.shm;
+const x = zix11.x;
+const shm = zix11.ext.shm;
 const c = @cImport({
     @cInclude("errno.h");
     @cInclude("sys/ipc.h");
