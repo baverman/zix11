@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zix11 = @import("root.zig");
 const x = zix11.x;
 
@@ -23,7 +24,7 @@ test "InternAtom request encoding" {
     try std.testing.expectEqual(@as(u8, 16), x.InternAtom.opcode);
     try std.testing.expectEqual(@as(u8, 1), req.headerByte1());
     try std.testing.expectEqual(@as(usize, req.byteLen()), body.len);
-    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[0..2], .little));
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[0..2], .native));
     try std.testing.expectEqualSlices(u8, "WM_NAME", body[4..11]);
 }
 
@@ -31,7 +32,10 @@ test "SetupRequest encoding" {
     var buf: [64]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
     try (x.SetupRequest{
-        .byte_order = 'l',
+        .byte_order = switch (builtin.cpu.arch.endian()) {
+            .little => 'l',
+            .big => 'B',
+        },
         .protocol_major_version = 11,
         .protocol_minor_version = 0,
         .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
@@ -39,27 +43,26 @@ test "SetupRequest encoding" {
     }).encode(&writer);
     const packet = buf[0..writer.end];
 
-    try std.testing.expectEqual(@as(u8, 'l'), packet[0]);
-    try std.testing.expectEqual(@as(u16, 11), std.mem.readInt(u16, packet[2..4], .little));
-    try std.testing.expectEqual(@as(u16, 18), std.mem.readInt(u16, packet[6..8], .little));
-    try std.testing.expectEqual(@as(u16, 4), std.mem.readInt(u16, packet[8..10], .little));
+    try std.testing.expectEqual(switch (builtin.cpu.arch.endian()) {
+        .little => @as(u8, 'l'),
+        .big => @as(u8, 'B'),
+    }, packet[0]);
+    try std.testing.expectEqual(@as(u16, 11), std.mem.readInt(u16, packet[2..4], .native));
+    try std.testing.expectEqual(@as(u16, 18), std.mem.readInt(u16, packet[6..8], .native));
+    try std.testing.expectEqual(@as(u16, 4), std.mem.readInt(u16, packet[8..10], .native));
     try std.testing.expectEqualSlices(u8, "MIT-MAGIC-COOKIE-1", packet[12..30]);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb, 0xcc, 0xdd }, packet[32..36]);
 }
 
 test "GetProperty reply decode copies into caller scratch" {
-    const packet = [_]u8{
-        1,    32,   0,    0,
-        2,    0,    0,    0,
-        57,   0,    0,    0,
-        0,    0,    0,    0,
-        2,    0,    0,    0,
-        0,    0,    0,    0,
-        0,    0,    0,    0,
-        0,    0,    0,    0,
-        0xaa, 0xbb, 0xcc, 0xdd,
-        0x11, 0x22, 0x33, 0x44,
-    };
+    var packet = std.mem.zeroes([40]u8);
+    packet[0] = 1;
+    packet[1] = 32;
+    std.mem.writeInt(u32, packet[4..8], 2, .native);
+    std.mem.writeInt(u32, packet[8..12], 57, .native);
+    std.mem.writeInt(u32, packet[16..20], 2, .native);
+    const value = [_]u8{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 };
+    @memcpy(packet[32..40], value[0..]);
     var scratch: [8]u8 = undefined;
     var reader: std.Io.Reader = .fixed(&packet);
     const reply = try x.GetPropertyReply.decode(&scratch, &reader);
@@ -79,7 +82,10 @@ test "Event.toBytes" {
     };
     const bytes = try event.toBytes();
     _ = bytes;
-    try std.testing.expectEqualSlices(u8, &.{ 10, 0, 0, 0, 20, 0, 0, 0 }, event.data.data8[0..8]);
+    var expected: [8]u8 = undefined;
+    std.mem.writeInt(u32, expected[0..4], 10, .native);
+    std.mem.writeInt(u32, expected[4..8], 20, .native);
+    try std.testing.expectEqualSlices(u8, &expected, event.data.data8[0..8]);
 }
 
 test "ConfigureWindow" {

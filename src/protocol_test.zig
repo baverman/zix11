@@ -20,7 +20,7 @@ test "Protocol.send frames core requests with opcode and header byte 1" {
     try std.testing.expectEqual(@as(u16, 1), sequence);
     try std.testing.expectEqual(@as(u8, x.InternAtom.opcode), packet[0]);
     try std.testing.expectEqual(req.headerByte1(), packet[1]);
-    try std.testing.expectEqual(@as(u16, 4), std.mem.readInt(u16, packet[2..4], .little));
+    try std.testing.expectEqual(@as(u16, 4), std.mem.readInt(u16, packet[2..4], .native));
     try std.testing.expectEqual(@as(usize, 16), packet.len);
     try std.testing.expectEqualSlices(u8, "WM_NAME", packet[8..15]);
     try std.testing.expectEqual(@as(u8, 0), packet[15]);
@@ -44,7 +44,7 @@ test "Protocol.send frames MIT-SHM requests with registered major opcode and req
     try std.testing.expectEqual(@as(u16, 1), sequence);
     try std.testing.expectEqual(@as(u8, 137), packet[0]);
     try std.testing.expectEqual(@as(u8, ext.shm.QueryVersion.opcode), packet[1]);
-    try std.testing.expectEqual(@as(u16, 1), std.mem.readInt(u16, packet[2..4], .little));
+    try std.testing.expectEqual(@as(u16, 1), std.mem.readInt(u16, packet[2..4], .native));
     try std.testing.expectEqual(@as(usize, 4), packet.len);
 }
 
@@ -70,8 +70,8 @@ test "Protocol.send frames RENDER requests with registered major opcode and padd
     try std.testing.expectEqual(@as(u16, 1), sequence);
     try std.testing.expectEqual(@as(u8, 138), packet[0]);
     try std.testing.expectEqual(@as(u8, ext.render.QueryVersion.opcode), packet[1]);
-    try std.testing.expectEqual(@as(u16, 3), std.mem.readInt(u16, packet[2..4], .little));
-    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, packet[4..8], .little));
-    try std.testing.expectEqual(@as(u32, 11), std.mem.readInt(u32, packet[8..12], .little));
+    try std.testing.expectEqual(@as(u16, 3), std.mem.readInt(u16, packet[2..4], .native));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, packet[4..8], .native));
+    try std.testing.expectEqual(@as(u32, 11), std.mem.readInt(u32, packet[8..12], .native));
     try std.testing.expectEqual(@as(usize, 12), packet.len);
 }

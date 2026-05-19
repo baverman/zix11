@@ -44,7 +44,7 @@ fn makeConn(
 fn focusReplyPacket(sequence: u16) [32]u8 {
     var packet = std.mem.zeroes([32]u8);
     packet[0] = 1;
-    std.mem.writeInt(u16, packet[2..4], sequence, .little);
+    std.mem.writeInt(u16, packet[2..4], sequence, .native);
     return packet;
 }
 
@@ -62,13 +62,13 @@ test "properties.set uses CARDINAL for scalar u32" {
     const written = write_buf[0..transport.stream_writer.interface.end];
     try std.testing.expectEqual(@as(u8, x.ChangeProperty.opcode), written[0]);
     try std.testing.expectEqual(@as(u8, @intFromEnum(x.PropMode.Replace)), written[1]);
-    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, written[2..4], .little));
-    try std.testing.expectEqual(@as(u32, 0x11), std.mem.readInt(u32, written[4..8], .little));
-    try std.testing.expectEqual(@as(u32, 0x22), std.mem.readInt(u32, written[8..12], .little));
-    try std.testing.expectEqual(@as(u32, @intFromEnum(x.Atom.CARDINAL)), std.mem.readInt(u32, written[12..16], .little));
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, written[2..4], .native));
+    try std.testing.expectEqual(@as(u32, 0x11), std.mem.readInt(u32, written[4..8], .native));
+    try std.testing.expectEqual(@as(u32, 0x22), std.mem.readInt(u32, written[8..12], .native));
+    try std.testing.expectEqual(@as(u32, @intFromEnum(x.Atom.CARDINAL)), std.mem.readInt(u32, written[12..16], .native));
     try std.testing.expectEqual(@as(u8, 32), written[16]);
-    try std.testing.expectEqual(@as(u32, 1), std.mem.readInt(u32, written[20..24], .little));
-    try std.testing.expectEqual(@as(u32, 7), std.mem.readInt(u32, written[24..28], .little));
+    try std.testing.expectEqual(@as(u32, 1), std.mem.readInt(u32, written[20..24], .native));
+    try std.testing.expectEqual(@as(u32, 7), std.mem.readInt(u32, written[24..28], .native));
     try std.testing.expectEqual(@as(u8, x.GetInputFocus.opcode), written[28]);
 }
 
@@ -86,11 +86,11 @@ test "properties.set uses WINDOW for array pointer slice" {
 
     const written = write_buf[0..transport.stream_writer.interface.end];
     try std.testing.expectEqual(@as(u8, x.ChangeProperty.opcode), written[0]);
-    try std.testing.expectEqual(@as(u32, @intFromEnum(x.Atom.WINDOW)), std.mem.readInt(u32, written[12..16], .little));
+    try std.testing.expectEqual(@as(u32, @intFromEnum(x.Atom.WINDOW)), std.mem.readInt(u32, written[12..16], .native));
     try std.testing.expectEqual(@as(u8, 32), written[16]);
-    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, written[20..24], .little));
-    try std.testing.expectEqual(@as(u32, 0xaa), std.mem.readInt(u32, written[24..28], .little));
-    try std.testing.expectEqual(@as(u32, 0xbb), std.mem.readInt(u32, written[28..32], .little));
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, written[20..24], .native));
+    try std.testing.expectEqual(@as(u32, 0xaa), std.mem.readInt(u32, written[24..28], .native));
+    try std.testing.expectEqual(@as(u32, 0xbb), std.mem.readInt(u32, written[28..32], .native));
 }
 
 test "properties.setAs uses explicit UTF8_STRING for string slice" {
@@ -106,9 +106,9 @@ test "properties.setAs uses explicit UTF8_STRING for string slice" {
 
     const written = write_buf[0..transport.stream_writer.interface.end];
     try std.testing.expectEqual(@as(u8, x.ChangeProperty.opcode), written[0]);
-    try std.testing.expectEqual(@as(u32, 0x33), std.mem.readInt(u32, written[12..16], .little));
+    try std.testing.expectEqual(@as(u32, 0x33), std.mem.readInt(u32, written[12..16], .native));
     try std.testing.expectEqual(@as(u8, 8), written[16]);
-    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, written[20..24], .little));
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, written[20..24], .native));
     try std.testing.expectEqualSlices(u8, "Hi", written[24..26]);
 }
 
@@ -124,6 +124,6 @@ test "properties.setAs uses explicit atom for scalar" {
     try properties.setAs(&conn, @enumFromInt(0x11), @enumFromInt(0x22), @enumFromInt(0x44), @as(u32, 9));
 
     const written = write_buf[0..transport.stream_writer.interface.end];
-    try std.testing.expectEqual(@as(u32, 0x44), std.mem.readInt(u32, written[12..16], .little));
-    try std.testing.expectEqual(@as(u32, 9), std.mem.readInt(u32, written[24..28], .little));
+    try std.testing.expectEqual(@as(u32, 0x44), std.mem.readInt(u32, written[12..16], .native));
+    try std.testing.expectEqual(@as(u32, 9), std.mem.readInt(u32, written[24..28], .native));
 }

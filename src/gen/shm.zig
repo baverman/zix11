@@ -40,8 +40,8 @@ pub const Attach = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
-        try writer.writeInt(u32, self.shmid, .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
+        try writer.writeInt(u32, self.shmid, .native);
         try writer.writeByte(@intFromBool(self.read_only));
         try writer.splatByteAll(0, 3);
     }
@@ -72,14 +72,14 @@ pub const CreatePixmap = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.pid), .little);
+        try writer.writeInt(u32, @intFromEnum(self.pid), .native);
         try self.drawable.encode(writer);
-        try writer.writeInt(u16, self.width, .little);
-        try writer.writeInt(u16, self.height, .little);
+        try writer.writeInt(u16, self.width, .native);
+        try writer.writeInt(u16, self.height, .native);
         try writer.writeByte(self.depth);
         try writer.splatByteAll(0, 3);
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
-        try writer.writeInt(u32, self.offset, .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
+        try writer.writeInt(u32, self.offset, .native);
     }
 
 };
@@ -102,7 +102,7 @@ pub const Detach = struct {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
     }
 
 };
@@ -119,17 +119,17 @@ pub const GetImageReply = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(self.depth);
-        try writer.writeInt(u32, self.visual, .little);
-        try writer.writeInt(u32, self.size, .little);
+        try writer.writeInt(u32, self.visual, .native);
+        try writer.writeInt(u32, self.size, .native);
     }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const depth = try reader.takeByte();
-        _ = try reader.takeInt(u16, .little);
-        _ = try reader.takeInt(u32, .little);
-        const visual = try reader.takeInt(u32, .little);
-        const size = try reader.takeInt(u32, .little);
+        _ = try reader.takeInt(u16, .native);
+        _ = try reader.takeInt(u32, .native);
+        const visual = try reader.takeInt(u32, .native);
+        const size = try reader.takeInt(u32, .native);
         return .{
             .depth = depth,
             .visual = visual,
@@ -166,15 +166,15 @@ pub const GetImage = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try self.drawable.encode(writer);
-        try writer.writeInt(i16, self.x, .little);
-        try writer.writeInt(i16, self.y, .little);
-        try writer.writeInt(u16, self.width, .little);
-        try writer.writeInt(u16, self.height, .little);
-        try writer.writeInt(u32, self.plane_mask, .little);
+        try writer.writeInt(i16, self.x, .native);
+        try writer.writeInt(i16, self.y, .native);
+        try writer.writeInt(u16, self.width, .native);
+        try writer.writeInt(u16, self.height, .native);
+        try writer.writeInt(u32, self.plane_mask, .native);
         try writer.writeByte(self.format);
         try writer.splatByteAll(0, 3);
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
-        try writer.writeInt(u32, self.offset, .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
+        try writer.writeInt(u32, self.offset, .native);
     }
 
 };
@@ -212,21 +212,21 @@ pub const PutImage = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try self.drawable.encode(writer);
-        try writer.writeInt(u32, @intFromEnum(self.gc), .little);
-        try writer.writeInt(u16, self.total_width, .little);
-        try writer.writeInt(u16, self.total_height, .little);
-        try writer.writeInt(u16, self.src_x, .little);
-        try writer.writeInt(u16, self.src_y, .little);
-        try writer.writeInt(u16, self.src_width, .little);
-        try writer.writeInt(u16, self.src_height, .little);
-        try writer.writeInt(i16, self.dst_x, .little);
-        try writer.writeInt(i16, self.dst_y, .little);
+        try writer.writeInt(u32, @intFromEnum(self.gc), .native);
+        try writer.writeInt(u16, self.total_width, .native);
+        try writer.writeInt(u16, self.total_height, .native);
+        try writer.writeInt(u16, self.src_x, .native);
+        try writer.writeInt(u16, self.src_y, .native);
+        try writer.writeInt(u16, self.src_width, .native);
+        try writer.writeInt(u16, self.src_height, .native);
+        try writer.writeInt(i16, self.dst_x, .native);
+        try writer.writeInt(i16, self.dst_y, .native);
         try writer.writeByte(self.depth);
         try writer.writeByte(self.format);
         try writer.writeByte(@intFromBool(self.send_event));
         try writer.splatByteAll(0, 1);
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
-        try writer.writeInt(u32, self.offset, .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
+        try writer.writeInt(u32, self.offset, .native);
     }
 
 };
@@ -246,10 +246,10 @@ pub const QueryVersionReply = struct {
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
         try writer.writeByte(@intFromBool(self.shared_pixmaps));
-        try writer.writeInt(u16, self.major_version, .little);
-        try writer.writeInt(u16, self.minor_version, .little);
-        try writer.writeInt(u16, self.uid, .little);
-        try writer.writeInt(u16, self.gid, .little);
+        try writer.writeInt(u16, self.major_version, .native);
+        try writer.writeInt(u16, self.minor_version, .native);
+        try writer.writeInt(u16, self.uid, .native);
+        try writer.writeInt(u16, self.gid, .native);
         try writer.writeByte(self.pixmap_format);
         try writer.splatByteAll(0, 15);
     }
@@ -257,12 +257,12 @@ pub const QueryVersionReply = struct {
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const shared_pixmaps = (try reader.takeByte()) != 0;
-        _ = try reader.takeInt(u16, .little);
-        _ = try reader.takeInt(u32, .little);
-        const major_version = try reader.takeInt(u16, .little);
-        const minor_version = try reader.takeInt(u16, .little);
-        const uid = try reader.takeInt(u16, .little);
-        const gid = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u16, .native);
+        _ = try reader.takeInt(u32, .native);
+        const major_version = try reader.takeInt(u16, .native);
+        const minor_version = try reader.takeInt(u16, .native);
+        const uid = try reader.takeInt(u16, .native);
+        const gid = try reader.takeInt(u16, .native);
         const pixmap_format = try reader.takeByte();
         _ = try reader.take(15);
         return .{
@@ -313,26 +313,26 @@ pub const CompletionEvent = struct {
         const writer = &writer_impl;
         try writer.writeByte(0);
         try writer.writeByte(0);
-        try writer.writeInt(u16, 0, .little);
+        try writer.writeInt(u16, 0, .native);
         try self.drawable.encode(writer);
-        try writer.writeInt(u16, self.minor_event, .little);
+        try writer.writeInt(u16, self.minor_event, .native);
         try writer.writeByte(self.major_event);
         try writer.splatByteAll(0, 1);
-        try writer.writeInt(u32, @intFromEnum(self.shmseg), .little);
-        try writer.writeInt(u32, self.offset, .little);
+        try writer.writeInt(u32, @intFromEnum(self.shmseg), .native);
+        try writer.writeInt(u32, self.offset, .native);
         return packet;
     }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         _ = try reader.take(1);
-        _ = try reader.takeInt(u16, .little);
+        _ = try reader.takeInt(u16, .native);
         const drawable = try xproto.Drawable.decode(reader);
-        const minor_event = try reader.takeInt(u16, .little);
+        const minor_event = try reader.takeInt(u16, .native);
         const major_event = try reader.takeByte();
         _ = try reader.take(1);
-        const shmseg = @as(Seg, @enumFromInt(try reader.takeInt(u32, .little)));
-        const offset = try reader.takeInt(u32, .little);
+        const shmseg = @as(Seg, @enumFromInt(try reader.takeInt(u32, .native)));
+        const offset = try reader.takeInt(u32, .native);
         return .{
             .drawable = drawable,
             .minor_event = minor_event,
@@ -364,7 +364,7 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
             @memcpy(raw[0..], packet);
             break :blk .{ .unknown = .{
                 .code = packet[0] & 0x7f,
-                .sequence = std.mem.readInt(u16, packet[2..4], .little),
+                .sequence = std.mem.readInt(u16, packet[2..4], .native),
                 .raw = raw,
             } };
         },

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const errors = @import("errors.zig");
 const ext = @import("ext.zig");
 const wire = @import("_wire.zig");
@@ -52,7 +53,7 @@ pub const Protocol = struct {
         const header = try reader.peek(32);
         const packet_kind = header[0];
         const extra_len = if (packet_kind == 1)
-            @as(usize, std.mem.readInt(u32, header[4..8], .little)) * 4
+            @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4
         else
             0;
         const packet_len = 32 + extra_len;
@@ -102,7 +103,7 @@ pub const Protocol = struct {
         } else {
             try writer.writeByte(Request.opcode);
         }
-        try writer.writeInt(u16, @intCast((len + pad) / 4), .little);
+        try writer.writeInt(u16, @intCast((len + pad) / 4), .native);
         try request_value.encode(writer);
         try writer.splatByteAll(0, pad);
         if (flush) try writer.flush();
@@ -172,7 +173,7 @@ pub const Protocol = struct {
                     return error.UnexpectedProtocolError;
                 },
                 1 => {
-                    const reply_sequence = std.mem.readInt(u16, packet[2..4], .little);
+                    const reply_sequence = std.mem.readInt(u16, packet[2..4], .native);
                     var packet_reader: std.Io.Reader = .fixed(packet);
                     const reply = try x.GetInputFocusReply.decode(&packet_reader);
                     _ = reply;
@@ -200,7 +201,10 @@ pub const Protocol = struct {
     pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
         _ = self;
         try (x.SetupRequest{
-            .byte_order = 'l',
+            .byte_order = switch (builtin.cpu.arch.endian()) {
+                .little => 'l',
+                .big => 'B',
+            },
             .protocol_major_version = 11,
             .protocol_minor_version = 0,
             .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
@@ -242,7 +246,7 @@ pub const Protocol = struct {
     pub fn readSetupPacket(self: *const Protocol, reader: *std.Io.Reader) ![]const u8 {
         _ = self;
         const prefix = try reader.peek(8);
-        const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .little)) * 4;
+        const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .native)) * 4;
         const packet_len = 8 + extra_len;
         return try reader.take(packet_len);
     }
@@ -265,9 +269,9 @@ fn parseProtocolError(packet: []const u8) ProtocolError {
     @memcpy(tail[0..], packet[12..32]);
     return .{
         .code = packet[1],
-        .sequence = std.mem.readInt(u16, packet[2..4], .little),
-        .bad_value = std.mem.readInt(u32, packet[4..8], .little),
-        .minor_opcode = std.mem.readInt(u16, packet[8..10], .little),
+        .sequence = std.mem.readInt(u16, packet[2..4], .native),
+        .bad_value = std.mem.readInt(u32, packet[4..8], .native),
+        .minor_opcode = std.mem.readInt(u16, packet[8..10], .native),
         .major_opcode = packet[10],
         .tail = tail,
     };

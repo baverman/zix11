@@ -75,7 +75,7 @@ class ScalarType:
         elif self.zig_name == "u8":
             emit(f"try writer.writeByte({value_expr});")
         else:
-            emit(f"try writer.writeInt({self.zig_name}, {value_expr}, .little);")
+            emit(f"try writer.writeInt({self.zig_name}, {value_expr}, .native);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         if self.zig_name == "bool":
@@ -83,7 +83,7 @@ class ScalarType:
         elif self.zig_name == "u8":
             emit(f"const {target_name} = try reader.takeByte();")
         else:
-            emit(f"const {target_name} = try reader.takeInt({self.zig_name}, .little);")
+            emit(f"const {target_name} = try reader.takeInt({self.zig_name}, .native);")
 
 
 SCALAR_TYPES: dict[str, ScalarType] = {
@@ -120,14 +120,14 @@ class EnumType:
         if self.wire_type.wire_size == 1:
             emit(f"try writer.writeByte(@intCast(@intFromEnum({value_expr})));")
         else:
-            emit(f"try writer.writeInt({tag_type}, @intCast(@intFromEnum({value_expr})), .little);")
+            emit(f"try writer.writeInt({tag_type}, @intCast(@intFromEnum({value_expr})), .native);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         tag_type = self.wire_type.zig_name
         if self.wire_type.wire_size == 1:
-            emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt({tag_type}, .little)));")
+            emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt({tag_type}, .native)));")
         else:
-            emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt({tag_type}, .little)));")
+            emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt({tag_type}, .native)));")
 
 
 @dataclass(frozen=True)
@@ -167,10 +167,10 @@ class XidType:
         return 4
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try writer.writeInt(u32, @intFromEnum({value_expr}), .little);")
+        emit(f"try writer.writeInt(u32, @intFromEnum({value_expr}), .native);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
-        emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt(u32, .little)));")
+        emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt(u32, .native)));")
 
 
 @dataclass(frozen=True)
@@ -1054,12 +1054,12 @@ def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
         emit()
         emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
         with emit.block():
-            emit("try writer.writeInt(u32, self.toInt(), .little);")
+            emit("try writer.writeInt(u32, self.toInt(), .native);")
         emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
-            emit("return .{ .raw = try reader.takeInt(u32, .little) };")
+            emit("return .{ .raw = try reader.takeInt(u32, .native) };")
         emit("}")
     emit("};")
     emit()
@@ -1401,11 +1401,11 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
                 header.emit_decode(emit)
             else:
                 emit("_ = try reader.take(1);")
-            emit("_ = try reader.takeInt(u16, .little);")
+            emit("_ = try reader.takeInt(u16, .native);")
             if uses_reply_length:
-                emit("const length = try reader.takeInt(u32, .little);")
+                emit("const length = try reader.takeInt(u32, .native);")
             else:
-                emit("_ = try reader.takeInt(u32, .little);")
+                emit("_ = try reader.takeInt(u32, .native);")
             if decode_mode == "buf":
                 emit("var scratch_used: usize = 0;")
             emit_payload_decode_body(emit, body, header, decode_mode)
@@ -1548,11 +1548,11 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
             if decl.xge == "true":
                 emit(f"try writer.writeByte({decl.number});")
                 emit("try writer.writeByte(self.extension);")
-                emit("try writer.writeInt(u16, 0, .little);")
-                emit("try writer.writeInt(u32, self.length, .little);")
-                emit("try writer.writeInt(u16, self.event_type, .little);")
-                emit("try writer.writeInt(u16, 0, .little);")
-                emit("try writer.writeInt(u32, self.full_sequence, .little);")
+                emit("try writer.writeInt(u16, 0, .native);")
+                emit("try writer.writeInt(u32, self.length, .native);")
+                emit("try writer.writeInt(u16, self.event_type, .native);")
+                emit("try writer.writeInt(u16, 0, .native);")
+                emit("try writer.writeInt(u32, self.full_sequence, .native);")
             elif decl.no_sequence_number == "true":
                 emit(f"try writer.writeByte({decl.number});")
                 for item in decl.items:
@@ -1565,7 +1565,7 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                     emit(f"try writer.writeByte({header_byte1_expr(header)});")
                 else:
                     emit("try writer.writeByte(0);")
-                emit("try writer.writeInt(u16, 0, .little);")
+                emit("try writer.writeInt(u16, 0, .native);")
                 current_previous = header
                 for item in body:
                     item.emit_encode(emit, "self", current_previous)
@@ -1578,11 +1578,11 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
             emit("_ = try reader.takeByte();")
             if decl.xge == "true":
                 emit("const extension = try reader.takeByte();")
-                emit("_ = try reader.takeInt(u16, .little);")
-                emit("const length = try reader.takeInt(u32, .little);")
-                emit("const event_type = try reader.takeInt(u16, .little);")
+                emit("_ = try reader.takeInt(u16, .native);")
+                emit("const length = try reader.takeInt(u32, .native);")
+                emit("const event_type = try reader.takeInt(u16, .native);")
                 emit("_ = try reader.take(2);")
-                emit("const full_sequence = try reader.takeInt(u32, .little);")
+                emit("const full_sequence = try reader.takeInt(u32, .native);")
                 emit("_ = try reader.take(16);")
                 emit("_ = try reader.take(@as(usize, length) * 4);")
                 emit("return .{")
@@ -1604,7 +1604,7 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                     header.emit_decode(emit)
                 else:
                     emit("_ = try reader.take(1);")
-                emit("_ = try reader.takeInt(u16, .little);")
+                emit("_ = try reader.takeInt(u16, .native);")
                 emit_payload_decode_body(emit, body, header)
                 emit_payload_decode_return(emit, decl.items)
         emit("}")
@@ -1653,7 +1653,7 @@ def emit_decode_event(emit: Emit, events: dict[str, EventDecl]) -> None:
                 emit("break :blk .{ .unknown = .{")
                 with emit.block():
                     emit(".code = packet[0] & 0x7f,")
-                    emit(".sequence = std.mem.readInt(u16, packet[2..4], .little),")
+                    emit(".sequence = std.mem.readInt(u16, packet[2..4], .native),")
                     emit(".raw = raw,")
                 emit("} };")
             emit("},")

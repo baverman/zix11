@@ -53,12 +53,12 @@ fn maskedValueByteLen(comptime T: type) usize {
 
 fn writeMaskedValue(comptime T: type, writer: *std.Io.Writer, value: T) std.Io.Writer.Error!void {
     switch (@typeInfo(T)) {
-        .@"enum" => |info| try writer.writeInt(info.tag_type, @intFromEnum(value), .little),
+        .@"enum" => |info| try writer.writeInt(info.tag_type, @intFromEnum(value), .native),
         .int => |info| {
             if (info.bits == 8) {
                 try writer.writeByte(value);
             } else {
-                try writer.writeInt(T, value, .little);
+                try writer.writeInt(T, value, .native);
             }
         },
         else => @compileError("unsupported masked value type"),
