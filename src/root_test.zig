@@ -6,6 +6,7 @@ test {
     _ = zix11.ewmh;
     _ = @import("protocol_test.zig");
     _ = @import("connection_test.zig");
+    _ = @import("properties_test.zig");
 }
 
 test "InternAtom request encoding" {

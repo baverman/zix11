@@ -17,12 +17,7 @@ pub fn main(init: std.process.Init) !void {
     // Fill atom values
     const atom = try zix11.atoms.getAll(Atoms, &conn);
 
-    const active_window = try zix11.properties.getScalar(
-        &conn,
-        conn.root_window,
-        atom._NET_ACTIVE_WINDOW,
-        zix11.properties.Type.window,
-    );
+    const active_window = try zix11.properties.get(&conn, conn.root_window, atom._NET_ACTIVE_WINDOW, x.Window);
     if (active_window) |aw| {
         std.debug.print("_NET_ACTIVE_WINDOW: 0x{x}\n", .{@intFromEnum(aw)});
     } else {
@@ -30,13 +25,7 @@ pub fn main(init: std.process.Init) !void {
     }
 
     var window_buf: [128]x.Window = undefined;
-    const client_windows = try zix11.properties.get(
-        &conn,
-        conn.root_window,
-        atom._NET_CLIENT_LIST,
-        zix11.properties.Type.window,
-        &window_buf,
-    );
+    const client_windows = try zix11.properties.get(&conn, conn.root_window, atom._NET_CLIENT_LIST, &window_buf);
     std.debug.print("_NET_CLIENT_LIST count: {}\n", .{client_windows.len});
     for (client_windows) |window| {
         std.debug.print("  0x{x}\n", .{@intFromEnum(window)});

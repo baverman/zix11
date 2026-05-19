@@ -4,57 +4,121 @@ const x = @import("gen/xproto.zig");
 
 pub const Connection = connection.Connection;
 
-pub const Type = struct {
-    pub fn make(comptime T: type) type {
-        return struct {
-            property_type: x.Atom,
+pub fn get(conn: *Connection, window: x.Window, property: x.Atom, arg: anytype) !GetResult(
+    @TypeOf(arg),
+    if (@TypeOf(arg) == type) arg else null,
+) {
+    const property_type = defaultPropertyAtom(
+        @TypeOf(arg),
+        if (@TypeOf(arg) == type) arg else null,
+    );
+    return switch (@typeInfo(@TypeOf(arg))) {
+        .type => getScalarImpl(conn, window, property, property_type, arg),
+        .pointer => getSliceImpl(conn, window, property, property_type, std.meta.Elem(@TypeOf(arg)), arg),
+        else => @compileError("expected type or slice buffer"),
+    };
+}
 
-            const Self = @This();
-            pub const Elem = T;
-            pub const Buf = []Elem;
-            pub const Slice = []const Elem;
-
-            pub fn init(property_type: x.Atom) Self {
-                return .{ .property_type = property_type };
-            }
-
-            pub fn as(_: Self, property_type: x.Atom) Self {
-                return .{ .property_type = property_type };
-            }
-        };
-    }
-
-    pub const any: make(u8) = .init(x.Atom_.Any);
-    pub const cardinal: make(u32) = .init(x.Atom.CARDINAL);
-    pub const string: make(u8) = .init(x.Atom.STRING);
-    pub const window: make(x.Window) = .init(x.Atom.WINDOW);
-    pub const atom: make(x.Atom) = .init(x.Atom.ATOM);
-};
-
-pub fn get(
+pub fn getAs(
     conn: *Connection,
     window: x.Window,
     property: x.Atom,
-    property_type: anytype,
-    buffer: @TypeOf(property_type).Buf,
-) !@TypeOf(property_type).Slice {
-    const T = @TypeOf(property_type).Elem;
-    const expected_type = property_type.property_type;
+    property_type: x.Atom,
+    arg: anytype,
+) !GetResult(@TypeOf(arg), if (@TypeOf(arg) == type) arg else null) {
+    return switch (@typeInfo(@TypeOf(arg))) {
+        .type => getScalarImpl(conn, window, property, property_type, arg),
+        .pointer => getSliceImpl(conn, window, property, property_type, std.meta.Elem(@TypeOf(arg)), arg),
+        else => @compileError("expected type or slice buffer"),
+    };
+}
 
+pub fn setAs(
+    conn: *Connection,
+    window: x.Window,
+    property: x.Atom,
+    property_type: x.Atom,
+    data: anytype,
+) !void {
+    const T = @TypeOf(data);
+    return switch (@typeInfo(T)) {
+        .pointer => setSliceImpl(conn, window, property, property_type, std.meta.Elem(T), data[0..]),
+        else => setSliceImpl(conn, window, property, property_type, T, &.{data}),
+    };
+}
+
+pub fn set(
+    conn: *Connection,
+    window: x.Window,
+    property: x.Atom,
+    data: anytype,
+) !void {
+    const T = @TypeOf(data);
+
+    return switch (@typeInfo(T)) {
+        .pointer => setSliceImpl(conn, window, property, defaultPropertyAtomForElem(std.meta.Elem(T)), std.meta.Elem(T), data[0..]),
+        else => setSliceImpl(conn, window, property, defaultPropertyAtomForElem(T), T, &.{data}),
+    };
+}
+
+fn setSliceImpl(
+    conn: *Connection,
+    window: x.Window,
+    property: x.Atom,
+    property_type: x.Atom,
+    comptime T: type,
+    data: []const T,
+) !void {
+    try conn.request(x.ChangeProperty, .{
+        .mode = .Replace,
+        .window = window,
+        .property = property,
+        .type = property_type,
+        .format = propertyFormat(T),
+        .data_len = @intCast(data.len),
+        .data = std.mem.sliceAsBytes(data),
+    });
+}
+
+fn GetResult(comptime Arg: type, comptime Elem: ?type) type {
+    return switch (@typeInfo(Arg)) {
+        .type => ?Elem.?,
+        .pointer => []const std.meta.Elem(Arg),
+        else => @compileError("expected type or slice buffer"),
+    };
+}
+
+fn getScalarImpl(
+    conn: *Connection,
+    window: x.Window,
+    property: x.Atom,
+    property_type: x.Atom,
+    comptime T: type,
+) !?T {
+    var buf: [1]T = undefined;
+    const values = try getSliceImpl(conn, window, property, property_type, T, &buf);
+    return if (values.len == 0) null else values[0];
+}
+
+fn getSliceImpl(
+    conn: *Connection,
+    window: x.Window,
+    property: x.Atom,
+    property_type: x.Atom,
+    comptime T: type,
+    buffer: []T,
+) ![]const T {
     const reply = try conn.requestBuf(std.mem.sliceAsBytes(buffer), x.GetProperty, .{
         .delete = false,
         .window = window,
         .property = property,
-        .type = expected_type,
+        .type = property_type,
         .long_offset = 0,
         .long_length = @intCast(buffer.len * @sizeOf(T) / 4),
     });
 
-    if (reply.format == 0) {
-        return buffer[0..0];
-    }
-
-    if (expected_type != x.Atom_.Any and reply.type != expected_type) return error.UnexpectedType;
+    if (reply.format == 0) return buffer[0..0];
+    if (property_type != x.Atom_.Any and reply.type != property_type) return error.UnexpectedType;
     if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
     if (reply.bytes_after != 0) return error.PropertyTruncated;
 
@@ -65,35 +129,20 @@ pub fn get(
     return buffer[0 .. byte_len / @sizeOf(T)];
 }
 
-pub fn getScalar(
-    conn: *Connection,
-    window: x.Window,
-    property: x.Atom,
-    property_type: anytype,
-) !?@TypeOf(property_type).Elem {
-    const T = @TypeOf(property_type).Elem;
-    var buf: [1]T = undefined;
-    const values = try get(conn, window, property, property_type, &buf);
-    return if (values.len == 0) null else values[0];
+fn defaultPropertyAtom(comptime Arg: type, comptime Elem: ?type) x.Atom {
+    return switch (@typeInfo(Arg)) {
+        .type => defaultPropertyAtomForElem(Elem.?),
+        .pointer => defaultPropertyAtomForElem(std.meta.Elem(Arg)),
+        else => @compileError("expected type or slice buffer"),
+    };
 }
 
-pub fn set(
-    conn: *Connection,
-    window: x.Window,
-    property: x.Atom,
-    property_type: anytype,
-    data: @TypeOf(property_type).Slice,
-) !void {
-    const T = @TypeOf(property_type).Elem;
-    try conn.request(x.ChangeProperty, .{
-        .mode = .Replace,
-        .window = window,
-        .property = property,
-        .type = property_type.property_type,
-        .format = propertyFormat(T),
-        .data_len = @intCast(data.len),
-        .data = std.mem.sliceAsBytes(data),
-    });
+fn defaultPropertyAtomForElem(comptime T: type) x.Atom {
+    if (T == u8) return x.Atom_.Any;
+    if (T == u32) return x.Atom.CARDINAL;
+    if (T == x.Window) return x.Atom.WINDOW;
+    if (T == x.Atom) return x.Atom.ATOM;
+    @compileError("no default property atom mapping for type");
 }
 
 fn propertyFormat(comptime T: type) u8 {

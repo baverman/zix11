@@ -32,11 +32,11 @@ pub fn main(init: std.process.Init) !void {
         },
     });
 
-    try zix11.properties.set(
+    try zix11.properties.setAs(
         &conn,
         window,
         atom._NET_WM_NAME,
-        zix11.properties.Type.string.as(atom.UTF8_STRING),
+        atom.UTF8_STRING,
         "Simple Window",
     );
 
