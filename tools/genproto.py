@@ -16,6 +16,7 @@ import xcbxml
 XML_DIR = Path("/usr/share/xcb")
 XML_PATHS = (
     XML_DIR / "xproto.xml",
+    XML_DIR / "dpms.xml",
     XML_DIR / "render.xml",
     XML_DIR / "randr.xml",
     XML_DIR / "shm.xml",

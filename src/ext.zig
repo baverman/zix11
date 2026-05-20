@@ -10,6 +10,7 @@ pub const ExtensionInfo = struct {
     error_spec: ?*const generated_errors.ExtensionErrorSpec = null,
     event_spec: ?*const generated_events.ExtensionEventSpec = null,
 };
+pub const dpms = @import("gen/dpms.zig");
 pub const randr = @import("gen/randr.zig");
 pub const render = @import("gen/render.zig");
 pub const shm = @import("gen/shm.zig");
@@ -19,6 +20,7 @@ pub const xfixes = @import("gen/xfixes.zig");
 pub fn xname(ext: Extension) []const u8 {
     return switch (ext) {
         .CORE => unreachable,
+        .DPMS => "DPMS",
         .RANDR => "RANDR",
         .RENDER => "RENDER",
         .MIT_SHM => "MIT-SHM",

@@ -5,6 +5,7 @@ const std = @import("std");
 const errors = @import("../_errors.zig");
 const extensions = @import("../_ext.zig");
 const xproto = @import("xproto.zig");
+const dpms = @import("dpms.zig");
 const randr = @import("randr.zig");
 const shm = @import("shm.zig");
 const shape = @import("shape.zig");
@@ -53,6 +54,7 @@ pub const Event = union(enum) {
     ClientMessage: xproto.ClientMessageEvent,
     MappingNotify: xproto.MappingNotifyEvent,
     GeGeneric: xproto.GeGenericEvent,
+    DpmsInfoNotify: dpms.InfoNotifyEvent,
     RandrScreenChangeNotify: randr.ScreenChangeNotifyEvent,
     RandrNotify: randr.NotifyEvent,
     ShmCompletion: shm.CompletionEvent,
@@ -69,6 +71,11 @@ pub const ExtensionEventSpec = struct {
 const xproto_event_spec: ExtensionEventSpec = .{
     .max_event_num = 35,
     .decode = xproto.decodeEvent,
+};
+
+const dpms_event_spec: ExtensionEventSpec = .{
+    .max_event_num = 0,
+    .decode = dpms.decodeEvent,
 };
 
 const randr_event_spec: ExtensionEventSpec = .{
@@ -94,6 +101,7 @@ const xfixes_event_spec: ExtensionEventSpec = .{
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
     return switch (extension) {
         .CORE => &xproto_event_spec,
+        .DPMS => &dpms_event_spec,
         .RANDR => &randr_event_spec,
         .MIT_SHM => &shm_event_spec,
         .SHAPE => &shape_event_spec,

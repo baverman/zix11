@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) void {
 
     addExample(b, "simple_window", "examples/simple_window.zig", target, optimize, mod, false);
     addExample(b, "read_properties", "examples/read_properties.zig", target, optimize, mod, false);
+    addExample(b, "dpms", "examples/dpms.zig", target, optimize, mod, false);
     addExample(b, "randr", "examples/randr.zig", target, optimize, mod, false);
     addExample(b, "cairo", "examples/cairo.zig", target, optimize, mod, true);
     addExample(b, "cairo_shm", "examples/cairo_shm.zig", target, optimize, mod, true);
