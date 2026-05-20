@@ -103,6 +103,11 @@ pub const ExtensionErrorSpec = struct {
     decode: *const fn (u8, ProtocolError) ?TaggedError,
 };
 
+const xproto_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 17,
+    .decode = decodeCoreErrorImpl,
+};
+
 const render_error_spec: ExtensionErrorSpec = .{
     .max_error_num = 4,
     .decode = decodeRenderError,
@@ -120,6 +125,7 @@ const xfixes_error_spec: ExtensionErrorSpec = .{
 
 pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
+        .CORE => &xproto_error_spec,
         .RENDER => &render_error_spec,
         .MIT_SHM => &shm_error_spec,
         .XFIXES => &xfixes_error_spec,

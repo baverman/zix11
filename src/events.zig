@@ -18,11 +18,6 @@ pub fn decodeEvent(
     @memcpy(raw[0..], packet[0..32]);
 
     const wire_code = raw[0] & 0x7f;
-    if (wire_code >= 2 and wire_code <= 35) {
-        var reader: std.Io.Reader = .fixed(&raw);
-        return try x.decodeEvent(&reader);
-    }
-
     var it = registered_extensions.iterator();
     while (it.next()) |entry| {
         const info = entry.value;

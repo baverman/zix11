@@ -19,7 +19,6 @@ pub fn taggedError(
     raw: ProtocolError,
 ) TaggedError {
     if (err != error.X11ProtocolError) return .{ .NonX11 = err };
-    if (generated.decodeCoreError(raw.code, raw)) |tagged| return tagged;
 
     var it = registered_extensions.iterator();
     while (it.next()) |entry| {

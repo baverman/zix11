@@ -17,6 +17,7 @@ pub const xfixes = @import("gen/xfixes.zig");
 
 pub fn xname(ext: Extension) []const u8 {
     return switch (ext) {
+        .CORE => unreachable,
         .RENDER => "RENDER",
         .MIT_SHM => "MIT-SHM",
         .SHAPE => "SHAPE",

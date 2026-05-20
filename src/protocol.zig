@@ -32,7 +32,7 @@ pub const Protocol = struct {
     extensions: std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
 
     pub fn init(allocator: std.mem.Allocator) Protocol {
-        return .{
+        var result: Protocol = .{
             .allocator = allocator,
             .root_window = @enumFromInt(0),
             .resource_id_base = 0,
@@ -43,6 +43,14 @@ pub const Protocol = struct {
             .last_protocol_error = null,
             .extensions = .{},
         };
+        result.extensions.put(.CORE, .{
+            .major_opcode = 0,
+            .first_event = 0,
+            .first_error = 0,
+            .error_spec = errors.errorSpec(.CORE),
+            .event_spec = events.eventSpec(.CORE),
+        });
+        return result;
     }
 
     pub fn deinit(self: *Protocol) void {

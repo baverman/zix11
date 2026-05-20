@@ -1783,8 +1783,7 @@ def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
     emit("};")
     emit()
 
-    extension_modules = tuple(module for module in modules if module.extension_xname is not None)
-    for module in extension_modules:
+    for module in modules:
         emit(f"const {module.header}_event_spec: ExtensionEventSpec = .{{")
         with emit.block():
             emit(f".max_event_num = {extension_max_event_num(module)},")
@@ -1796,13 +1795,12 @@ def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
     with emit.block():
         emit("return switch (extension) {")
         with emit.block():
-            handled = False
-            for module in extension_modules:
-                if not module.events:
-                    continue
-                handled = True
-                emit(f".{zig_extension_name(module.extension_xname)} => &{module.header}_event_spec,")
-            emit("else => null," if handled else "else => null,")
+            for module in modules:
+                if module.extension_xname is None:
+                    emit(f".CORE => &{module.header}_event_spec,")
+                else:
+                    emit(f".{zig_extension_name(module.extension_xname)} => &{module.header}_event_spec,")
+            emit("else => null,")
         emit("};")
     emit("}")
     emit()
@@ -1890,12 +1888,15 @@ def emit_extension_error_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
     emit()
 
     for module in modules:
-        if module.extension_xname is None or module.core_error_codes is None:
+        if module.core_error_codes is None:
             continue
         emit(f"const {module.header}_error_spec: ExtensionErrorSpec = .{{")
         with emit.block():
             emit(f".max_error_num = {enum_decl_max_value(module.core_error_codes)},")
-            emit(f".decode = decode{zig_extension_prefix(module.header)}Error,")
+            if module.extension_xname is None:
+                emit(".decode = decodeCoreErrorImpl,")
+            else:
+                emit(f".decode = decode{zig_extension_prefix(module.header)}Error,")
         emit("};")
         emit()
 
@@ -1904,9 +1905,12 @@ def emit_extension_error_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
         emit("return switch (extension) {")
         with emit.block():
             for module in modules:
-                if module.extension_xname is None or module.core_error_codes is None:
+                if module.core_error_codes is None:
                     continue
-                emit(f".{zig_extension_name(module.extension_xname)} => &{module.header}_error_spec,")
+                if module.extension_xname is None:
+                    emit(f".CORE => &{module.header}_error_spec,")
+                else:
+                    emit(f".{zig_extension_name(module.extension_xname)} => &{module.header}_error_spec,")
             emit("else => null,")
         emit("};")
     emit("}")

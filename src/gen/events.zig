@@ -63,6 +63,11 @@ pub const ExtensionEventSpec = struct {
     decode: *const fn (*std.Io.Reader) DecodeError!Event,
 };
 
+const xproto_event_spec: ExtensionEventSpec = .{
+    .max_event_num = 35,
+    .decode = xproto.decodeEvent,
+};
+
 const shm_event_spec: ExtensionEventSpec = .{
     .max_event_num = 0,
     .decode = shm.decodeEvent,
@@ -80,6 +85,7 @@ const xfixes_event_spec: ExtensionEventSpec = .{
 
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
     return switch (extension) {
+        .CORE => &xproto_event_spec,
         .MIT_SHM => &shm_event_spec,
         .SHAPE => &shape_event_spec,
         .XFIXES => &xfixes_event_spec,
