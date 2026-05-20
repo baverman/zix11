@@ -1,6 +1,7 @@
 const std = @import("std");
 const connection = @import("connection.zig");
 const ext = @import("ext.zig");
+const errors = @import("errors.zig");
 const protocol = @import("protocol.zig");
 
 test "Connection.taggedError decodes core protocol errors" {
@@ -40,6 +41,7 @@ test "Connection.taggedError decodes extension protocol errors" {
         .major_opcode = 138,
         .first_event = 96,
         .first_error = 160,
+        .error_spec = errors.errorSpec(.RENDER),
     });
 
     var dummy_transport: connection.StreamTransport = undefined;
@@ -125,6 +127,7 @@ test "Connection.taggedError decodes XFIXES protocol errors" {
         .major_opcode = 139,
         .first_event = 110,
         .first_error = 170,
+        .error_spec = errors.errorSpec(.XFIXES),
     });
 
     var dummy_transport: connection.StreamTransport = undefined;

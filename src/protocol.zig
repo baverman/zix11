@@ -152,6 +152,7 @@ pub const Protocol = struct {
             .major_opcode = reply.major_opcode,
             .first_event = reply.first_event,
             .first_error = reply.first_error,
+            .error_spec = errors.errorSpec(extension),
             .event_spec = events.eventSpec(extension),
         });
     }
