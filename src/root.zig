@@ -11,3 +11,4 @@ pub const atoms = @import("atoms.zig");
 pub const events = @import("events.zig");
 
 pub const Connection = connection.Connection;
+pub const Event = events.Event;

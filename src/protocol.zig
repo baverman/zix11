@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const errors = @import("errors.zig");
 const ext = @import("ext.zig");
+const events = @import("events.zig");
 const wire = @import("_wire.zig");
 const x = @import("gen/xproto.zig");
 
@@ -28,7 +29,7 @@ pub const Protocol = struct {
     pending_events: std.Deque([32]u8),
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
-    extensions: std.enums.EnumMap(ext.Extension, ?ext.ExtensionInfo),
+    extensions: std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
 
     pub fn init(allocator: std.mem.Allocator) Protocol {
         return .{
@@ -40,7 +41,7 @@ pub const Protocol = struct {
             .next_resource_id = 0,
             .pending_events = .empty,
             .last_protocol_error = null,
-            .extensions = std.enums.EnumMap(ext.Extension, ?ext.ExtensionInfo).initFull(null),
+            .extensions = .{},
         };
     }
 
@@ -60,22 +61,20 @@ pub const Protocol = struct {
         return try reader.take(packet_len);
     }
 
-    pub fn readEvent(self: *Protocol, reader: *std.Io.Reader) !x.Event {
+    pub fn readEvent(self: *Protocol, reader: *std.Io.Reader) !events.Event {
         while (true) {
             const packet = try self.readReplyPacket(reader);
             if (packet[0] == 0) {
                 self.last_protocol_error = parseProtocolError(packet);
                 continue;
             }
-            var packet_reader: std.Io.Reader = .fixed(packet);
-            return try x.decodeEvent(&packet_reader);
+            return try self.decodeEventPacket(packet);
         }
     }
 
-    pub fn pendingEvent(self: *Protocol) !?x.Event {
+    pub fn pendingEvent(self: *Protocol) !?events.Event {
         if (self.pending_events.popFront()) |raw| {
-            var packet_reader: std.Io.Reader = .fixed(&raw);
-            return try x.decodeEvent(&packet_reader);
+            return try self.decodeEventPacket(&raw);
         }
         return null;
     }
@@ -92,8 +91,7 @@ pub const Protocol = struct {
         const len = 4 + body_len;
         const pad = wire.pad4(len);
         const opcode = if (Request.extension) |extension| blk: {
-            const maybe_info = self.extensions.get(extension) orelse return error.ExtensionNotRegistered;
-            const info = maybe_info orelse return error.ExtensionNotRegistered;
+            const info = self.extensions.get(extension) orelse return error.ExtensionNotRegistered;
             break :blk info.major_opcode;
         } else Request.opcode;
 
@@ -154,7 +152,36 @@ pub const Protocol = struct {
             .major_opcode = reply.major_opcode,
             .first_event = reply.first_event,
             .first_error = reply.first_error,
+            .event_spec = events.eventSpec(extension),
         });
+    }
+
+    fn decodeEventPacket(self: *Protocol, packet: []const u8) !events.Event {
+        var raw: [32]u8 = undefined;
+        std.debug.assert(packet.len == 32);
+        @memcpy(raw[0..], packet[0..32]);
+
+        const wire_code = raw[0] & 0x7f;
+        if (wire_code >= 2 and wire_code <= 35) {
+            var reader: std.Io.Reader = .fixed(&raw);
+            return events.wrapEvent(events.Event, try x.decodeEvent(&reader));
+        }
+
+        var it = self.extensions.iterator();
+        while (it.next()) |entry| {
+            const info = entry.value;
+            const spec = info.event_spec orelse continue;
+            if (wire_code >= info.first_event and wire_code <= info.first_event + spec.max_event_num) {
+                raw[0] = (raw[0] & 0x80) | (wire_code - info.first_event);
+                return try spec.decode(raw);
+            }
+        }
+
+        return .{ .Unknown = .{
+            .code = wire_code,
+            .sequence = std.mem.readInt(u16, raw[2..4], .native),
+            .raw = raw,
+        } };
     }
 
     pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) !void {

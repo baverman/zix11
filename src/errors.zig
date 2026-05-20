@@ -25,6 +25,7 @@ const ExtensionSpec = struct {
 const extension_specs = .{
     ExtensionSpec{ .ext = .RENDER, .Error = ext.render.Error },
     ExtensionSpec{ .ext = .MIT_SHM, .Error = ext.shm.Error },
+    ExtensionSpec{ .ext = .XFIXES, .Error = ext.xfixes.Error },
 };
 
 pub const TaggedErrorTag = buildTaggedErrorTag();
@@ -96,7 +97,7 @@ fn tagIntType(comptime field_count: usize) type {
 }
 
 pub fn taggedError(
-    registered_extensions: *const std.enums.EnumMap(ext.Extension, ?ext.ExtensionInfo),
+    registered_extensions: *const std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
     err: anyerror,
     raw: ProtocolError,
 ) TaggedError {
@@ -111,16 +112,14 @@ fn decodeCore(raw: ProtocolError) ?TaggedError {
 }
 
 fn decodeExtension(
-    registered_extensions: *const std.enums.EnumMap(ext.Extension, ?ext.ExtensionInfo),
+    registered_extensions: *const std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
     raw: ProtocolError,
 ) ?TaggedError {
     inline for (extension_specs) |spec| {
-        if (registered_extensions.get(spec.ext)) |maybe_info| {
-            if (maybe_info) |info| {
-                if (raw.code >= info.first_error) {
-                    const local_code = raw.code - info.first_error;
-                    if (decodeEnumError(spec.Error, local_code, raw)) |tagged| return tagged;
-                }
+        if (registered_extensions.get(spec.ext)) |info| {
+            if (raw.code >= info.first_error) {
+                const local_code = raw.code - info.first_error;
+                if (decodeEnumError(spec.Error, local_code, raw)) |tagged| return tagged;
             }
         }
     }

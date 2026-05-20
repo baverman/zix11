@@ -1,5 +1,6 @@
 const std = @import("std");
 const errors = @import("errors.zig");
+const events = @import("events.zig");
 const ext = @import("ext.zig");
 const protocol_mod = @import("protocol.zig");
 const x = @import("gen/xproto.zig");
@@ -149,7 +150,7 @@ pub const Connection = struct {
         self.* = undefined;
     }
 
-    pub fn nextEvent(self: *Connection) !x.Event {
+    pub fn nextEvent(self: *Connection) !events.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
         return self.proto.readEvent(self.transport.reader());
     }
@@ -160,7 +161,7 @@ pub const Connection = struct {
         return self.transport.wait(timeout_ms);
     }
 
-    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?x.Event {
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?events.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
 
         if (try self.waitForEvents(timeout_ms)) {
@@ -170,7 +171,7 @@ pub const Connection = struct {
         return null;
     }
 
-    pub fn pollEvent(self: *Connection) !?x.Event {
+    pub fn pollEvent(self: *Connection) !?events.Event {
         return self.pollEventTimeout(0);
     }
 

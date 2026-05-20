@@ -1,5 +1,12 @@
 const std = @import("std");
+const generated = @import("gen/events.zig");
 const x = @import("gen/xproto.zig");
+
+pub const Event = generated.Event;
+pub const UnknownEvent = generated.UnknownEvent;
+pub const ExtensionEventSpec = generated.ExtensionEventSpec;
+pub const eventSpec = generated.eventSpec;
+pub const wrapEvent = generated.wrapEvent;
 
 pub fn clientMessageData(comptime T: type, data: []const T) x.ClientMessageData {
     var result: x.ClientMessageData = .{ .data8 = std.mem.zeroes([20]u8) };

@@ -1,5 +1,6 @@
 const std = @import("std");
 const connection = @import("connection.zig");
+const ext = @import("ext.zig");
 const protocol = @import("protocol.zig");
 
 test "Connection.taggedError decodes core protocol errors" {
@@ -113,6 +114,41 @@ test "Connection.taggedError preserves unknown X11 errors" {
 
     switch (conn.lastError(error.X11ProtocolError)) {
         .Unknown => |e| try std.testing.expectEqual(@as(u8, 200), e.code),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "Connection.taggedError decodes XFIXES protocol errors" {
+    var proto = protocol.Protocol.init(std.testing.allocator);
+    defer proto.deinit();
+    proto.extensions.put(.XFIXES, .{
+        .major_opcode = 139,
+        .first_event = 110,
+        .first_error = 170,
+    });
+
+    var dummy_transport: connection.StreamTransport = undefined;
+    const conn = connection.Connection{
+        .allocator = std.testing.allocator,
+        .proto = &proto,
+        .transport = &dummy_transport,
+        .root_window = @enumFromInt(0),
+    };
+
+    proto.last_protocol_error = .{
+        .code = 170,
+        .sequence = 20,
+        .bad_value = 0xcafe,
+        .minor_opcode = ext.xfixes.DestroyRegion.opcode,
+        .major_opcode = 139,
+        .tail = [_]u8{0} ** 20,
+    };
+
+    switch (conn.lastError(error.X11ProtocolError)) {
+        .XFixesBadRegion => |e| {
+            try std.testing.expectEqual(@as(u8, 170), e.code);
+            try std.testing.expectEqual(@as(u16, 20), e.sequence);
+        },
         else => return error.TestUnexpectedResult,
     }
 }

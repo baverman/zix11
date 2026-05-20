@@ -18,6 +18,8 @@ XML_PATHS = (
     XML_DIR / "xproto.xml",
     XML_DIR / "render.xml",
     XML_DIR / "shm.xml",
+    XML_DIR / "shape.xml",
+    XML_DIR / "xfixes.xml",
 )
 OUT_DIR = Path("src/gen")
 
@@ -736,6 +738,17 @@ class Resolver:
         return current
 
     def resolve_wire_scalar(self, x_name: str) -> ScalarType:
+        qualified = split_qualified_name(x_name)
+        if qualified is not None:
+            module_name, local_name = qualified
+            module = self.imported_modules.get(module_name)
+            if module is None:
+                raise ValueError(f"unknown imported module: {module_name}")
+            typedef = module.typedefs.get(local_name)
+            resolved = typedef.alias if typedef is not None else local_name
+            if resolved not in SCALAR_TYPES:
+                raise ValueError(f"not a scalar type: {x_name}")
+            return SCALAR_TYPES[resolved]
         resolved = self.resolve_typename(x_name)
         if resolved not in SCALAR_TYPES:
             raise ValueError(f"not a scalar type: {x_name}")
@@ -803,6 +816,30 @@ class Resolver:
             return self.resolve_enum_type(enum_name, x_name)
         if mask_name is not None:
             return MaskType(mask_name, self.resolve_wire_scalar(x_name))
+
+        qualified = split_qualified_name(x_name)
+        if qualified is not None:
+            module_name, local_name = qualified
+            module = self.imported_modules.get(module_name)
+            if module is None:
+                raise ValueError(f"unknown imported module: {module_name}")
+            typedef = module.typedefs.get(local_name)
+            resolved = typedef.alias if typedef is not None else local_name
+            if resolved in SCALAR_TYPES:
+                return SCALAR_TYPES[resolved]
+            if resolved in module.xidtypes:
+                return XidType(resolved, module_name=module_name)
+            if resolved in module.xidunions:
+                return XidUnionType(resolved, module.xidunions[resolved].members, module_name=module_name)
+            if resolved in module.unions:
+                union_type = self.union_types.setdefault(resolved, UnionType(resolved, module_name=module_name))
+                union_type.decl = module.unions[resolved]
+                return union_type
+            if resolved in module.structs:
+                struct_type = self.struct_types.setdefault(resolved, StructType(resolved, module_name=module_name))
+                struct_type.decl = module.structs[resolved]
+                return struct_type
+            raise ValueError(f"unknown qualified type: {x_name}")
 
         resolved = self.resolve_typename(x_name)
         if resolved in SCALAR_TYPES:
@@ -962,8 +999,22 @@ def zig_extension_name(name: str) -> str:
     return "".join(ch if ch.isalnum() else "_" for ch in name)
 
 
+def zig_extension_prefix(header: str) -> str:
+    prefix = zig_enum_item_name(header)
+    if len(prefix) >= 2 and prefix[0] == "X":
+        prefix = "X" + prefix[1].upper() + prefix[2:]
+    return prefix
+
+
 def zig_extension_error_prefix(header: str) -> str:
-    return zig_enum_item_name(header)
+    return zig_extension_prefix(header)
+
+
+def split_qualified_name(name: str) -> tuple[str, str] | None:
+    if ":" not in name:
+        return None
+    module_name, local_name = name.split(":", 1)
+    return module_name, local_name
 
 
 def unique_enum_items(items: tuple[EnumItemDecl, ...]) -> tuple[EnumItemDecl, ...]:
@@ -1525,8 +1576,10 @@ def event_struct_name(name: str) -> str:
     return f"{name}Event"
 
 
-def event_tag_name(name: str) -> str:
-    return name
+def event_tag_name(module: ModuleIR, name: str) -> str:
+    if module.extension_xname is None:
+        return name
+    return f"{zig_extension_prefix(module.header)}{name}"
 
 
 def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
@@ -1612,7 +1665,7 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
     emit()
 
 
-def emit_event_union(emit: Emit, events: dict[str, EventDecl]) -> None:
+def emit_event_union(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]) -> None:
     if not events:
         return
     emit("pub const UnknownEvent = struct {")
@@ -1627,12 +1680,12 @@ def emit_event_union(emit: Emit, events: dict[str, EventDecl]) -> None:
     with emit.block():
         emit("unknown: UnknownEvent,")
         for name in sorted(events, key=lambda n: events[n].number):
-            emit(f"{event_tag_name(name)}: {event_struct_name(name)},")
+            emit(f"{event_tag_name(module, name)}: {event_struct_name(name)},")
     emit("};")
     emit()
 
 
-def emit_decode_event(emit: Emit, events: dict[str, EventDecl]) -> None:
+def emit_decode_event(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]) -> None:
     if not events:
         return
     emit("pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {")
@@ -1643,7 +1696,7 @@ def emit_decode_event(emit: Emit, events: dict[str, EventDecl]) -> None:
             for name in sorted(events, key=lambda n: events[n].number):
                 decl = events[name]
                 emit(
-                    f'{decl.number} => .{{ .{event_tag_name(name)} = try {event_struct_name(name)}.decode(reader) }},'
+                    f'{decl.number} => .{{ .{event_tag_name(module, name)} = try {event_struct_name(name)}.decode(reader) }},'
                 )
             emit("else => blk: {")
             with emit.block():
@@ -1691,9 +1744,131 @@ def render_module(module: ModuleIR) -> str:
     for name in sorted(module.events, key=lambda n: module.events[n].number):
         emit_event_decl(emit, module.events[name])
     if module.events:
-        emit_event_union(emit, module.events)
-        emit_decode_event(emit, module.events)
+        emit_event_union(emit, module, module.events)
+        emit_decode_event(emit, module, module.events)
 
+    return emit.render()
+
+
+def event_modules(modules: dict[str, ModuleIR]) -> tuple[ModuleIR, ...]:
+    return tuple(module for module in modules.values() if module.events)
+
+
+def emit_global_events_prelude(emit: Emit, modules: tuple[ModuleIR, ...]) -> None:
+    emit("// zig fmt: off")
+    emit("// This file is generated by tools/genproto.py")
+    emit()
+    emit('const std = @import("std");')
+    emit('const errors = @import("../_errors.zig");')
+    emit('const extensions = @import("../_ext.zig");')
+    for module in modules:
+        emit(f'const {module.header} = @import("{module.header}.zig");')
+    emit("const DecodeError = errors.DecodeError;")
+    emit()
+
+
+def emit_global_wrap_event(emit: Emit) -> None:
+    emit("pub fn wrapEvent(comptime GlobalEvent: type, local_event: anytype) GlobalEvent {")
+    with emit.block():
+        emit("return switch (local_event) {")
+        with emit.block():
+            emit(".unknown => |ev| .{ .Unknown = .{")
+            with emit.block():
+                emit(".code = ev.code,")
+                emit(".sequence = ev.sequence,")
+                emit(".raw = ev.raw,")
+            emit("} },")
+            emit('inline else => |ev, tag| @unionInit(GlobalEvent, @tagName(tag), ev),')
+        emit("};")
+    emit("}")
+    emit()
+
+
+def emit_global_unknown_event(emit: Emit) -> None:
+    emit("pub const UnknownEvent = struct {")
+    with emit.block():
+        emit("code: u8,")
+        emit("sequence: u16,")
+        emit("raw: [32]u8,")
+    emit("};")
+    emit()
+
+
+def emit_global_event_union(emit: Emit, modules: tuple[ModuleIR, ...]) -> None:
+    emit("pub const Event = union(enum) {")
+    with emit.block():
+        emit("Unknown: UnknownEvent,")
+        for module in modules:
+            for name in sorted(module.events, key=lambda n: module.events[n].number):
+                emit(f"{event_tag_name(module, name)}: {module.header}.{event_struct_name(name)},")
+    emit("};")
+    emit()
+
+
+def emit_decode_packet_event(emit: Emit) -> None:
+    emit("fn decodePacketEvent(comptime decode_fn: anytype, packet: [32]u8) DecodeError!Event {")
+    with emit.block():
+        emit("var packet_copy = packet;")
+        emit("var reader: std.Io.Reader = .fixed(&packet_copy);")
+        emit("return wrapEvent(Event, try decode_fn(&reader));")
+    emit("}")
+    emit()
+
+
+def extension_max_event_num(module: ModuleIR) -> int:
+    if not module.events:
+        return 0
+    return max(event.number for event in module.events.values())
+
+
+def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> None:
+    emit("pub const ExtensionEventSpec = struct {")
+    with emit.block():
+        emit("max_event_num: u8,")
+        emit("decode: *const fn ([32]u8) DecodeError!Event,")
+    emit("};")
+    emit()
+
+    extension_modules = tuple(module for module in modules if module.extension_xname is not None)
+    for module in extension_modules:
+        emit(f"const {module.header}_event_spec: ExtensionEventSpec = .{{")
+        with emit.block():
+            emit(f".max_event_num = {extension_max_event_num(module)},")
+            emit(".decode = struct {")
+            with emit.block():
+                emit("fn f(packet: [32]u8) DecodeError!Event {")
+                with emit.block():
+                    emit(f"return decodePacketEvent({module.header}.decodeEvent, packet);")
+                emit("}")
+            emit("}.f,")
+        emit("};")
+        emit()
+
+    emit("pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {")
+    with emit.block():
+        emit("return switch (extension) {")
+        with emit.block():
+            handled = False
+            for module in extension_modules:
+                if not module.events:
+                    continue
+                handled = True
+                emit(f".{zig_extension_name(module.extension_xname)} => &{module.header}_event_spec,")
+            emit("else => null," if handled else "else => null,")
+        emit("};")
+    emit("}")
+    emit()
+
+
+def render_global_events(modules: dict[str, ModuleIR]) -> str:
+    emit = Emit()
+    event_mods = event_modules(modules)
+    emit_global_events_prelude(emit, event_mods)
+    emit_global_unknown_event(emit)
+    emit_global_event_union(emit, event_mods)
+    emit_global_wrap_event(emit)
+    emit_decode_packet_event(emit)
+    emit_extension_event_specs(emit, event_mods)
     return emit.render()
 
 
@@ -1722,6 +1897,9 @@ def main() -> None:
             f" enums={len(module.enums)}"
             f" imports={len(module.imports)}"
         )
+    events_out_path = OUT_DIR / "events.zig"
+    events_out_path.write_text(render_global_events(resolved_modules) + "\n")
+    print(f"generated file={events_out_path} modules={len(event_modules(resolved_modules))}")
 
 
 if __name__ == "__main__":

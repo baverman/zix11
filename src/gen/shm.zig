@@ -351,13 +351,13 @@ pub const UnknownEvent = struct {
 
 pub const Event = union(enum) {
     unknown: UnknownEvent,
-    Completion: CompletionEvent,
+    ShmCompletion: CompletionEvent,
 };
 
 pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
-        0 => .{ .Completion = try CompletionEvent.decode(reader) },
+        0 => .{ .ShmCompletion = try CompletionEvent.decode(reader) },
         else => blk: {
             const packet = try reader.take(32);
             var raw: [32]u8 = undefined;
