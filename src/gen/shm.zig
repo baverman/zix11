@@ -5,6 +5,7 @@ const std = @import("std");
 const wire = @import("../_wire.zig");
 const errors = @import("../_errors.zig");
 const extensions = @import("../_ext.zig");
+const global_events = @import("events.zig");
 const xproto = @import("xproto.zig");
 const EncodeError = errors.EncodeError;
 const DecodeError = errors.DecodeError;
@@ -343,18 +344,7 @@ pub const CompletionEvent = struct {
     }
 };
 
-pub const UnknownEvent = struct {
-    code: u8,
-    sequence: u16,
-    raw: [32]u8,
-};
-
-pub const Event = union(enum) {
-    unknown: UnknownEvent,
-    ShmCompletion: CompletionEvent,
-};
-
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
+pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .ShmCompletion = try CompletionEvent.decode(reader) },
@@ -362,7 +352,7 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {
             const packet = try reader.take(32);
             var raw: [32]u8 = undefined;
             @memcpy(raw[0..], packet);
-            break :blk .{ .unknown = .{
+            break :blk .{ .Unknown = .{
                 .code = packet[0] & 0x7f,
                 .sequence = std.mem.readInt(u16, packet[2..4], .native),
                 .raw = raw,

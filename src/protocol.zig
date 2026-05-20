@@ -68,13 +68,13 @@ pub const Protocol = struct {
                 self.last_protocol_error = parseProtocolError(packet);
                 continue;
             }
-            return try self.decodeEventPacket(packet);
+            return try events.decodeEvent(&self.extensions, packet);
         }
     }
 
     pub fn pendingEvent(self: *Protocol) !?events.Event {
         if (self.pending_events.popFront()) |raw| {
-            return try self.decodeEventPacket(&raw);
+            return try events.decodeEvent(&self.extensions, &raw);
         }
         return null;
     }
@@ -155,34 +155,6 @@ pub const Protocol = struct {
             .error_spec = errors.errorSpec(extension),
             .event_spec = events.eventSpec(extension),
         });
-    }
-
-    fn decodeEventPacket(self: *Protocol, packet: []const u8) !events.Event {
-        var raw: [32]u8 = undefined;
-        std.debug.assert(packet.len == 32);
-        @memcpy(raw[0..], packet[0..32]);
-
-        const wire_code = raw[0] & 0x7f;
-        if (wire_code >= 2 and wire_code <= 35) {
-            var reader: std.Io.Reader = .fixed(&raw);
-            return events.wrapEvent(events.Event, try x.decodeEvent(&reader));
-        }
-
-        var it = self.extensions.iterator();
-        while (it.next()) |entry| {
-            const info = entry.value;
-            const spec = info.event_spec orelse continue;
-            if (wire_code >= info.first_event and wire_code <= info.first_event + spec.max_event_num) {
-                raw[0] = (raw[0] & 0x80) | (wire_code - info.first_event);
-                return try spec.decode(raw);
-            }
-        }
-
-        return .{ .Unknown = .{
-            .code = wire_code,
-            .sequence = std.mem.readInt(u16, raw[2..4], .native),
-            .raw = raw,
-        } };
     }
 
     pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) !void {

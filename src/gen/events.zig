@@ -58,53 +58,24 @@ pub const Event = union(enum) {
     XFixesCursorNotify: xfixes.CursorNotifyEvent,
 };
 
-pub fn wrapEvent(comptime GlobalEvent: type, local_event: anytype) GlobalEvent {
-    return switch (local_event) {
-        .unknown => |ev| .{ .Unknown = .{
-            .code = ev.code,
-            .sequence = ev.sequence,
-            .raw = ev.raw,
-        } },
-        inline else => |ev, tag| @unionInit(GlobalEvent, @tagName(tag), ev),
-    };
-}
-
-fn decodePacketEvent(comptime decode_fn: anytype, packet: [32]u8) DecodeError!Event {
-    var packet_copy = packet;
-    var reader: std.Io.Reader = .fixed(&packet_copy);
-    return wrapEvent(Event, try decode_fn(&reader));
-}
-
 pub const ExtensionEventSpec = struct {
     max_event_num: u8,
-    decode: *const fn ([32]u8) DecodeError!Event,
+    decode: *const fn (*std.Io.Reader) DecodeError!Event,
 };
 
 const shm_event_spec: ExtensionEventSpec = .{
     .max_event_num = 0,
-    .decode = struct {
-        fn f(packet: [32]u8) DecodeError!Event {
-            return decodePacketEvent(shm.decodeEvent, packet);
-        }
-    }.f,
+    .decode = shm.decodeEvent,
 };
 
 const shape_event_spec: ExtensionEventSpec = .{
     .max_event_num = 0,
-    .decode = struct {
-        fn f(packet: [32]u8) DecodeError!Event {
-            return decodePacketEvent(shape.decodeEvent, packet);
-        }
-    }.f,
+    .decode = shape.decodeEvent,
 };
 
 const xfixes_event_spec: ExtensionEventSpec = .{
     .max_event_num = 1,
-    .decode = struct {
-        fn f(packet: [32]u8) DecodeError!Event {
-            return decodePacketEvent(xfixes.decodeEvent, packet);
-        }
-    }.f,
+    .decode = xfixes.decodeEvent,
 };
 
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {

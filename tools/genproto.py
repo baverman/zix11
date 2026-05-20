@@ -1048,6 +1048,8 @@ def emit_prelude(emit: Emit, module: ModuleIR) -> None:
     emit('const wire = @import("../_wire.zig");')
     emit('const errors = @import("../_errors.zig");')
     emit('const extensions = @import("../_ext.zig");')
+    if module.events:
+        emit('const global_events = @import("events.zig");')
     for imported in module.imports:
         emit(f'const {imported} = @import("{imported}.zig");')
     emit("const EncodeError = errors.EncodeError;")
@@ -1665,30 +1667,10 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
     emit()
 
 
-def emit_event_union(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]) -> None:
-    if not events:
-        return
-    emit("pub const UnknownEvent = struct {")
-    with emit.block():
-        emit("code: u8,")
-        emit("sequence: u16,")
-        emit("raw: [32]u8,")
-    emit("};")
-    emit()
-
-    emit("pub const Event = union(enum) {")
-    with emit.block():
-        emit("unknown: UnknownEvent,")
-        for name in sorted(events, key=lambda n: events[n].number):
-            emit(f"{event_tag_name(module, name)}: {event_struct_name(name)},")
-    emit("};")
-    emit()
-
-
 def emit_decode_event(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]) -> None:
     if not events:
         return
-    emit("pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!Event {")
+    emit("pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {")
     with emit.block():
         emit("const code = (try reader.peek(1))[0] & 0x7f;")
         emit("return switch (code) {")
@@ -1703,7 +1685,7 @@ def emit_decode_event(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]
                 emit("const packet = try reader.take(32);")
                 emit("var raw: [32]u8 = undefined;")
                 emit("@memcpy(raw[0..], packet);")
-                emit("break :blk .{ .unknown = .{")
+                emit("break :blk .{ .Unknown = .{")
                 with emit.block():
                     emit(".code = packet[0] & 0x7f,")
                     emit(".sequence = std.mem.readInt(u16, packet[2..4], .native),")
@@ -1744,7 +1726,6 @@ def render_module(module: ModuleIR) -> str:
     for name in sorted(module.events, key=lambda n: module.events[n].number):
         emit_event_decl(emit, module.events[name])
     if module.events:
-        emit_event_union(emit, module, module.events)
         emit_decode_event(emit, module, module.events)
 
     return emit.render()
@@ -1764,23 +1745,6 @@ def emit_global_events_prelude(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
     for module in modules:
         emit(f'const {module.header} = @import("{module.header}.zig");')
     emit("const DecodeError = errors.DecodeError;")
-    emit()
-
-
-def emit_global_wrap_event(emit: Emit) -> None:
-    emit("pub fn wrapEvent(comptime GlobalEvent: type, local_event: anytype) GlobalEvent {")
-    with emit.block():
-        emit("return switch (local_event) {")
-        with emit.block():
-            emit(".unknown => |ev| .{ .Unknown = .{")
-            with emit.block():
-                emit(".code = ev.code,")
-                emit(".sequence = ev.sequence,")
-                emit(".raw = ev.raw,")
-            emit("} },")
-            emit('inline else => |ev, tag| @unionInit(GlobalEvent, @tagName(tag), ev),')
-        emit("};")
-    emit("}")
     emit()
 
 
@@ -1805,16 +1769,6 @@ def emit_global_event_union(emit: Emit, modules: tuple[ModuleIR, ...]) -> None:
     emit()
 
 
-def emit_decode_packet_event(emit: Emit) -> None:
-    emit("fn decodePacketEvent(comptime decode_fn: anytype, packet: [32]u8) DecodeError!Event {")
-    with emit.block():
-        emit("var packet_copy = packet;")
-        emit("var reader: std.Io.Reader = .fixed(&packet_copy);")
-        emit("return wrapEvent(Event, try decode_fn(&reader));")
-    emit("}")
-    emit()
-
-
 def extension_max_event_num(module: ModuleIR) -> int:
     if not module.events:
         return 0
@@ -1825,7 +1779,7 @@ def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
     emit("pub const ExtensionEventSpec = struct {")
     with emit.block():
         emit("max_event_num: u8,")
-        emit("decode: *const fn ([32]u8) DecodeError!Event,")
+        emit("decode: *const fn (*std.Io.Reader) DecodeError!Event,")
     emit("};")
     emit()
 
@@ -1834,13 +1788,7 @@ def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
         emit(f"const {module.header}_event_spec: ExtensionEventSpec = .{{")
         with emit.block():
             emit(f".max_event_num = {extension_max_event_num(module)},")
-            emit(".decode = struct {")
-            with emit.block():
-                emit("fn f(packet: [32]u8) DecodeError!Event {")
-                with emit.block():
-                    emit(f"return decodePacketEvent({module.header}.decodeEvent, packet);")
-                emit("}")
-            emit("}.f,")
+            emit(f".decode = {module.header}.decodeEvent,")
         emit("};")
         emit()
 
@@ -1866,8 +1814,6 @@ def render_global_events(modules: dict[str, ModuleIR]) -> str:
     emit_global_events_prelude(emit, event_mods)
     emit_global_unknown_event(emit)
     emit_global_event_union(emit, event_mods)
-    emit_global_wrap_event(emit)
-    emit_decode_packet_event(emit)
     emit_extension_event_specs(emit, event_mods)
     return emit.render()
 
