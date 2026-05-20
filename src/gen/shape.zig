@@ -69,7 +69,7 @@ pub const GetRectanglesReply = struct {
     rectangles: []xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 4 + 20 + wire.structListByteLen(self.rectangles);
+        return 1 + 4 + 20 + self.rectangles.len * 8;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -399,7 +399,7 @@ pub const Rectangles = struct {
     rectangles: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 1 + 1 + 1 + 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
+        return 1 + 1 + 1 + 1 + 4 + 2 + 2 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {

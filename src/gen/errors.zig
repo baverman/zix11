@@ -5,6 +5,7 @@ const std = @import("std");
 const extensions = @import("../_ext.zig");
 const xproto = @import("xproto.zig");
 const render = @import("render.zig");
+const randr = @import("randr.zig");
 const shm = @import("shm.zig");
 const xfixes = @import("xfixes.zig");
 
@@ -40,6 +41,10 @@ pub const TaggedError = union(enum) {
     RenderPictOp: ProtocolError,
     RenderGlyphSet: ProtocolError,
     RenderGlyph: ProtocolError,
+    RandrBadOutput: ProtocolError,
+    RandrBadCrtc: ProtocolError,
+    RandrBadMode: ProtocolError,
+    RandrBadProvider: ProtocolError,
     ShmBadSeg: ProtocolError,
     XFixesBadRegion: ProtocolError,
     Unknown: ProtocolError,
@@ -80,6 +85,16 @@ fn decodeRenderError(code: u8, raw: ProtocolError) ?TaggedError {
     };
 }
 
+fn decodeRandrError(code: u8, raw: ProtocolError) ?TaggedError {
+    return switch (code) {
+        0 => .{ .RandrBadOutput = raw },
+        1 => .{ .RandrBadCrtc = raw },
+        2 => .{ .RandrBadMode = raw },
+        3 => .{ .RandrBadProvider = raw },
+        else => null,
+    };
+}
+
 fn decodeShmError(code: u8, raw: ProtocolError) ?TaggedError {
     return switch (code) {
         0 => .{ .ShmBadSeg = raw },
@@ -113,6 +128,11 @@ const render_error_spec: ExtensionErrorSpec = .{
     .decode = decodeRenderError,
 };
 
+const randr_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 3,
+    .decode = decodeRandrError,
+};
+
 const shm_error_spec: ExtensionErrorSpec = .{
     .max_error_num = 0,
     .decode = decodeShmError,
@@ -127,6 +147,7 @@ pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
         .CORE => &xproto_error_spec,
         .RENDER => &render_error_spec,
+        .RANDR => &randr_error_spec,
         .MIT_SHM => &shm_error_spec,
         .XFIXES => &xfixes_error_spec,
         else => null,

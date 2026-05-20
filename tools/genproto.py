@@ -17,6 +17,7 @@ XML_DIR = Path("/usr/share/xcb")
 XML_PATHS = (
     XML_DIR / "xproto.xml",
     XML_DIR / "render.xml",
+    XML_DIR / "randr.xml",
     XML_DIR / "shm.xml",
     XML_DIR / "shape.xml",
     XML_DIR / "xfixes.xml",
@@ -211,7 +212,7 @@ class StructType:
         return f"{value_expr}.byteLen()"
 
     def fixed_wire_size(self) -> int | None:
-        return None
+        return None if self.decl is None else self.decl.fixed_wire_size
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f"try {value_expr}.encode(writer);")
@@ -541,6 +542,29 @@ class StructDecl:
                 if item.type_ref.is_dynamic:
                     return True
         return False
+
+    @cached_property
+    def fixed_wire_size(self) -> int | None:
+        total = 0
+        for item in self.items:
+            if isinstance(item, FieldItem):
+                size = item.type_ref.fixed_wire_size()
+                if size is None:
+                    return None
+                total += size
+                continue
+            if isinstance(item, PadBytesItem):
+                total += item.count
+                continue
+            if isinstance(item, ListItem):
+                fixed_size = item.item_type.fixed_wire_size()
+                fixed_count = item.fixed_count()
+                if fixed_size is None or fixed_count is None:
+                    return None
+                total += fixed_size * fixed_count
+                continue
+            return None
+        return total
 
 
 @dataclass(frozen=True)

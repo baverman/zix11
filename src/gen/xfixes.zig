@@ -255,7 +255,7 @@ pub const CreateRegion = struct {
     rectangles: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + wire.structListByteLen(self.rectangles);
+        return 4 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -459,7 +459,7 @@ pub const FetchRegionReply = struct {
     rectangles: []xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + self.extents.byteLen() + 16 + wire.structListByteLen(self.rectangles);
+        return 1 + self.extents.byteLen() + 16 + self.rectangles.len * 8;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -1155,7 +1155,7 @@ pub const SetRegion = struct {
     rectangles: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + wire.structListByteLen(self.rectangles);
+        return 4 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {

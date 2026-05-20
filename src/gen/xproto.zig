@@ -1010,7 +1010,7 @@ pub const DEPTH = struct {
     visuals: []VISUALTYPE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 1 + 2 + 4 + wire.structListByteLen(self.visuals);
+        return 1 + 1 + 2 + 4 + self.visuals.len * 24;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -1408,7 +1408,7 @@ pub const Setup = struct {
     roots: []SCREEN,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 1 + 2 + 2 + 2 + 4 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + self.vendor.len + wire.pad4(self.vendor.len) + wire.structListByteLen(self.pixmap_formats) + wire.structListByteLen(self.roots);
+        return 1 + 1 + 2 + 2 + 2 + 4 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + self.vendor.len + wire.pad4(self.vendor.len) + self.pixmap_formats.len * 8 + wire.structListByteLen(self.roots);
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -3130,7 +3130,7 @@ pub const FillPoly = struct {
     points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + 1 + 1 + 2 + wire.structListByteLen(self.points);
+        return 4 + 4 + 1 + 1 + 2 + self.points.len * 4;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -3818,7 +3818,7 @@ pub const GetMotionEventsReply = struct {
     events: []TIMECOORD,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 4 + 20 + wire.structListByteLen(self.events);
+        return 1 + 4 + 20 + self.events.len * 8;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -4511,7 +4511,7 @@ pub const ImageText16 = struct {
     string: []const CHAR2B,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + 2 + 2 + wire.structListByteLen(self.string);
+        return 4 + 4 + 2 + 2 + self.string.len * 2;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -4806,7 +4806,7 @@ pub const ListFontsWithInfoReply = struct {
     name: []const u8,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + self.name.len;
+        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + self.properties.len * 8 + self.name.len;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -5289,7 +5289,7 @@ pub const PolyArc = struct {
     arcs: []const ARC,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.arcs);
+        return 4 + 4 + self.arcs.len * 12;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5317,7 +5317,7 @@ pub const PolyFillArc = struct {
     arcs: []const ARC,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.arcs);
+        return 4 + 4 + self.arcs.len * 12;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5345,7 +5345,7 @@ pub const PolyFillRectangle = struct {
     rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.rectangles);
+        return 4 + 4 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5374,7 +5374,7 @@ pub const PolyLine = struct {
     points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.points);
+        return 4 + 4 + self.points.len * 4;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5402,7 +5402,7 @@ pub const PolyPoint = struct {
     points: []const POINT,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.points);
+        return 4 + 4 + self.points.len * 4;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5429,7 +5429,7 @@ pub const PolyRectangle = struct {
     rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.rectangles);
+        return 4 + 4 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5457,7 +5457,7 @@ pub const PolySegment = struct {
     segments: []const SEGMENT,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + wire.structListByteLen(self.segments);
+        return 4 + 4 + self.segments.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -5635,7 +5635,7 @@ pub const QueryColorsReply = struct {
     colors: []RGB,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 2 + 22 + wire.structListByteLen(self.colors);
+        return 1 + 2 + 22 + self.colors.len * 8;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -5777,7 +5777,7 @@ pub const QueryFontReply = struct {
     char_infos: []CHARINFO,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + wire.structListByteLen(self.properties) + wire.structListByteLen(self.char_infos);
+        return 1 + self.min_bounds.byteLen() + 4 + self.max_bounds.byteLen() + 4 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 2 + 4 + self.properties.len * 8 + self.char_infos.len * 12;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -6243,7 +6243,7 @@ pub const SetClipRectangles = struct {
     rectangles: []const RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
+        return 4 + 2 + 2 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -6518,7 +6518,7 @@ pub const StoreColors = struct {
     items: []const COLORITEM,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + wire.structListByteLen(self.items);
+        return 4 + self.items.len * 12;
     }
 
     pub fn headerByte1(self: @This()) u8 {

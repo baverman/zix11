@@ -361,7 +361,7 @@ pub const PICTDEPTH = struct {
     visuals: []PICTVISUAL,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 1 + 2 + 4 + wire.structListByteLen(self.visuals);
+        return 1 + 1 + 2 + 4 + self.visuals.len * 8;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -705,7 +705,7 @@ pub const AddGlyphs = struct {
     data: []const u8,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 4 + self.glyphids.len * 4 + wire.structListByteLen(self.glyphs) + self.data.len;
+        return 4 + 4 + self.glyphids.len * 4 + self.glyphs.len * 12 + self.data.len;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -738,7 +738,7 @@ pub const AddTraps = struct {
     traps: []const TRAP,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 2 + 2 + wire.structListByteLen(self.traps);
+        return 4 + 2 + 2 + self.traps.len * 24;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -983,7 +983,7 @@ pub const CreateAnimCursor = struct {
     cursors: []const ANIMCURSORELT,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + wire.structListByteLen(self.cursors);
+        return 4 + self.cursors.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1012,7 +1012,7 @@ pub const CreateConicalGradient = struct {
     colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + self.center.byteLen() + 4 + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
+        return 4 + self.center.byteLen() + 4 + 4 + self.stops.len * 4 + self.colors.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1101,7 +1101,7 @@ pub const CreateLinearGradient = struct {
     colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + self.p1.byteLen() + self.p2.byteLen() + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
+        return 4 + self.p1.byteLen() + self.p2.byteLen() + 4 + self.stops.len * 4 + self.colors.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1202,7 +1202,7 @@ pub const CreateRadialGradient = struct {
     colors: []const COLOR,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + self.inner.byteLen() + self.outer.byteLen() + 4 + 4 + 4 + self.stops.len * 4 + wire.structListByteLen(self.colors);
+        return 4 + self.inner.byteLen() + self.outer.byteLen() + 4 + 4 + 4 + self.stops.len * 4 + self.colors.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1262,7 +1262,7 @@ pub const FillRectangles = struct {
     rects: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 3 + 4 + self.color.byteLen() + wire.structListByteLen(self.rects);
+        return 1 + 3 + 4 + self.color.byteLen() + self.rects.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1445,7 +1445,7 @@ pub const QueryPictFormatsReply = struct {
     subpixels: []const SubPixel,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 4 + 4 + 4 + 4 + 4 + 4 + wire.structListByteLen(self.formats) + wire.structListByteLen(self.screens) + self.subpixels.len * 4;
+        return 1 + 4 + 4 + 4 + 4 + 4 + 4 + self.formats.len * 28 + wire.structListByteLen(self.screens) + self.subpixels.len * 4;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -1548,7 +1548,7 @@ pub const QueryPictIndexValuesReply = struct {
     values: []INDEXVALUE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 4 + 20 + wire.structListByteLen(self.values);
+        return 1 + 4 + 20 + self.values.len * 12;
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
@@ -1702,7 +1702,7 @@ pub const SetPictureClipRectangles = struct {
     rectangles: []const xproto.RECTANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 4 + 2 + 2 + wire.structListByteLen(self.rectangles);
+        return 4 + 2 + 2 + self.rectangles.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1790,7 +1790,7 @@ pub const Trapezoids = struct {
     traps: []const TRAPEZOID,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.traps);
+        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + self.traps.len * 40;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1827,7 +1827,7 @@ pub const TriFan = struct {
     points: []const POINTFIX,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.points);
+        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + self.points.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1864,7 +1864,7 @@ pub const TriStrip = struct {
     points: []const POINTFIX,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.points);
+        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + self.points.len * 8;
     }
 
     pub fn headerByte1(self: @This()) u8 {
@@ -1901,7 +1901,7 @@ pub const Triangles = struct {
     triangles: []const TRIANGLE,
 
     pub fn byteLen(self: @This()) usize {
-        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + wire.structListByteLen(self.triangles);
+        return 1 + 3 + 4 + 4 + 4 + 2 + 2 + self.triangles.len * 24;
     }
 
     pub fn headerByte1(self: @This()) u8 {
