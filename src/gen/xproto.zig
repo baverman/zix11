@@ -171,10 +171,8 @@ pub const Fontable = union(enum) {
     }
 };
 
-pub const ClientMessageData = extern union {
-    data8: [20]u8,
-    data16: [10]u16,
-    data32: [5]u32,
+pub const ClientMessageData = struct {
+    raw: [20]u8,
 
     pub fn byteLen(self: @This()) usize {
         _ = self;
@@ -182,14 +180,71 @@ pub const ClientMessageData = extern union {
     }
 
     pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {
-        const raw: [20]u8 = @bitCast(self);
-        try writer.writeAll(raw[0..]);
+        try writer.writeAll(self.raw[0..]);
     }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         var raw: [20]u8 = undefined;
         @memcpy(raw[0..], try reader.take(20));
-        return @bitCast(raw);
+        return .{ .raw = raw };
+    }
+
+    pub fn fromData8(value: [20]u8) EncodeError!@This() {
+        var raw = std.mem.zeroes([20]u8);
+        var writer_impl: std.Io.Writer = .fixed(&raw);
+        const writer = &writer_impl;
+        try writer.writeAll(value[0..]);
+        return .{ .raw = raw };
+    }
+
+    pub fn asData8(self: @This()) DecodeError![20]u8 {
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
+        var value: [20]u8 = undefined;
+        @memcpy(value[0..], try reader.take(20));
+        return value;
+    }
+
+    pub fn fromData16(value: [10]u16) EncodeError!@This() {
+        var raw = std.mem.zeroes([20]u8);
+        var writer_impl: std.Io.Writer = .fixed(&raw);
+        const writer = &writer_impl;
+        for (value) |elem| {
+            try writer.writeInt(u16, elem, .native);
+        }
+        return .{ .raw = raw };
+    }
+
+    pub fn asData16(self: @This()) DecodeError![10]u16 {
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
+        var value: [10]u16 = undefined;
+        for (&value) |*elem| {
+            const elem_value = try reader.takeInt(u16, .native);
+            elem.* = elem_value;
+        }
+        return value;
+    }
+
+    pub fn fromData32(value: [5]u32) EncodeError!@This() {
+        var raw = std.mem.zeroes([20]u8);
+        var writer_impl: std.Io.Writer = .fixed(&raw);
+        const writer = &writer_impl;
+        for (value) |elem| {
+            try writer.writeInt(u32, elem, .native);
+        }
+        return .{ .raw = raw };
+    }
+
+    pub fn asData32(self: @This()) DecodeError![5]u32 {
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
+        var value: [5]u32 = undefined;
+        for (&value) |*elem| {
+            const elem_value = try reader.takeInt(u32, .native);
+            elem.* = elem_value;
+        }
+        return value;
     }
 };
 

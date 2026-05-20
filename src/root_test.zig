@@ -85,7 +85,8 @@ test "Event.toBytes" {
     var expected: [8]u8 = undefined;
     std.mem.writeInt(u32, expected[0..4], 10, .native);
     std.mem.writeInt(u32, expected[4..8], 20, .native);
-    try std.testing.expectEqualSlices(u8, &expected, event.data.data8[0..8]);
+    const actual = try event.data.asData8();
+    try std.testing.expectEqualSlices(u8, &expected, actual[0..8]);
 }
 
 test "ConfigureWindow" {

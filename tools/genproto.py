@@ -1119,19 +1119,9 @@ def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
 
 
 def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
-    emit(f"pub const {decl.name} = extern union {{")
+    emit(f"pub const {decl.name} = struct {{")
     with emit.block():
-        pad_index = 0
-        for item in decl.items:
-            if isinstance(item, FieldItem):
-                item.emit_decl(emit)
-            elif isinstance(item, ListItem):
-                item.emit_decl(emit)
-            elif isinstance(item, PadBytesItem):
-                emit(f"_pad{pad_index}: [{item.count}]u8,")
-                pad_index += 1
-            else:
-                raise NotImplementedError(f"unsupported union item emission: {item!r}")
+        emit(f"raw: [{decl.raw_size}]u8,")
         emit()
         emit("pub fn byteLen(self: @This()) usize {")
         with emit.block():
@@ -1141,16 +1131,72 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
         emit()
         emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
         with emit.block():
-            emit(f"const raw: [{decl.raw_size}]u8 = @bitCast(self);")
-            emit("try writer.writeAll(raw[0..]);")
+            emit("try writer.writeAll(self.raw[0..]);")
         emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             emit(f"var raw: [{decl.raw_size}]u8 = undefined;")
             emit(f"@memcpy(raw[0..], try reader.take({decl.raw_size}));")
-            emit("return @bitCast(raw);")
+            emit("return .{ .raw = raw };")
         emit("}")
+        for item in decl.items:
+            if isinstance(item, PadBytesItem):
+                continue
+            emit()
+            suffix = zig_enum_item_name(item.name)
+            if isinstance(item, FieldItem):
+                type_name = item.type_ref.render_zig()
+            elif isinstance(item, ListItem):
+                fixed_count = item.fixed_count()
+                if fixed_count is None:
+                    raise NotImplementedError(f"union list requires fixed count: {item.name}")
+                type_name = f"[{fixed_count}]{item.item_type.render_zig()}"
+            else:
+                raise NotImplementedError(f"unsupported union item method emission: {item!r}")
+            emit(f"pub fn from{suffix}(value: {type_name}) EncodeError!@This() {{")
+            with emit.block():
+                emit(f"var raw = std.mem.zeroes([{decl.raw_size}]u8);")
+                emit("var writer_impl: std.Io.Writer = .fixed(&raw);")
+                emit("const writer = &writer_impl;")
+                if isinstance(item, FieldItem):
+                    item.type_ref.emit_encode(emit, "value")
+                else:
+                    fixed_size = item.item_type.fixed_wire_size()
+                    assert fixed_size is not None
+                    if fixed_size == 1:
+                        emit("try writer.writeAll(value[0..]);")
+                    else:
+                        emit("for (value) |elem| {")
+                        with emit.block():
+                            item.item_type.emit_encode(emit, "elem")
+                        emit("}")
+                emit("return .{ .raw = raw };")
+            emit("}")
+            emit()
+            emit(f"pub fn as{suffix}(self: @This()) DecodeError!{type_name} {{")
+            with emit.block():
+                emit("var reader_impl: std.Io.Reader = .fixed(&self.raw);")
+                emit("const reader = &reader_impl;")
+                if isinstance(item, FieldItem):
+                    item.type_ref.emit_decode(emit, "value")
+                else:
+                    fixed_count = item.fixed_count()
+                    assert fixed_count is not None
+                    elem_type = item.item_type.render_zig()
+                    fixed_size = item.item_type.fixed_wire_size()
+                    assert fixed_size is not None
+                    emit(f"var value: [{fixed_count}]{elem_type} = undefined;")
+                    if fixed_size == 1:
+                        emit(f"@memcpy(value[0..], try reader.take({fixed_count}));")
+                    else:
+                        emit("for (&value) |*elem| {")
+                        with emit.block():
+                            item.item_type.emit_decode(emit, "elem_value")
+                            emit("elem.* = elem_value;")
+                        emit("}")
+                emit("return value;")
+            emit("}")
     emit("};")
     emit()
 
