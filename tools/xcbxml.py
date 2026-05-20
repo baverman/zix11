@@ -48,14 +48,16 @@ class Field:
     mask: str | None = None
     enum: str | None = None
     altenum: str | None = None
+    altmask: str | None = None
 
 
 @dataclass
 class ListField:
     name: str
     item_type: str
-    len_expr: None | FieldRef | Op | int
+    len_expr: None | FieldRef | Op | SumOf | int
     enum: str | None = None
+    mask: str | None = None
 
     @staticmethod
     def make(attrs: Attrs) -> ListField:
@@ -95,6 +97,50 @@ class SwitchItem:
 
 
 @dataclass
+class RequiredStartAlign:
+    align: int
+    offset: int
+
+    @staticmethod
+    def make(attrs: Attrs) -> RequiredStartAlign:
+        return RequiredStartAlign(
+            align=int(attrs['align']),  # type: ignore[arg-type]
+            offset=int(attrs['offset']),  # type: ignore[arg-type]
+        )
+
+
+@dataclass
+class CaseItem:
+    enum_ref: tuple[str, str]
+    fields: Sequence[RequestDataFields | RequiredStartAlign]
+    name: str | None = None
+
+    @staticmethod
+    def make(attrs: Attrs) -> CaseItem:
+        kids = attrs.pop('@kids')
+        enumref: TextNode = kids.pop('enumref')  # type: ignore[attr-defined]
+        attrs['enum_ref'] = enumref.attrs['ref'], enumref.value
+        attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
+        return CaseItem(**attrs)  # type: ignore[arg-type]
+
+
+@dataclass
+class CaseSwitchField:
+    name: str
+    fieldref: FieldRef
+    items: list[CaseItem]
+    required_start_align: list[RequiredStartAlign]
+
+    @staticmethod
+    def make(attrs: Attrs) -> CaseSwitchField:
+        kids = attrs.pop('@kids')
+        attrs['fieldref'] = kids.pop('fieldref')  # type: ignore[attr-defined]
+        attrs['items'] = kids.pop('case')  # type: ignore[attr-defined]
+        attrs['required_start_align'] = kids.pop('required_start_align')  # type: ignore[attr-defined]
+        return CaseSwitchField(**attrs)  # type: ignore[arg-type]
+
+
+@dataclass
 class Pad:
     count: int | None = None
     align: int | None = None
@@ -114,7 +160,7 @@ class Fd:
 
 
 DataFields = Field | ListField | Pad | Fd
-RequestDataFields = DataFields | SwitchField
+RequestDataFields = DataFields | SwitchField | CaseSwitchField
 
 @dataclass
 class Reply:
@@ -124,7 +170,15 @@ class Reply:
 @dataclass
 class Struct:
     name: str
-    fields: Sequence[DataFields]
+    fields: Sequence[DataFields | CaseSwitchField | RequiredStartAlign]
+    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
+
+    @staticmethod
+    def make(attrs: Attrs) -> Struct:
+        kids = attrs.pop('@kids')
+        attrs['length_expr'] = kids.pop('length')  # type: ignore[attr-defined]
+        attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
+        return Struct(**attrs)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -172,11 +226,13 @@ class Request:
     reply: Reply | None
     fields: Sequence[RequestDataFields]
     combine_adjacent: str | None = None
+    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
 
     @staticmethod
     def make(attrs: Attrs) -> Request:
         attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
         kids = attrs.pop('@kids')
+        attrs['length_expr'] = kids.pop('length')  # type: ignore[attr-defined]
         attrs['reply'] = kids.pop('reply')  # type: ignore[attr-defined]
         attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
         return Request(**attrs)  # type: ignore[arg-type]
@@ -192,14 +248,17 @@ class Request:
 class Event:
     name: str
     number: str
-    fields: Sequence[DataFields]
+    fields: Sequence[DataFields | CaseSwitchField | RequiredStartAlign]
     no_sequence_number: str | None = None
     xge: str | None = None
+    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
 
     @staticmethod
     def make(attrs: Attrs) -> Event:
         attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
-        attrs['fields'] = attrs.pop('@kids')
+        kids = attrs.pop('@kids')
+        attrs['length_expr'] = kids.pop('length')  # type: ignore[attr-defined]
+        attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
         return Event(**attrs)  # type: ignore[arg-type]
 
 
@@ -208,6 +267,31 @@ class EventCopy:
     name: str
     number: str
     ref: str
+
+
+@dataclass
+class AllowedEvent:
+    extension: str
+    xge: str
+    opcode_min: str
+    opcode_max: str
+
+    @staticmethod
+    def make(attrs: Attrs) -> AllowedEvent:
+        attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
+        return AllowedEvent(**attrs)  # type: ignore[arg-type]
+
+
+@dataclass
+class EventStruct:
+    name: str
+    allowed: list[AllowedEvent]
+
+    @staticmethod
+    def make(attrs: Attrs) -> EventStruct:
+        kids = attrs.pop('@kids')
+        attrs['allowed'] = kids.pop('allowed')  # type: ignore[attr-defined]
+        return EventStruct(**attrs)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -250,10 +334,20 @@ class FieldRef:
 
 
 @dataclass
+class ParamRef:
+    ref: str
+    type: str
+
+    @staticmethod
+    def make(attrs: Attrs, value: str) -> ParamRef:
+        return ParamRef(ref=value, type=attrs['type'])  # type: ignore[arg-type]
+
+
+@dataclass
 class Op:
     op: str
-    left: int | FieldRef | Op
-    right: int | FieldRef | Op
+    left: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+    right: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
 
     @staticmethod
     def make(attrs: Attrs) -> Op:
@@ -261,22 +355,78 @@ class Op:
         return Op(**attrs, left=left, right=right)  # type: ignore[arg-type, has-type]
 
 
+@dataclass
+class ListElementRef:
+    @staticmethod
+    def make(attrs: Attrs) -> ListElementRef:
+        _ = attrs
+        return ListElementRef()
+
+
+@dataclass
+class PopCount:
+    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+
+    @staticmethod
+    def make(attrs: Attrs) -> PopCount:
+        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
+        return PopCount(expr=expr)
+
+
+@dataclass
+class SumOf:
+    ref: str
+    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+
+    @staticmethod
+    def make(attrs: Attrs) -> SumOf:
+        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
+        return SumOf(ref=attrs['ref'], expr=expr)  # type: ignore[arg-type]
+
+
 fieldref_item = TextItem('fieldref', cnv=FieldRef.make)
+paramref_item = TextItem('paramref', {'type'}, cnv=ParamRef.make)
+listelement_ref_item = Item('listelement-ref', set(), cnv=ListElementRef.make)
 
 list_items_ref = Ref[OneOf]('list_items')
 list_items = one_of(
     fieldref_item,
+    paramref_item,
     TextItem('value', cnv=node_int),
     Item('op', {'op'}, Seq(list_items_ref, list_items_ref), cnv=Op.make),
+    Item('popcount', set(), Seq(list_items_ref), cnv=PopCount.make),
+    Item('sumof', {'ref'}, Seq(list_items_ref), cnv=SumOf.make),
+    listelement_ref_item,
 )
 
-field_item = Item('field', {'type', 'name', 'mask', 'enum', 'altenum'}, cnv=simple(Field))
+field_item = Item('field', {'type', 'name', 'mask', 'enum', 'altenum', 'altmask'}, cnv=simple(Field))
+required_start_align_item = Item(
+    'required_start_align',
+    {'align', 'offset'},
+    cnv=RequiredStartAlign.make,
+)
 
 bitcase = Item(
     'bitcase',
     set(),
     StructItem(enumref=TextItem('enumref', {'ref'}), field=field_item),
     cnv=SwitchItem.make,
+)
+
+case_items = one_of(
+    field_item,
+    Item('pad', {'bytes', 'align'}, cnv=Pad.make),
+    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item('fd', {'name'}, cnv=simple(Fd)),
+    required_start_align_item,
+    IgnoreItem('doc'),
+)
+
+case = Item(
+    'case',
+    {'name'},
+    StructItem(enumref=TextItem('enumref', {'ref'}), _=Many(case_items)),
+    cnv=CaseItem.make,
 )
 
 switch = Item[SwitchField](
@@ -286,15 +436,26 @@ switch = Item[SwitchField](
     cnv=SwitchField.make,
 )
 
+case_switch = Item[CaseSwitchField](
+    'switch',
+    {'name'},
+    StructItem(fieldref=fieldref_item, required_start_align=Many(required_start_align_item), case=Many(case)),
+    cnv=CaseSwitchField.make,
+)
+
 field_items_tup = (
+    case_switch,
+    switch,
     field_item,
     Item('pad', {'bytes', 'align'}, cnv=Pad.make),
-    Item('list', {'type', 'name', 'enum'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
     Item('fd', {'name'}, cnv=simple(Fd)),
+    required_start_align_item,
     IgnoreItem('doc'),
 )
 field_items = one_of(*field_items_tup)
-request_field_items = one_of(switch, *field_items_tup)
+request_field_items = field_items
+length_item = Item('length', set(), Seq(list_items), cnv=lambda attrs: attrs['@kids'][0])  # type: ignore[index]
 
 reply = Item('reply', set(), Many(field_items), cnv=simple(Reply, 'fields'))
 
@@ -311,11 +472,11 @@ enum_items = one_of(
 request = Item(
     'request',
     {'name', 'opcode', 'combine-adjacent'},
-    StructItem(reply=Opt(reply), _=Many(request_field_items)),
+    StructItem(length=Opt(length_item), reply=Opt(reply), _=Many(request_field_items)),
     cnv=Request.make,
 )
 
-struct = Item('struct', {'name'}, Many(field_items), cnv=simple(Struct, 'fields'))
+struct = Item('struct', {'name'}, StructItem(length=Opt(length_item), _=Many(field_items)), cnv=Struct.make)
 
 xidtype = Item('xidtype', {'name'}, cnv=simple(XidType))
 
@@ -333,11 +494,22 @@ enum = Item('enum', {'name'}, Many(enum_items), cnv=simple(Enum, 'fields'))
 event = Item(
     'event',
     {'name', 'number', 'no-sequence-number', 'xge'},
-    Many(field_items),
+    StructItem(length=Opt(length_item), _=Many(field_items)),
     cnv=Event.make,
 )
 
 eventcopy = Item('eventcopy', {'name', 'number', 'ref'}, cnv=simple(EventCopy))
+allowed_event = Item(
+    'allowed',
+    {'extension', 'xge', 'opcode-min', 'opcode-max'},
+    cnv=AllowedEvent.make,
+)
+eventstruct = Item(
+    'eventstruct',
+    {'name'},
+    StructItem(allowed=Many(allowed_event)),
+    cnv=EventStruct.make,
+)
 
 union = Item('union', {'name'}, Many(field_items), cnv=simple(Union, 'fields'))
 
@@ -358,6 +530,7 @@ class Bindings:
     enum: list[Enum]
     event: list[Event]
     eventcopy: list[EventCopy]
+    eventstruct: list[EventStruct]
     union: list[Union]
     error: list[Error]
     errorcopy: list[ErrorCopy]
@@ -389,6 +562,7 @@ root_item = Item(
         enum=Many(enum),
         event=Many(event),
         eventcopy=Many(eventcopy),
+        eventstruct=Many(eventstruct),
         union=Many(union),
         error=Many(error),
         errorcopy=Many(errorcopy),

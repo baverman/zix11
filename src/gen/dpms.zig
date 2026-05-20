@@ -373,6 +373,9 @@ pub const InfoNotifyEvent = struct {
     length: u32,
     event_type: u16,
     full_sequence: u32,
+    timestamp: u32,
+    power_level: DPMSMode,
+    state: bool,
 
     pub fn toBytes(self: @This()) EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
@@ -385,6 +388,11 @@ pub const InfoNotifyEvent = struct {
         try writer.writeInt(u16, self.event_type, .native);
         try writer.writeInt(u16, 0, .native);
         try writer.writeInt(u32, self.full_sequence, .native);
+        try writer.splatByteAll(0, 2);
+        try writer.writeInt(u32, self.timestamp, .native);
+        try writer.writeInt(u16, @intCast(@intFromEnum(self.power_level)), .native);
+        try writer.writeByte(@intFromBool(self.state));
+        try writer.splatByteAll(0, 21);
         return packet;
     }
 
@@ -396,25 +404,37 @@ pub const InfoNotifyEvent = struct {
         const event_type = try reader.takeInt(u16, .native);
         _ = try reader.take(2);
         const full_sequence = try reader.takeInt(u32, .native);
-        _ = try reader.take(16);
-        _ = try reader.take(@as(usize, length) * 4);
+        _ = try reader.take(2);
+        const timestamp = try reader.takeInt(u32, .native);
+        const power_level = @as(DPMSMode, @enumFromInt(try reader.takeInt(u16, .native)));
+        const state = (try reader.takeByte()) != 0;
+        _ = try reader.take(21);
+        const xge_body_len = 2 + 4 + 2 + 1 + 21;
+        const total_body_len = 16 + @as(usize, length) * 4;
+        if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
             .full_sequence = full_sequence,
+            .timestamp = timestamp,
+            .power_level = power_level,
+            .state = state,
         };
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
-    const code = (try reader.peek(1))[0] & 0x7f;
-    return switch (code) {
-        0 => .{ .DpmsInfoNotify = try InfoNotifyEvent.decode(reader) },
+pub fn decodeXgeEvent(packet: []const u8) DecodeError!global_events.Event {
+    const header = packet[0..10];
+    const event_type = std.mem.readInt(u16, header[8..10], .native);
+    return switch (event_type) {
+        0 => blk: {
+            var reader: std.Io.Reader = .fixed(packet);
+            break :blk .{ .DpmsInfoNotify = try InfoNotifyEvent.decode(&reader) };
+        },
         else => blk: {
-            const packet = try reader.take(32);
             var raw: [32]u8 = undefined;
-            @memcpy(raw[0..], packet);
+            @memcpy(raw[0..], packet[0..32]);
             break :blk .{ .Unknown = .{
                 .code = packet[0] & 0x7f,
                 .sequence = std.mem.readInt(u16, packet[2..4], .native),

@@ -174,6 +174,18 @@ pub const Fontable = union(enum) {
 pub const ClientMessageData = struct {
     raw: [20]u8,
 
+    pub fn fromRaw(raw: [20]u8) @This() {
+        return .{ .raw = raw };
+    }
+
+    pub fn asRaw(self: @This()) [20]u8 {
+        return self.raw;
+    }
+
+    pub fn fromEvent(event: anytype) EncodeError!@This() {
+        return .{ .raw = try event.toBytes() };
+    }
+
     pub fn byteLen(self: @This()) usize {
         _ = self;
         return 20;
@@ -7393,7 +7405,6 @@ pub const KeymapNotifyEvent = struct {
     }
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
-        _ = try reader.takeByte();
         var keys: [31]u8 = undefined;
         @memcpy(keys[0..], try reader.take(31));
         return .{
@@ -8346,6 +8357,7 @@ pub const GeGenericEvent = struct {
         try writer.writeInt(u16, self.event_type, .native);
         try writer.writeInt(u16, 0, .native);
         try writer.writeInt(u32, self.full_sequence, .native);
+        try writer.splatByteAll(0, 22);
         return packet;
     }
 
@@ -8357,8 +8369,10 @@ pub const GeGenericEvent = struct {
         const event_type = try reader.takeInt(u16, .native);
         _ = try reader.take(2);
         const full_sequence = try reader.takeInt(u32, .native);
-        _ = try reader.take(16);
-        _ = try reader.take(@as(usize, length) * 4);
+        _ = try reader.take(22);
+        const xge_body_len = 22;
+        const total_body_len = 16 + @as(usize, length) * 4;
+        if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,

@@ -8,6 +8,7 @@ const render = @import("render.zig");
 const randr = @import("randr.zig");
 const shm = @import("shm.zig");
 const xfixes = @import("xfixes.zig");
+const xinput = @import("xinput.zig");
 
 pub const ProtocolError = struct {
     code: u8,
@@ -47,6 +48,11 @@ pub const TaggedError = union(enum) {
     RandrBadProvider: ProtocolError,
     ShmBadSeg: ProtocolError,
     XFixesBadRegion: ProtocolError,
+    XInputDevice: ProtocolError,
+    XInputEvent: ProtocolError,
+    XInputMode: ProtocolError,
+    XInputDeviceBusy: ProtocolError,
+    XInputClass: ProtocolError,
     Unknown: ProtocolError,
     NonX11: anyerror,
 };
@@ -109,6 +115,17 @@ fn decodeXFixesError(code: u8, raw: ProtocolError) ?TaggedError {
     };
 }
 
+fn decodeXInputError(code: u8, raw: ProtocolError) ?TaggedError {
+    return switch (code) {
+        0 => .{ .XInputDevice = raw },
+        1 => .{ .XInputEvent = raw },
+        2 => .{ .XInputMode = raw },
+        3 => .{ .XInputDeviceBusy = raw },
+        4 => .{ .XInputClass = raw },
+        else => null,
+    };
+}
+
 pub fn decodeCoreError(code: u8, raw: ProtocolError) ?TaggedError {
     return decodeCoreErrorImpl(code, raw);
 }
@@ -143,6 +160,11 @@ const xfixes_error_spec: ExtensionErrorSpec = .{
     .decode = decodeXFixesError,
 };
 
+const xinput_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 4,
+    .decode = decodeXInputError,
+};
+
 pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
         .CORE => &xproto_error_spec,
@@ -150,6 +172,7 @@ pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
         .RANDR => &randr_error_spec,
         .MIT_SHM => &shm_error_spec,
         .XFIXES => &xfixes_error_spec,
+        .XINPUT => &xinput_error_spec,
         else => null,
     };
 }

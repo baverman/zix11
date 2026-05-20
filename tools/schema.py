@@ -95,16 +95,23 @@ class OneOf:
     items: tuple[OnlyItem, ...]
 
     @cached_property
-    def tags(self) -> dict[str, OnlyItem]:
-        result = {}
+    def tags(self) -> dict[str, list[OnlyItem]]:
+        result: dict[str, list[OnlyItem]] = {}
         for item in self.items:
-            result[item.tag] = item
+            result.setdefault(item.tag, []).append(item)
         return result
 
     def match(self, node: ET.Element) -> object:
         if node.tag not in self.tags:
             raise MatchError(f'Expected one of tags: {list(self.tags)}', node)
-        return self.tags[node.tag].match(node)
+        last_error: MatchError | None = None
+        for item in self.tags[node.tag]:
+            try:
+                return item.match(node)
+            except MatchError as err:
+                last_error = err
+        assert last_error is not None
+        raise last_error
 
 
 class Seq:

@@ -19,6 +19,16 @@ pub const WriterReader = struct {
     reader: *std.Io.Reader,
 };
 
+const queued_event_inline_cap = 64;
+
+const QueuedEvent = union(enum) {
+    fixed: struct {
+        data: [queued_event_inline_cap]u8,
+        len: usize,
+    },
+    dyn: []u8,
+};
+
 pub const Protocol = struct {
     allocator: std.mem.Allocator,
     root_window: x.Window,
@@ -26,7 +36,8 @@ pub const Protocol = struct {
     resource_id_mask: u32,
     resource_id_inc: u32,
     next_resource_id: u32,
-    pending_events: std.Deque([32]u8),
+    pending_events: std.Deque(QueuedEvent),
+    event_packet_scratch: []u8,
     last_protocol_error: ?ProtocolError,
     sequence: u16 = 1,
     extensions: std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
@@ -40,6 +51,7 @@ pub const Protocol = struct {
             .resource_id_inc = 0,
             .next_resource_id = 0,
             .pending_events = .empty,
+            .event_packet_scratch = &.{},
             .last_protocol_error = null,
             .extensions = .{},
         };
@@ -54,14 +66,21 @@ pub const Protocol = struct {
     }
 
     pub fn deinit(self: *Protocol) void {
+        while (self.pending_events.popFront()) |event| {
+            switch (event) {
+                .fixed => {},
+                .dyn => |packet| self.allocator.free(packet),
+            }
+        }
         self.pending_events.deinit(self.allocator);
+        if (self.event_packet_scratch.len != 0) self.allocator.free(self.event_packet_scratch);
     }
 
     pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) ![]const u8 {
         _ = self;
         const header = try reader.peek(32);
         const packet_kind = header[0];
-        const extra_len = if (packet_kind == 1)
+        const extra_len = if (packet_kind == 1 or (packet_kind & 0x7f) == 35)
             @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4
         else
             0;
@@ -76,13 +95,13 @@ pub const Protocol = struct {
                 self.last_protocol_error = parseProtocolError(packet);
                 continue;
             }
-            return try events.decodeEvent(&self.extensions, packet);
+            return try events.decodeEvent(&self.extensions, try self.normalizeEventPacket(packet));
         }
     }
 
     pub fn pendingEvent(self: *Protocol) !?events.Event {
-        if (self.pending_events.popFront()) |raw| {
-            return try events.decodeEvent(&self.extensions, &raw);
+        if (self.pending_events.popFront()) |queued| {
+            return try events.decodeEvent(&self.extensions, try self.normalizeQueuedEventPacket(queued));
         }
         return null;
     }
@@ -260,10 +279,50 @@ pub const Protocol = struct {
     }
 
     pub fn queueEventPacket(self: *Protocol, packet: []const u8) !void {
-        std.debug.assert(packet.len == 32);
-        var raw: [32]u8 = undefined;
-        @memcpy(raw[0..], packet[0..32]);
-        try self.pending_events.pushBack(self.allocator, raw);
+        if (packet.len <= queued_event_inline_cap) {
+            var raw = std.mem.zeroes([queued_event_inline_cap]u8);
+            @memcpy(raw[0..packet.len], packet);
+            try self.pending_events.pushBack(self.allocator, .{
+                .fixed = .{
+                    .data = raw,
+                    .len = packet.len,
+                },
+            });
+            return;
+        }
+        try self.pending_events.pushBack(self.allocator, .{
+            .dyn = try self.allocator.dupe(u8, packet),
+        });
+    }
+
+    fn normalizeEventPacket(self: *Protocol, packet: []const u8) ![]const u8 {
+        if (packet.len <= 32) return packet;
+        return try self.copyEventPacketToScratch(packet);
+    }
+
+    fn normalizeQueuedEventPacket(self: *Protocol, event: QueuedEvent) ![]const u8 {
+        return switch (event) {
+            .fixed => |fixed| if (fixed.len <= 32)
+                fixed.data[0..fixed.len]
+            else
+                try self.copyEventPacketToScratch(fixed.data[0..fixed.len]),
+            .dyn => |packet| blk: {
+                defer self.allocator.free(packet);
+                break :blk try self.copyEventPacketToScratch(packet);
+            },
+        };
+    }
+
+    fn copyEventPacketToScratch(self: *Protocol, packet: []const u8) ![]const u8 {
+        if (self.event_packet_scratch.len < packet.len) {
+            if (self.event_packet_scratch.len == 0) {
+                self.event_packet_scratch = try self.allocator.alloc(u8, packet.len);
+            } else {
+                self.event_packet_scratch = try self.allocator.realloc(self.event_packet_scratch, packet.len);
+            }
+        }
+        @memcpy(self.event_packet_scratch[0..packet.len], packet);
+        return self.event_packet_scratch[0..packet.len];
     }
 };
 

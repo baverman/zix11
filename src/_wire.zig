@@ -4,6 +4,13 @@ pub fn pad4(len: usize) usize {
     return (4 - (len & 3)) & 3;
 }
 
+pub fn requiredPad(offset: usize, alignment: usize, start_offset: usize) usize {
+    std.debug.assert(alignment != 0);
+    const offset_mod = offset % alignment;
+    const start_mod = start_offset % alignment;
+    return (start_mod + alignment - offset_mod) % alignment;
+}
+
 pub fn structListByteLen(list: anytype) usize {
     var total: usize = 0;
     for (list) |elem| total += elem.byteLen();
@@ -71,4 +78,11 @@ test "pad4" {
     try std.testing.expectEqual(@as(usize, 2), pad4(2));
     try std.testing.expectEqual(@as(usize, 1), pad4(3));
     try std.testing.expectEqual(@as(usize, 0), pad4(4));
+}
+
+test "requiredPad" {
+    try std.testing.expectEqual(@as(usize, 0), requiredPad(2, 4, 2));
+    try std.testing.expectEqual(@as(usize, 2), requiredPad(0, 4, 2));
+    try std.testing.expectEqual(@as(usize, 3), requiredPad(3, 4, 2));
+    try std.testing.expectEqual(@as(usize, 0), requiredPad(6, 4, 2));
 }

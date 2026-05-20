@@ -36,6 +36,18 @@ pub const Provider = enum(u32) {
 pub const NotifyData = struct {
     raw: [28]u8,
 
+    pub fn fromRaw(raw: [28]u8) @This() {
+        return .{ .raw = raw };
+    }
+
+    pub fn asRaw(self: @This()) [28]u8 {
+        return self.raw;
+    }
+
+    pub fn fromEvent(event: anytype) EncodeError!@This() {
+        return .{ .raw = try event.toBytes() };
+    }
+
     pub fn byteLen(self: @This()) usize {
         _ = self;
         return 28;

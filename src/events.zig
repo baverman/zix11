@@ -14,19 +14,35 @@ pub fn decodeEvent(
     packet: []const u8,
 ) DecodeError!Event {
     var raw: [32]u8 = undefined;
-    std.debug.assert(packet.len == 32);
+    std.debug.assert(packet.len >= 32);
     @memcpy(raw[0..], packet[0..32]);
 
     const wire_code = raw[0] & 0x7f;
+    if (wire_code == 35) {
+        const extension_opcode = raw[1];
+        var xge_it = registered_extensions.iterator();
+        while (xge_it.next()) |entry| {
+            const info = entry.value;
+            const spec = info.event_spec orelse continue;
+            const decode_xge = spec.decode_xge orelse continue;
+            if (extension_opcode == info.major_opcode) return try decode_xge(packet);
+        }
+    }
+
     var it = registered_extensions.iterator();
     while (it.next()) |entry| {
         const info = entry.value;
         const spec = info.event_spec orelse continue;
+        const decode = spec.decode orelse continue;
         if (wire_code >= info.first_event and wire_code <= info.first_event + spec.max_event_num) {
+            if (wire_code == 35 and info.first_event == 0 and packet.len > raw.len) {
+                var reader: std.Io.Reader = .fixed(packet);
+                return try decode(&reader);
+            }
             // Extension decoders expect a local 0-based event code; keep bit 7 unchanged.
             raw[0] = (raw[0] & 0x80) | (wire_code - info.first_event);
             var reader: std.Io.Reader = .fixed(&raw);
-            return try spec.decode(&reader);
+            return try decode(&reader);
         }
     }
 

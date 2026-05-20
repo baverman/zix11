@@ -137,11 +137,44 @@ test "Protocol.pendingEvent decodes queued core events into global Event" {
     packet[0] = 12;
     std.mem.writeInt(u16, packet[2..4], 9, .native);
     std.mem.writeInt(u16, packet[16..18], 4, .native);
-    try proto.pending_events.pushBack(std.testing.allocator, packet);
+    try proto.pending_events.pushBack(std.testing.allocator, .{
+        .fixed = .{
+            .data = blk: {
+                var raw = std.mem.zeroes([64]u8);
+                @memcpy(raw[0..packet.len], packet[0..]);
+                break :blk raw;
+            },
+            .len = packet.len,
+        },
+    });
 
     const event = (try proto.pendingEvent()) orelse return error.TestUnexpectedResult;
     switch (event) {
         .Expose => |ev| try std.testing.expectEqual(@as(u16, 4), ev.count),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "Protocol.pendingEvent preserves queued GE packet length" {
+    var proto = protocol.Protocol.init(std.testing.allocator);
+    defer proto.deinit();
+
+    var packet = std.mem.zeroes([38]u8);
+    packet[0] = 35;
+    packet[1] = 42;
+    std.mem.writeInt(u16, packet[2..4], 17, .native);
+    std.mem.writeInt(u32, packet[4..8], 0, .native);
+    std.mem.writeInt(u16, packet[8..10], 99, .native);
+
+    try proto.queueEventPacket(&packet);
+
+    const event = (try proto.pendingEvent()) orelse return error.TestUnexpectedResult;
+    switch (event) {
+        .GeGeneric => |ev| {
+            try std.testing.expectEqual(@as(u8, 42), ev.extension);
+            try std.testing.expectEqual(@as(u32, 0), ev.length);
+            try std.testing.expectEqual(@as(u16, 99), ev.event_type);
+        },
         else => return error.TestUnexpectedResult,
     }
 }
