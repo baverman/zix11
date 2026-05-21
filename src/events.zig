@@ -58,5 +58,5 @@ pub fn clientMessageData(comptime T: type, data: []const T) x.ClientMessageData 
     const bdata = std.mem.sliceAsBytes(data);
     const len = @min(raw.len, bdata.len);
     @memcpy(raw[0..len], bdata[0..len]);
-    return x.ClientMessageData.fromData8(raw) catch unreachable;
+    return x.ClientMessageData.fromData8(raw);
 }

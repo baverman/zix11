@@ -10,7 +10,6 @@ const randr = @import("randr.zig");
 const shm = @import("shm.zig");
 const shape = @import("shape.zig");
 const xfixes = @import("xfixes.zig");
-const xinput = @import("xinput.zig");
 const DecodeError = errors.DecodeError;
 
 pub const UnknownEvent = struct {
@@ -62,55 +61,6 @@ pub const Event = union(enum) {
     ShapeNotify: shape.NotifyEvent,
     XFixesSelectionNotify: xfixes.SelectionNotifyEvent,
     XFixesCursorNotify: xfixes.CursorNotifyEvent,
-    XInputDeviceValuator: xinput.DeviceValuatorEvent,
-    XInputDeviceKeyPress: xinput.DeviceKeyPressEvent,
-    XInputDeviceChanged: xinput.DeviceChangedEvent,
-    XInputKeyPress: xinput.KeyPressEvent,
-    XInputDeviceKeyRelease: xinput.DeviceKeyReleaseEvent,
-    XInputDeviceButtonPress: xinput.DeviceButtonPressEvent,
-    XInputKeyRelease: xinput.KeyReleaseEvent,
-    XInputButtonPress: xinput.ButtonPressEvent,
-    XInputDeviceButtonRelease: xinput.DeviceButtonReleaseEvent,
-    XInputDeviceMotionNotify: xinput.DeviceMotionNotifyEvent,
-    XInputButtonRelease: xinput.ButtonReleaseEvent,
-    XInputDeviceFocusIn: xinput.DeviceFocusInEvent,
-    XInputMotion: xinput.MotionEvent,
-    XInputEnter: xinput.EnterEvent,
-    XInputDeviceFocusOut: xinput.DeviceFocusOutEvent,
-    XInputProximityIn: xinput.ProximityInEvent,
-    XInputLeave: xinput.LeaveEvent,
-    XInputProximityOut: xinput.ProximityOutEvent,
-    XInputFocusIn: xinput.FocusInEvent,
-    XInputDeviceStateNotify: xinput.DeviceStateNotifyEvent,
-    XInputFocusOut: xinput.FocusOutEvent,
-    XInputDeviceMappingNotify: xinput.DeviceMappingNotifyEvent,
-    XInputHierarchy: xinput.HierarchyEvent,
-    XInputChangeDeviceNotify: xinput.ChangeDeviceNotifyEvent,
-    XInputProperty: xinput.PropertyEvent,
-    XInputDeviceKeyStateNotify: xinput.DeviceKeyStateNotifyEvent,
-    XInputRawKeyPress: xinput.RawKeyPressEvent,
-    XInputDeviceButtonStateNotify: xinput.DeviceButtonStateNotifyEvent,
-    XInputRawKeyRelease: xinput.RawKeyReleaseEvent,
-    XInputDevicePresenceNotify: xinput.DevicePresenceNotifyEvent,
-    XInputRawButtonPress: xinput.RawButtonPressEvent,
-    XInputDevicePropertyNotify: xinput.DevicePropertyNotifyEvent,
-    XInputRawButtonRelease: xinput.RawButtonReleaseEvent,
-    XInputRawMotion: xinput.RawMotionEvent,
-    XInputTouchBegin: xinput.TouchBeginEvent,
-    XInputTouchUpdate: xinput.TouchUpdateEvent,
-    XInputTouchEnd: xinput.TouchEndEvent,
-    XInputTouchOwnership: xinput.TouchOwnershipEvent,
-    XInputRawTouchBegin: xinput.RawTouchBeginEvent,
-    XInputRawTouchUpdate: xinput.RawTouchUpdateEvent,
-    XInputRawTouchEnd: xinput.RawTouchEndEvent,
-    XInputBarrierHit: xinput.BarrierHitEvent,
-    XInputBarrierLeave: xinput.BarrierLeaveEvent,
-    XInputGesturePinchBegin: xinput.GesturePinchBeginEvent,
-    XInputGesturePinchUpdate: xinput.GesturePinchUpdateEvent,
-    XInputGesturePinchEnd: xinput.GesturePinchEndEvent,
-    XInputGestureSwipeBegin: xinput.GestureSwipeBeginEvent,
-    XInputGestureSwipeUpdate: xinput.GestureSwipeUpdateEvent,
-    XInputGestureSwipeEnd: xinput.GestureSwipeEndEvent,
 };
 
 pub const ExtensionEventSpec = struct {
@@ -162,13 +112,6 @@ const xfixes_event_spec: ExtensionEventSpec = .{
     .decode_xge = null,
 };
 
-const xinput_event_spec: ExtensionEventSpec = .{
-    .max_event_num = 16,
-    .decode = xinput.decodeEvent,
-    .max_xge_event_num = 32,
-    .decode_xge = xinput.decodeXgeEvent,
-};
-
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
     return switch (extension) {
         .CORE => &xproto_event_spec,
@@ -177,7 +120,6 @@ pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
         .MIT_SHM => &shm_event_spec,
         .SHAPE => &shape_event_spec,
         .XFIXES => &xfixes_event_spec,
-        .XINPUT => &xinput_event_spec,
         else => null,
     };
 }

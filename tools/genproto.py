@@ -22,7 +22,7 @@ XML_PATHS = (
     XML_DIR / "shm.xml",
     XML_DIR / "shape.xml",
     XML_DIR / "xfixes.xml",
-    XML_DIR / "xinput.xml",
+    # XML_DIR / "xinput.xml",
 )
 OUT_DIR = Path("src/gen")
 
@@ -76,11 +76,11 @@ class ScalarType:
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         if self.zig_name == "bool":
-            emit(f"try writer.writeByte(@intFromBool({value_expr}));")
+            emit(f"writer.writeByte(@intFromBool({value_expr}));")
         elif self.zig_name == "u8":
-            emit(f"try writer.writeByte({value_expr});")
+            emit(f"writer.writeByte({value_expr});")
         else:
-            emit(f"try writer.writeInt({self.zig_name}, {value_expr}, .native);")
+            emit(f"writer.writeInt({self.zig_name}, {value_expr});")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         if self.zig_name == "bool":
@@ -123,9 +123,9 @@ class EnumType:
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         tag_type = self.wire_type.zig_name
         if self.wire_type.wire_size == 1:
-            emit(f"try writer.writeByte(@intCast(@intFromEnum({value_expr})));")
+            emit(f"writer.writeByte(@intCast(@intFromEnum({value_expr})));")
         else:
-            emit(f"try writer.writeInt({tag_type}, @intCast(@intFromEnum({value_expr})), .native);")
+            emit(f"writer.writeInt({tag_type}, @intCast(@intFromEnum({value_expr})));")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         tag_type = self.wire_type.zig_name
@@ -172,7 +172,7 @@ class XidType:
         return 4
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try writer.writeInt(u32, @intFromEnum({value_expr}), .native);")
+        emit(f"writer.writeInt(u32, @intFromEnum({value_expr}));")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         emit(f"const {target_name} = @as({self.render_zig()}, @enumFromInt(try reader.takeInt(u32, .native)));")
@@ -195,7 +195,7 @@ class XidUnionType:
         return 4
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try {value_expr}.encode(writer);")
+        emit(f"{value_expr}.encode(writer);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         emit(f"const {target_name} = try {self.render_zig()}.decode(reader);")
@@ -217,7 +217,7 @@ class StructType:
         return None if self.decl is None else self.decl.fixed_wire_size
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try {value_expr}.encode(writer);")
+        emit(f"{value_expr}.encode(writer);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         params = ""
@@ -249,7 +249,7 @@ class UnionType:
         return None if self.decl is None else self.decl.raw_size
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f"try {value_expr}.encode(writer);")
+        emit(f"{value_expr}.encode(writer);")
 
     def emit_decode(self, emit: Emit, target_name: str) -> None:
         emit(f"const {target_name} = try {self.render_zig()}.decode(reader);")
@@ -309,7 +309,7 @@ class PadBytesItem:
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         _ = owner_expr
         _ = previous_item
-        emit(f"try writer.splatByteAll(0, {self.count});")
+        emit(f"writer.splatByte(0, {self.count});")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
         _ = previous_item
@@ -335,7 +335,7 @@ class PadAlignItem:
             raise NotImplementedError("pad-align encode requires preceding list item")
         if self.align != 4:
             raise NotImplementedError(f"pad-align encode only supports align=4, got {self.align}")
-        emit(f"try writer.splatByteAll(0, wire.pad4({previous_item.payload_len_expr(owner_expr)}));")
+        emit(f"writer.splatByte(0, wire.pad4({previous_item.payload_len_expr(owner_expr)}));")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
         if not isinstance(previous_item, ListItem):
@@ -437,9 +437,9 @@ class ListItem:
         fixed_size = self.item_type.fixed_wire_size()
         if fixed_size == 1:
             if self.is_inline_fixed():
-                emit(f"try writer.writeAll({value_expr}[0..]);")
+                emit(f"writer.write({value_expr}[0..]);")
             else:
-                emit(f"try writer.writeAll({value_expr});")
+                emit(f"writer.write({value_expr});")
             return
         emit(f"for ({value_expr}) |elem| {{")
         with emit.block():
@@ -571,7 +571,7 @@ class SwitchCaseItem:
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         _ = owner_expr
         _ = previous_item
-        emit(f"try {owner_expr}.{render_field_name(self.name)}.encode(writer);")
+        emit(f"{owner_expr}.{render_field_name(self.name)}.encode(writer);")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
         _ = previous_item
@@ -622,7 +622,7 @@ class MaskListItem:
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         _ = previous_item
         emit(
-            f"try wire.writeValueList({self.require_spec_name()}, {owner_expr}.{render_field_name(self.name)}, writer);"
+            f"wire.writeValueList({self.require_spec_name()}, {owner_expr}.{render_field_name(self.name)}, writer);"
         )
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
@@ -1242,6 +1242,7 @@ def emit_prelude(emit: Emit, module: ModuleIR) -> None:
     emit("// This file is generated by tools/genproto.py")
     emit()
     emit('const std = @import("std");')
+    emit('const zio = @import("../io.zig");')
     emit('const wire = @import("../_wire.zig");')
     emit('const errors = @import("../_errors.zig");')
     emit('const extensions = @import("../_ext.zig");')
@@ -1249,7 +1250,6 @@ def emit_prelude(emit: Emit, module: ModuleIR) -> None:
         emit('const global_events = @import("events.zig");')
     for imported in module.imports:
         emit(f'const {imported} = @import("{imported}.zig");')
-    emit("const EncodeError = errors.EncodeError;")
     emit("const DecodeError = errors.DecodeError;")
     emit("const AllocDecodeError = errors.AllocDecodeError;")
     emit("const BufferDecodeError = errors.BufferDecodeError;")
@@ -1284,13 +1284,6 @@ def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
         for member in decl.members:
             emit(f"{zig_xid_variant_name(member)}: {zig_xid_name(member)},")
         emit("raw: u32,")
-        emit()
-        emit("pub fn byteLen(self: @This()) usize {")
-        with emit.block():
-            emit("_ = self;")
-            emit("return 4;")
-        emit("}")
-        emit()
         emit("pub fn toInt(self: @This()) u32 {")
         with emit.block():
             emit("return switch (self) {")
@@ -1302,9 +1295,9 @@ def emit_xid_decl(emit: Emit, decl: XidDecl | XidUnionDecl) -> None:
             emit("};")
         emit("}")
         emit()
-        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
+        emit("pub fn encode(self: @This(), writer: anytype) void {")
         with emit.block():
-            emit("try writer.writeInt(u32, self.toInt(), .native);")
+            emit("writer.writeInt(u32, self.toInt());")
         emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
@@ -1330,20 +1323,14 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
             emit("return self.raw;")
         emit("}")
         emit()
-        emit("pub fn fromEvent(event: anytype) EncodeError!@This() {")
+        emit("pub fn fromEvent(event: anytype) @This() {")
         with emit.block():
-            emit("return .{ .raw = try event.toBytes() };")
+            emit("return .{ .raw = event.toBytes() };")
         emit("}")
         emit()
-        emit("pub fn byteLen(self: @This()) usize {")
+        emit("pub fn encode(self: @This(), writer: anytype) void {")
         with emit.block():
-            emit("_ = self;")
-            emit(f"return {decl.raw_size};")
-        emit("}")
-        emit()
-        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
-        with emit.block():
-            emit("try writer.writeAll(self.raw[0..]);")
+            emit("writer.write(self.raw[0..]);")
         emit("}")
         emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
@@ -1366,10 +1353,10 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
                 type_name = f"[{fixed_count}]{item.item_type.render_zig()}"
             else:
                 raise NotImplementedError(f"unsupported union item method emission: {item!r}")
-            emit(f"pub fn from{suffix}(value: {type_name}) EncodeError!@This() {{")
+            emit(f"pub fn from{suffix}(value: {type_name}) @This() {{")
             with emit.block():
                 emit(f"var raw = std.mem.zeroes([{decl.raw_size}]u8);")
-                emit("var writer_impl: std.Io.Writer = .fixed(&raw);")
+                emit("var writer_impl = zio.FixedBufferWriter.init(&raw);")
                 emit("const writer = &writer_impl;")
                 if isinstance(item, FieldItem):
                     item.type_ref.emit_encode(emit, "value")
@@ -1377,7 +1364,7 @@ def emit_union_decl(emit: Emit, decl: UnionDecl) -> None:
                     fixed_size = item.item_type.fixed_wire_size()
                     assert fixed_size is not None
                     if fixed_size == 1:
-                        emit("try writer.writeAll(value[0..]);")
+                        emit("writer.write(value[0..]);")
                     else:
                         emit("for (value) |elem| {")
                         with emit.block():
@@ -1733,33 +1720,22 @@ def emit_payload_encode_body(
             item.emit_encode(emit, owner_expr, current_previous)
             current_previous = item
         return
-    emit("var payload_offset: usize = 0;")
+    emit("const start_seek = writer.seek;")
     current_previous = previous_item
     for item in items:
         if isinstance(item, RequiredStartAlignItem):
-            emit(f"const required_pad = wire.requiredPad(payload_offset, {item.align}, {item.offset});")
-            emit("try writer.splatByteAll(0, required_pad);")
-            emit("payload_offset += required_pad;")
+            emit(f"const required_pad = wire.requiredPad(writer.seek - start_seek, {item.align}, {item.offset});")
+            emit("writer.splatByte(0, required_pad);")
         elif isinstance(item, SwitchCaseItem):
             field_name = render_field_name(item.name)
-            emit(f"try {owner_expr}.{field_name}.encodeFrom(payload_offset, writer);")
-            emit(f"payload_offset += {owner_expr}.{field_name}.byteLenFrom(payload_offset);")
+            emit(f"{owner_expr}.{field_name}.encode(writer);")
         else:
             item.emit_encode(emit, owner_expr, current_previous)
-            emit(f"payload_offset += {item.byte_len_term(owner_expr, current_previous)};")
         current_previous = item
 
 
-def rewrite_last_encode_line_unchecked(emit: Emit) -> None:
-    line = emit.lines[-1]
-    assert line.endswith(";")
-    if "try " not in line:
-        raise AssertionError(f"expected try encode line, got: {line}")
-    emit.lines[-1] = line
-
-
 def emit_struct_encode(emit: Emit, decl: StructDecl) -> None:
-    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
+    emit("pub fn encode(self: @This(), writer: anytype) void {")
     with emit.block():
         emit_payload_encode_body(emit, decl.items, "self")
     emit("}")
@@ -1859,7 +1835,6 @@ def emit_struct_decl(emit: Emit, decl: StructDecl) -> None:
         emit_switch_case_decls(emit, decl.name, decl.items)
         emit_payload_decl_fields(emit, decl.items)
         emit()
-        emit_struct_byte_len(emit, decl)
         emit_struct_encode(emit, decl)
         emit_struct_decode(emit, decl)
         emit_struct_deinit(emit, decl)
@@ -1881,7 +1856,6 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
         emit_switch_case_decls(emit, reply_name(request.name), items)
         emit_payload_decl_fields(emit, items)
         emit()
-        emit_struct_byte_len(emit, decl)
         emit_struct_encode(emit, decl)
         if decode_mode == "alloc":
             emit("pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {")
@@ -2120,20 +2094,6 @@ def request_uses_header_slot(module: ModuleIR, request: RequestDecl) -> bool:
     return module.extension_xname is None and header_item(request.items) is not None
 
 
-def emit_request_byte_len(emit: Emit, module: ModuleIR, request: RequestDecl) -> None:
-    emit("pub fn byteLen(self: @This()) usize {")
-    with emit.block():
-        expr = payload_byte_len_expr(
-            body_items(request.items, uses_header_slot=request_uses_header_slot(module, request)),
-            "self",
-        )
-        if "self" not in expr:
-            emit("_ = self;")
-        emit(f"return {expr};")
-    emit("}")
-    emit()
-
-
 def emit_request_header_byte1(emit: Emit, module: ModuleIR, request: RequestDecl) -> None:
     emit("pub fn headerByte1(self: @This()) u8 {")
     with emit.block():
@@ -2148,7 +2108,7 @@ def emit_request_header_byte1(emit: Emit, module: ModuleIR, request: RequestDecl
 
 
 def emit_request_encode(emit: Emit, module: ModuleIR, request: RequestDecl) -> None:
-    emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
+    emit("pub fn encode(self: @This(), writer: anytype) void {")
     with emit.block():
         items = body_items(request.items, uses_header_slot=request_uses_header_slot(module, request))
         first = header_item(request.items) if request_uses_header_slot(module, request) else None
@@ -2182,7 +2142,6 @@ def emit_request_decl(emit: Emit, module: ModuleIR, request: RequestDecl) -> Non
         emit()
         emit_payload_decl_fields(emit, request.items, const_struct_lists=True)
         emit()
-        emit_request_byte_len(emit, module, request)
         emit_request_header_byte1(emit, module, request)
         emit_request_encode(emit, module, request)
     emit("};")
@@ -2324,38 +2283,38 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                 emit("};")
             emit("}")
             emit()
-        emit("pub fn toBytes(self: @This()) EncodeError![32]u8 {")
+        emit("pub fn toBytes(self: @This()) [32]u8 {")
         with emit.block():
             if dynamic_parts is not None:
                 emit("_ = self;")
                 emit('std.debug.panic("dynamic XGE event encoding is not implemented", .{});')
             else:
                 emit("var packet: [32]u8 = std.mem.zeroes([32]u8);")
-                emit("var writer_impl: std.Io.Writer = .fixed(&packet);")
+                emit("var writer_impl = zio.FixedBufferWriter.init(&packet);")
                 emit("const writer = &writer_impl;")
                 if decl.xge == "true":
-                    emit(f"try writer.writeByte({decl.number});")
-                    emit("try writer.writeByte(self.extension);")
-                    emit("try writer.writeInt(u16, 0, .native);")
-                    emit("try writer.writeInt(u32, self.length, .native);")
-                    emit("try writer.writeInt(u16, self.event_type, .native);")
-                    emit("try writer.writeInt(u16, 0, .native);")
-                    emit("try writer.writeInt(u32, self.full_sequence, .native);")
+                    emit(f"writer.writeByte({decl.number});")
+                    emit("writer.writeByte(self.extension);")
+                    emit("writer.writeInt(u16, 0);")
+                    emit("writer.writeInt(u32, self.length);")
+                    emit("writer.writeInt(u16, self.event_type);")
+                    emit("writer.writeInt(u16, 0);")
+                    emit("writer.writeInt(u32, self.full_sequence);")
                     if not xge_body_dynamic:
                         emit_payload_encode_body(emit, decl.items, "self")
                 elif decl.no_sequence_number == "true":
-                    emit(f"try writer.writeByte({decl.number});")
+                    emit(f"writer.writeByte({decl.number});")
                     for item in decl.items:
                         item.emit_encode(emit, "self")
                 else:
                     header = header_item(decl.items)
                     body = body_items(decl.items, uses_header_slot=True)
-                    emit(f"try writer.writeByte({decl.number});")
+                    emit(f"writer.writeByte({decl.number});")
                     if isinstance(header, FieldItem):
-                        emit(f"try writer.writeByte({header_byte1_expr(header)});")
+                        emit(f"writer.writeByte({header_byte1_expr(header)});")
                     else:
-                        emit("try writer.writeByte(0);")
-                    emit("try writer.writeInt(u16, 0, .native);")
+                        emit("writer.writeByte(0);")
+                    emit("writer.writeInt(u16, 0);")
                     current_previous = header
                     for item in body:
                         item.emit_encode(emit, "self", current_previous)

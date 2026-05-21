@@ -5,6 +5,7 @@ const x = zix11.x;
 
 test {
     _ = zix11.ewmh;
+    _ = @import("io.zig");
     _ = @import("protocol_test.zig");
     _ = @import("connection_test.zig");
     _ = @import("properties_test.zig");
@@ -12,26 +13,25 @@ test {
 
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buf);
+    var writer = zix11.io.FixedBufferWriter.init(&buf);
     const req = x.InternAtom{
         .only_if_exists = true,
         .name = "WM_NAME",
     };
-    try req.encode(&writer);
-    const body = buf[0..writer.end];
+    req.encode(&writer);
+    const body = buf[0..writer.seek];
 
     try std.testing.expect(x.InternAtom.extension == null);
     try std.testing.expectEqual(@as(u8, 16), x.InternAtom.opcode);
     try std.testing.expectEqual(@as(u8, 1), req.headerByte1());
-    try std.testing.expectEqual(@as(usize, req.byteLen()), body.len);
     try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, body[0..2], .native));
     try std.testing.expectEqualSlices(u8, "WM_NAME", body[4..11]);
 }
 
 test "SetupRequest encoding" {
     var buf: [64]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buf);
-    try (x.SetupRequest{
+    var writer = zix11.io.FixedBufferWriter.init(&buf);
+    (x.SetupRequest{
         .byte_order = switch (builtin.cpu.arch.endian()) {
             .little => 'l',
             .big => 'B',
@@ -41,7 +41,7 @@ test "SetupRequest encoding" {
         .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
         .authorization_protocol_data = &.{ 0xaa, 0xbb, 0xcc, 0xdd },
     }).encode(&writer);
-    const packet = buf[0..writer.end];
+    const packet = buf[0..writer.seek];
 
     try std.testing.expectEqual(switch (builtin.cpu.arch.endian()) {
         .little => @as(u8, 'l'),
@@ -80,7 +80,7 @@ test "Event.toBytes" {
         .format = 32,
         .data = zix11.events.clientMessageData(u32, &.{ 10, 20 }),
     };
-    const bytes = try event.toBytes();
+    const bytes = event.toBytes();
     _ = bytes;
     var expected: [8]u8 = undefined;
     std.mem.writeInt(u32, expected[0..4], 10, .native);
@@ -91,9 +91,9 @@ test "Event.toBytes" {
 
 test "ConfigureWindow" {
     var buf: [64]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buf);
+    var writer = zix11.io.FixedBufferWriter.init(&buf);
     const cw: x.ConfigureWindow = .{ .window = x.Window.None, .value_list = .{} };
-    try cw.encode(&writer);
+    cw.encode(&writer);
 }
 
 // const T1 = enum(u32) { Window = 0 };

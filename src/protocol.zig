@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const errors = @import("errors.zig");
 const ext = @import("ext.zig");
 const events = @import("events.zig");
+const zio = @import("io.zig");
 const wire = @import("_wire.zig");
 const x = @import("gen/xproto.zig");
 
@@ -114,23 +115,30 @@ pub const Protocol = struct {
         const Request = @TypeOf(request_value);
         const sequence = self.sequence;
         self.sequence +%= 1;
-        const body_len = request_value.byteLen();
-        const len = 4 + body_len;
-        const pad = wire.pad4(len);
         const opcode = if (Request.extension) |extension| blk: {
             const info = self.extensions.get(extension) orelse return error.ExtensionNotRegistered;
             break :blk info.major_opcode;
         } else Request.opcode;
 
-        try writer.writeByte(opcode);
+        var counting_writer = zio.CountingWriter.init();
+        request_value.encode(&counting_writer);
+        const len = 4 + counting_writer.seek;
+        const pad = wire.pad4(len);
+        const packet = try self.allocator.alloc(u8, len + pad);
+        defer self.allocator.free(packet);
+
+        var packet_writer = zio.FixedBufferWriter.init(packet);
+        packet_writer.writeByte(opcode);
         if (Request.extension == null) {
-            try writer.writeByte(request_value.headerByte1());
+            packet_writer.writeByte(request_value.headerByte1());
         } else {
-            try writer.writeByte(Request.opcode);
+            packet_writer.writeByte(Request.opcode);
         }
-        try writer.writeInt(u16, @intCast((len + pad) / 4), .native);
-        try request_value.encode(writer);
-        try writer.splatByteAll(0, pad);
+        packet_writer.writeInt(u16, @intCast((len + pad) / 4));
+        request_value.encode(&packet_writer);
+        packet_writer.splatByte(0, pad);
+
+        try writer.writeAll(packet);
         if (flush) try writer.flush();
         return sequence;
     }
@@ -226,8 +234,7 @@ pub const Protocol = struct {
     }
 
     pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
-        _ = self;
-        try (x.SetupRequest{
+        const request = x.SetupRequest{
             .byte_order = switch (builtin.cpu.arch.endian()) {
                 .little => 'l',
                 .big => 'B',
@@ -236,7 +243,15 @@ pub const Protocol = struct {
             .protocol_minor_version = 0,
             .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
             .authorization_protocol_data = cookie,
-        }).encode(writer);
+        };
+        var counting_writer = zio.CountingWriter.init();
+        request.encode(&counting_writer);
+        const packet = try self.allocator.alloc(u8, counting_writer.seek);
+        defer self.allocator.free(packet);
+
+        var packet_writer = zio.FixedBufferWriter.init(packet);
+        request.encode(&packet_writer);
+        try writer.writeAll(packet);
         try writer.flush();
     }
 

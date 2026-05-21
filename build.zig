@@ -13,7 +13,6 @@ pub fn build(b: *std.Build) void {
     addExample(b, "read_properties", "examples/read_properties.zig", target, optimize, mod, false);
     addExample(b, "dpms", "examples/dpms.zig", target, optimize, mod, false);
     addExample(b, "randr", "examples/randr.zig", target, optimize, mod, false);
-    addExample(b, "xinput", "examples/xinput.zig", target, optimize, mod, false);
     addExample(b, "cairo", "examples/cairo.zig", target, optimize, mod, true);
     addExample(b, "cairo_shm", "examples/cairo_shm.zig", target, optimize, mod, true);
     addExample(b, "cairo_animation", "examples/cairo_animation.zig", target, optimize, mod, true);

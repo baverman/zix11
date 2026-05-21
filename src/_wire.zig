@@ -37,10 +37,10 @@ pub fn valueListByteLen(comptime Spec: type, values: anytype) usize {
     return total;
 }
 
-pub fn writeValueList(comptime Spec: type, values: anytype, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+pub fn writeValueList(comptime Spec: type, values: anytype, writer: anytype) void {
     inline for (Spec.fields) |field| {
         if (@field(values, field.name)) |value| {
-            try writeMaskedValue(field.value_type, writer, value);
+            writeMaskedValue(field.value_type, writer, value);
         }
     }
 }
@@ -58,14 +58,14 @@ fn maskedValueByteLen(comptime T: type) usize {
     };
 }
 
-fn writeMaskedValue(comptime T: type, writer: *std.Io.Writer, value: T) std.Io.Writer.Error!void {
+fn writeMaskedValue(comptime T: type, writer: anytype, value: T) void {
     switch (@typeInfo(T)) {
-        .@"enum" => |info| try writer.writeInt(info.tag_type, @intFromEnum(value), .native),
+        .@"enum" => |info| writer.writeInt(info.tag_type, @intFromEnum(value)),
         .int => |info| {
             if (info.bits == 8) {
-                try writer.writeByte(value);
+                writer.writeByte(value);
             } else {
-                try writer.writeInt(T, value, .native);
+                writer.writeInt(T, value);
             }
         },
         else => @compileError("unsupported masked value type"),

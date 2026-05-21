@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const errors = @import("errors.zig");
+pub const io = @import("io.zig");
 pub const x = @import("gen/xproto.zig");
 pub const ext = @import("ext.zig");
 pub const ewmh = @import("ewmh.zig");

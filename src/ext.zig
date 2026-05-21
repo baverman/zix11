@@ -13,9 +13,8 @@ pub const ExtensionInfo = struct {
 pub const dpms = @import("gen/dpms.zig");
 pub const randr = @import("gen/randr.zig");
 pub const render = @import("gen/render.zig");
-pub const shm = @import("gen/shm.zig");
 pub const shape = @import("gen/shape.zig");
-pub const xinput = @import("gen/xinput.zig");
+pub const shm = @import("gen/shm.zig");
 pub const xfixes = @import("gen/xfixes.zig");
 
 pub fn xname(ext: Extension) []const u8 {
