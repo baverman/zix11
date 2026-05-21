@@ -341,14 +341,20 @@ class PadAlignItem:
             raise NotImplementedError("pad-align encode requires preceding list item")
         if self.align != 4:
             raise NotImplementedError(f"pad-align encode only supports align=4, got {self.align}")
-        emit(f"writer.splatByte(0, wire.pad4({previous_item.payload_len_expr(owner_expr)}));")
+        if previous_item.item_type.fixed_wire_size() is None:
+            emit(f"writer.splatByte(0, wire.pad4(writer.seek - {list_pad_seek_name(previous_item)}));")
+        else:
+            emit(f"writer.splatByte(0, wire.pad4({previous_item.payload_len_expr(owner_expr)}));")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
         if not isinstance(previous_item, ListItem):
             raise NotImplementedError("pad-align decode requires preceding list item")
         if self.align != 4:
             raise NotImplementedError(f"pad-align decode only supports align=4, got {self.align}")
-        emit(f"_ = try reader.take(wire.pad4({previous_item.decoded_payload_len_expr()}));")
+        if previous_item.item_type.fixed_wire_size() is None:
+            emit(f"_ = try reader.take(wire.pad4(reader.seek - {list_pad_seek_name(previous_item)}));")
+        else:
+            emit(f"_ = try reader.take(wire.pad4({previous_item.decoded_payload_len_expr()}));")
 
 
 @dataclass(frozen=True)
@@ -1678,6 +1684,10 @@ def payload_needs_offset_tracking(items: tuple[Item, ...]) -> bool:
     return False
 
 
+def list_pad_seek_name(item: ListItem) -> str:
+    return f"{render_local_name(item.name)}_start_seek"
+
+
 def emit_payload_byte_len(emit: Emit, items: tuple[Item, ...], owner_expr: str) -> None:
     expr = payload_byte_len_expr(items, owner_expr)
     if owner_expr not in expr:
@@ -1692,13 +1702,22 @@ def emit_payload_encode_body(
     previous_item: Item | None = None,
 ) -> None:
     current_previous = previous_item
-    for item in items:
+    for index, item in enumerate(items):
+        next_item = items[index + 1] if index + 1 < len(items) else None
         if isinstance(item, RequiredStartAlignItem):
             emit(f"const required_pad = wire.requiredPad(writer.seek, {item.align}, {item.offset});")
             emit("writer.splatByte(0, required_pad);")
         elif isinstance(item, SwitchCaseItem):
             field_name = render_field_name(item.name)
             emit(f"{owner_expr}.{field_name}.encode(writer);")
+        elif (
+            isinstance(item, ListItem)
+            and isinstance(next_item, PadAlignItem)
+            and next_item.align == 4
+            and item.item_type.fixed_wire_size() is None
+        ):
+            emit(f"const {list_pad_seek_name(item)} = writer.seek;")
+            item.emit_encode(emit, owner_expr, current_previous)
         else:
             item.emit_encode(emit, owner_expr, current_previous)
         current_previous = item
@@ -1727,7 +1746,8 @@ def emit_payload_decode_body(
     decode_mode: str = "alloc",
 ) -> None:
     current_previous = previous_item
-    for item in items:
+    for index, item in enumerate(items):
+        next_item = items[index + 1] if index + 1 < len(items) else None
         if isinstance(item, RequiredStartAlignItem):
             emit(f"const required_pad = wire.requiredPad(reader.seek, {item.align}, {item.offset});")
             emit("if (required_pad != 0) _ = try reader.take(required_pad);")
@@ -1738,6 +1758,14 @@ def emit_payload_decode_body(
                 f"try {item.require_type_name()}.decode("
                 f"allocator, {render_local_name(item.fieldref_name)}, {params}reader);"
             )
+        elif (
+            isinstance(item, ListItem)
+            and isinstance(next_item, PadAlignItem)
+            and next_item.align == 4
+            and item.item_type.fixed_wire_size() is None
+        ):
+            emit(f"const {list_pad_seek_name(item)} = reader.seek;")
+            item.emit_decode(emit, current_previous, decode_mode)
         elif isinstance(item, ListItem):
             item.emit_decode(emit, current_previous, decode_mode)
         else:
@@ -2090,7 +2118,6 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
             emit("extension: u8,")
             emit("length: u32,")
             emit("event_type: u16,")
-            emit("full_sequence: u32,")
             if dynamic_parts is not None:
                 prefix_items, dynamic_body_items = dynamic_parts
                 emit_payload_decl_fields(emit, prefix_items)
@@ -2167,8 +2194,6 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                 emit("_ = try reader.takeInt(u16, .native);")
                 emit("_ = try reader.takeInt(u32, .native);")
                 emit("const event_type = try reader.takeInt(u16, .native);")
-                emit("_ = try reader.take(2);")
-                emit("const full_sequence = try reader.takeInt(u32, .native);")
                 prefix_items, _ = dynamic_parts
                 for item in prefix_items:
                     if isinstance(item, FieldItem):
@@ -2185,7 +2210,6 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                     emit(".extension = extension,")
                     emit(".length = length,")
                     emit(".event_type = event_type,")
-                    emit(".full_sequence = full_sequence,")
                     for item in prefix_items:
                         if isinstance(item, FieldItem):
                             emit(f".{render_field_name(item.name)} = {render_local_name(item.name)},")
@@ -2201,30 +2225,26 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                     emit("_ = try reader.takeInt(u16, .native);")
                     emit("const length = try reader.takeInt(u32, .native);")
                     emit("const event_type = try reader.takeInt(u16, .native);")
-                    emit("_ = try reader.take(2);")
-                    emit("const full_sequence = try reader.takeInt(u32, .native);")
                     if xge_body_dynamic:
-                        emit("_ = try reader.take(16);")
+                        emit("_ = try reader.take(22);")
                         emit("_ = try reader.take(@as(usize, length) * 4);")
                         emit("return .{")
                         with emit.block():
                             emit(".extension = extension,")
                             emit(".length = length,")
                             emit(".event_type = event_type,")
-                            emit(".full_sequence = full_sequence,")
                         emit("};")
                     else:
                         emit("const payload_start_seek = reader.seek;")
                         emit_payload_decode_body(emit, decl.items)
                         emit("const xge_body_len = reader.seek - payload_start_seek;")
-                        emit("const total_body_len = 16 + @as(usize, length) * 4;")
+                        emit("const total_body_len = 22 + @as(usize, length) * 4;")
                         emit("if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);")
                         emit("return .{")
                         with emit.block():
                             emit(".extension = extension,")
                             emit(".length = length,")
                             emit(".event_type = event_type,")
-                            emit(".full_sequence = full_sequence,")
                             for item in decl.items:
                                 if isinstance(item, FieldItem) and item.derived_from is not None:
                                     continue

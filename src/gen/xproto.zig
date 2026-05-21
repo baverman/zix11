@@ -7503,7 +7503,6 @@ pub const GeGenericEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
@@ -7511,18 +7510,15 @@ pub const GeGenericEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         _ = try reader.take(22);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
         };
     }
 };

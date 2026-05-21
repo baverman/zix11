@@ -5261,10 +5261,11 @@ pub const ListInputDevicesReply = struct {
         for (self.infos) |elem| {
             elem.encode(writer);
         }
+        const names_start_seek = writer.seek;
         for (self.names) |elem| {
             elem.encode(writer);
         }
-        writer.splatByte(0, wire.pad4(wire.structListByteLen(self.names)));
+        writer.splatByte(0, wire.pad4(writer.seek - names_start_seek));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -5291,6 +5292,7 @@ pub const ListInputDevicesReply = struct {
             elem.* = elem_value;
             infos_decoded += 1;
         }
+        const names_start_seek = reader.seek;
         const names = try allocator.alloc(xproto.STR, @as(usize, devices_len));
         errdefer allocator.free(names);
         var names_decoded: usize = 0;
@@ -5300,7 +5302,7 @@ pub const ListInputDevicesReply = struct {
             elem.* = elem_value;
             names_decoded += 1;
         }
-        _ = try reader.take(wire.pad4(wire.structListByteLen(names)));
+        _ = try reader.take(wire.pad4(reader.seek - names_start_seek));
         return .{
             .xi_reply_type = xi_reply_type,
             .devices = devices,
@@ -7028,7 +7030,6 @@ pub const DeviceChangedEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     num_classes: u16,
@@ -7074,8 +7075,6 @@ pub const DeviceChangedEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const num_classes = try reader.takeInt(u16, .native);
@@ -7089,7 +7088,6 @@ pub const DeviceChangedEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .num_classes = num_classes,
@@ -7104,7 +7102,6 @@ pub const KeyPressEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -7182,8 +7179,6 @@ pub const KeyPressEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -7208,7 +7203,6 @@ pub const KeyPressEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -7368,7 +7362,6 @@ pub const KeyReleaseEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -7446,8 +7439,6 @@ pub const KeyReleaseEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -7472,7 +7463,6 @@ pub const KeyReleaseEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -7498,7 +7488,6 @@ pub const ButtonPressEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -7576,8 +7565,6 @@ pub const ButtonPressEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -7602,7 +7589,6 @@ pub const ButtonPressEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -7762,7 +7748,6 @@ pub const ButtonReleaseEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -7840,8 +7825,6 @@ pub const ButtonReleaseEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -7866,7 +7849,6 @@ pub const ButtonReleaseEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -7933,7 +7915,6 @@ pub const MotionEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -8011,8 +7992,6 @@ pub const MotionEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -8037,7 +8016,6 @@ pub const MotionEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -8063,7 +8041,6 @@ pub const EnterEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     sourceid: u16,
@@ -8119,8 +8096,6 @@ pub const EnterEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const sourceid = try reader.takeInt(u16, .native);
@@ -8145,7 +8120,6 @@ pub const EnterEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .sourceid = sourceid,
@@ -8280,7 +8254,6 @@ pub const LeaveEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     sourceid: u16,
@@ -8336,8 +8309,6 @@ pub const LeaveEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const sourceid = try reader.takeInt(u16, .native);
@@ -8362,7 +8333,6 @@ pub const LeaveEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .sourceid = sourceid,
@@ -8456,7 +8426,6 @@ pub const FocusInEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     sourceid: u16,
@@ -8512,8 +8481,6 @@ pub const FocusInEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const sourceid = try reader.takeInt(u16, .native);
@@ -8538,7 +8505,6 @@ pub const FocusInEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .sourceid = sourceid,
@@ -8628,7 +8594,6 @@ pub const FocusOutEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     sourceid: u16,
@@ -8684,8 +8649,6 @@ pub const FocusOutEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const sourceid = try reader.takeInt(u16, .native);
@@ -8710,7 +8673,6 @@ pub const FocusOutEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .sourceid = sourceid,
@@ -8780,7 +8742,6 @@ pub const HierarchyEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     flags: u32,
@@ -8823,8 +8784,6 @@ pub const HierarchyEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const flags = try reader.takeInt(u32, .native);
@@ -8837,7 +8796,6 @@ pub const HierarchyEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .flags = flags,
@@ -8884,7 +8842,6 @@ pub const PropertyEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     property: xproto.Atom,
@@ -8896,8 +8853,6 @@ pub const PropertyEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -8905,13 +8860,12 @@ pub const PropertyEvent = struct {
         const what = @as(PropertyFlag, @enumFromInt(try reader.takeInt(u8, .native)));
         _ = try reader.take(11);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .property = property,
@@ -8952,7 +8906,6 @@ pub const RawKeyPressEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9019,8 +8972,6 @@ pub const RawKeyPressEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9035,7 +8986,6 @@ pub const RawKeyPressEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9079,7 +9029,6 @@ pub const RawKeyReleaseEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9146,8 +9095,6 @@ pub const RawKeyReleaseEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9162,7 +9109,6 @@ pub const RawKeyReleaseEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9217,7 +9163,6 @@ pub const RawButtonPressEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9284,8 +9229,6 @@ pub const RawButtonPressEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9300,7 +9243,6 @@ pub const RawButtonPressEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9353,7 +9295,6 @@ pub const RawButtonReleaseEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9420,8 +9361,6 @@ pub const RawButtonReleaseEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9436,7 +9375,6 @@ pub const RawButtonReleaseEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9452,7 +9390,6 @@ pub const RawMotionEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9519,8 +9456,6 @@ pub const RawMotionEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9535,7 +9470,6 @@ pub const RawMotionEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9551,7 +9485,6 @@ pub const TouchBeginEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9629,8 +9562,6 @@ pub const TouchBeginEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9655,7 +9586,6 @@ pub const TouchBeginEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9681,7 +9611,6 @@ pub const TouchUpdateEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9759,8 +9688,6 @@ pub const TouchUpdateEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9785,7 +9712,6 @@ pub const TouchUpdateEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9811,7 +9737,6 @@ pub const TouchEndEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -9889,8 +9814,6 @@ pub const TouchEndEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -9915,7 +9838,6 @@ pub const TouchEndEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -9941,7 +9863,6 @@ pub const TouchOwnershipEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     touchid: u32,
@@ -9957,8 +9878,6 @@ pub const TouchOwnershipEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -9971,13 +9890,12 @@ pub const TouchOwnershipEvent = struct {
         const flags = @as(TouchOwnershipFlags, @enumFromInt(try reader.takeInt(u32, .native)));
         _ = try reader.take(8);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .touchid = touchid,
@@ -9994,7 +9912,6 @@ pub const RawTouchBeginEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10061,8 +9978,6 @@ pub const RawTouchBeginEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -10077,7 +9992,6 @@ pub const RawTouchBeginEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10093,7 +10007,6 @@ pub const RawTouchUpdateEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10160,8 +10073,6 @@ pub const RawTouchUpdateEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -10176,7 +10087,6 @@ pub const RawTouchUpdateEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10192,7 +10102,6 @@ pub const RawTouchEndEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10259,8 +10168,6 @@ pub const RawTouchEndEvent = struct {
         _ = try reader.takeInt(u16, .native);
         _ = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
         const detail = try reader.takeInt(u32, .native);
@@ -10275,7 +10182,6 @@ pub const RawTouchEndEvent = struct {
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10291,7 +10197,6 @@ pub const BarrierHitEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     eventid: u32,
@@ -10312,8 +10217,6 @@ pub const BarrierHitEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10330,13 +10233,12 @@ pub const BarrierHitEvent = struct {
         const dx = try FP3232.decode(reader);
         const dy = try FP3232.decode(reader);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .eventid = eventid,
@@ -10358,7 +10260,6 @@ pub const BarrierLeaveEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     eventid: u32,
@@ -10379,8 +10280,6 @@ pub const BarrierLeaveEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10397,13 +10296,12 @@ pub const BarrierLeaveEvent = struct {
         const dx = try FP3232.decode(reader);
         const dy = try FP3232.decode(reader);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .eventid = eventid,
@@ -10425,7 +10323,6 @@ pub const GesturePinchBeginEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10453,8 +10350,6 @@ pub const GesturePinchBeginEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10478,13 +10373,12 @@ pub const GesturePinchBeginEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10513,7 +10407,6 @@ pub const GesturePinchUpdateEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10541,8 +10434,6 @@ pub const GesturePinchUpdateEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10566,13 +10457,12 @@ pub const GesturePinchUpdateEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10601,7 +10491,6 @@ pub const GesturePinchEndEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10629,8 +10518,6 @@ pub const GesturePinchEndEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10654,13 +10541,12 @@ pub const GesturePinchEndEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10689,7 +10575,6 @@ pub const GestureSwipeBeginEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10715,8 +10600,6 @@ pub const GestureSwipeBeginEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10738,13 +10621,12 @@ pub const GestureSwipeBeginEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10771,7 +10653,6 @@ pub const GestureSwipeUpdateEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10797,8 +10678,6 @@ pub const GestureSwipeUpdateEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10820,13 +10699,12 @@ pub const GestureSwipeUpdateEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,
@@ -10853,7 +10731,6 @@ pub const GestureSwipeEndEvent = struct {
     extension: u8,
     length: u32,
     event_type: u16,
-    full_sequence: u32,
     deviceid: u16,
     time: u32,
     detail: u32,
@@ -10879,8 +10756,6 @@ pub const GestureSwipeEndEvent = struct {
         _ = try reader.takeInt(u16, .native);
         const length = try reader.takeInt(u32, .native);
         const event_type = try reader.takeInt(u16, .native);
-        _ = try reader.take(2);
-        const full_sequence = try reader.takeInt(u32, .native);
         const payload_start_seek = reader.seek;
         const deviceid = try reader.takeInt(u16, .native);
         const time = try reader.takeInt(u32, .native);
@@ -10902,13 +10777,12 @@ pub const GestureSwipeEndEvent = struct {
         const group = try GroupInfo.decode(reader);
         const flags = try reader.takeInt(u32, .native);
         const xge_body_len = reader.seek - payload_start_seek;
-        const total_body_len = 16 + @as(usize, length) * 4;
+        const total_body_len = 22 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{
             .extension = extension,
             .length = length,
             .event_type = event_type,
-            .full_sequence = full_sequence,
             .deviceid = deviceid,
             .time = time,
             .detail = detail,

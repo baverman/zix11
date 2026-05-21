@@ -93,10 +93,14 @@ test "counting and fixed writers produce the same final length" {
     try std.testing.expectEqual(counting.seek, fixed.seek);
     try std.testing.expectEqualSlices(u8, &.{
         0xaa,
-        int_bytes[0], int_bytes[1],
+        int_bytes[0],
+        int_bytes[1],
         0x00,
-        'z', 'i', 'g',
-        0xff, 0xff,
+        'z',
+        'i',
+        'g',
+        0xff,
+        0xff,
     }, fixed.buf[0..fixed.seek]);
 }
 

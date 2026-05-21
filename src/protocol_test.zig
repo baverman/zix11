@@ -178,3 +178,85 @@ test "Protocol.pendingEvent preserves queued GE packet length" {
         else => return error.TestUnexpectedResult,
     }
 }
+
+test "Protocol.readEvent decodes XInputMotion XGE packets" {
+    var proto = protocol.Protocol.init(std.testing.allocator);
+    defer proto.deinit();
+    proto.extensions.put(.XINPUT, .{
+        .major_opcode = 131,
+        .first_event = 64,
+        .first_error = 128,
+        .event_spec = events.eventSpec(.XINPUT),
+    });
+
+    var packet = std.mem.zeroes([100]u8);
+    packet[0] = 35;
+    packet[1] = 131;
+    std.mem.writeInt(u16, packet[2..4], 17, .native);
+    std.mem.writeInt(u32, packet[4..8], 17, .native);
+    std.mem.writeInt(u16, packet[8..10], 6, .native);
+    std.mem.writeInt(u16, packet[10..12], 12, .native);
+    std.mem.writeInt(u32, packet[12..16], 0x01020304, .native);
+    std.mem.writeInt(u32, packet[16..20], 9, .native);
+    std.mem.writeInt(u32, packet[20..24], 0x11111111, .native);
+    std.mem.writeInt(u32, packet[24..28], 0x22222222, .native);
+    std.mem.writeInt(u32, packet[28..32], 0x33333333, .native);
+    std.mem.writeInt(i32, packet[32..36], 10 << 16, .native);
+    std.mem.writeInt(i32, packet[36..40], 20 << 16, .native);
+    std.mem.writeInt(i32, packet[40..44], 30 << 16, .native);
+    std.mem.writeInt(i32, packet[44..48], 40 << 16, .native);
+    std.mem.writeInt(u16, packet[48..50], 1, .native);
+    std.mem.writeInt(u16, packet[50..52], 1, .native);
+    std.mem.writeInt(u16, packet[52..54], 13, .native);
+    std.mem.writeInt(u32, packet[56..60], 0x00010000, .native);
+    std.mem.writeInt(u32, packet[60..64], 1, .native);
+    std.mem.writeInt(u32, packet[64..68], 2, .native);
+    std.mem.writeInt(u32, packet[68..72], 3, .native);
+    std.mem.writeInt(u32, packet[72..76], 4, .native);
+    packet[76] = 5;
+    packet[77] = 6;
+    packet[78] = 7;
+    packet[79] = 8;
+    std.mem.writeInt(u32, packet[80..84], 0x10, .native);
+    std.mem.writeInt(u32, packet[84..88], 0x1, .native);
+    std.mem.writeInt(i32, packet[88..92], 50, .native);
+    std.mem.writeInt(u32, packet[92..96], 0x80000000, .native);
+
+    var reader: std.Io.Reader = .fixed(&packet);
+    const event = try proto.readEvent(&reader);
+
+    switch (event) {
+        .XInputMotion => |ev| {
+            try std.testing.expectEqual(@as(u8, 131), ev.extension);
+            try std.testing.expectEqual(@as(u32, 17), ev.length);
+            try std.testing.expectEqual(@as(u16, 6), ev.event_type);
+            try std.testing.expectEqual(@as(u16, 12), ev.deviceid);
+            try std.testing.expectEqual(@as(u32, 0x01020304), ev.time);
+            try std.testing.expectEqual(@as(u32, 9), ev.detail);
+            try std.testing.expectEqual(@as(x.Window, @enumFromInt(0x11111111)), ev.root);
+            try std.testing.expectEqual(@as(x.Window, @enumFromInt(0x22222222)), ev.event);
+            try std.testing.expectEqual(@as(x.Window, @enumFromInt(0x33333333)), ev.child);
+            try std.testing.expectEqual(@as(i32, 10 << 16), ev.root_x);
+            try std.testing.expectEqual(@as(i32, 20 << 16), ev.root_y);
+            try std.testing.expectEqual(@as(i32, 30 << 16), ev.event_x);
+            try std.testing.expectEqual(@as(i32, 40 << 16), ev.event_y);
+            try std.testing.expectEqual(@as(u16, 1), ev.buttons_len);
+            try std.testing.expectEqual(@as(u16, 1), ev.valuators_len);
+            try std.testing.expectEqual(@as(u16, 13), ev.sourceid);
+            try std.testing.expectEqual(@as(u32, 0x00010000), ev.flags);
+            try std.testing.expectEqual(@as(u32, 4), ev.mods.effective);
+            try std.testing.expectEqual(@as(u8, 8), ev.group.effective);
+
+            var body = try ev.getBody(std.testing.allocator);
+            defer body.deinit(std.testing.allocator);
+            try std.testing.expectEqual(@as(usize, 1), body.button_mask.len);
+            try std.testing.expectEqual(@as(usize, 1), body.valuator_mask.len);
+            try std.testing.expectEqual(@as(usize, 1), body.axisvalues.len);
+            try std.testing.expectEqual(@as(u32, 0x10), body.button_mask[0]);
+            try std.testing.expectEqual(@as(u32, 0x1), body.valuator_mask[0]);
+            try std.testing.expectEqual(@as(i32, 50), body.axisvalues[0].integral);
+            try std.testing.expectEqual(@as(u32, 0x80000000), body.axisvalues[0].frac);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}

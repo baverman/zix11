@@ -11,12 +11,6 @@ pub fn requiredPad(offset: usize, alignment: usize, start_offset: usize) usize {
     return (start_mod + alignment - offset_mod) % alignment;
 }
 
-pub fn structListByteLen(list: anytype) usize {
-    var total: usize = 0;
-    for (list) |elem| total += elem.byteLen();
-    return total;
-}
-
 pub fn computeValueMask(comptime Spec: type, values: anytype) Spec.mask_type {
     var mask: Spec.mask_type = 0;
     inline for (Spec.fields) |field| {
