@@ -7505,21 +7505,6 @@ pub const GeGenericEvent = struct {
     event_type: u16,
     full_sequence: u32,
 
-    pub fn toBytes(self: @This()) [32]u8 {
-        var packet: [32]u8 = std.mem.zeroes([32]u8);
-        var writer_impl = zio.FixedBufferWriter.init(&packet);
-        const writer = &writer_impl;
-        writer.writeByte(35);
-        writer.writeByte(self.extension);
-        writer.writeInt(u16, 0);
-        writer.writeInt(u32, self.length);
-        writer.writeInt(u16, self.event_type);
-        writer.writeInt(u16, 0);
-        writer.writeInt(u32, self.full_sequence);
-        writer.splatByte(0, 22);
-        return packet;
-    }
-
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         _ = try reader.takeByte();
         const extension = try reader.takeByte();
@@ -7528,8 +7513,9 @@ pub const GeGenericEvent = struct {
         const event_type = try reader.takeInt(u16, .native);
         _ = try reader.take(2);
         const full_sequence = try reader.takeInt(u32, .native);
+        const payload_start_seek = reader.seek;
         _ = try reader.take(22);
-        const xge_body_len = 22;
+        const xge_body_len = reader.seek - payload_start_seek;
         const total_body_len = 16 + @as(usize, length) * 4;
         if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);
         return .{

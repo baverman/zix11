@@ -25,7 +25,10 @@ pub fn decodeEvent(
             const info = entry.value;
             const spec = info.event_spec orelse continue;
             const decode_xge = spec.decode_xge orelse continue;
-            if (extension_opcode == info.major_opcode) return try decode_xge(packet);
+            if (extension_opcode == info.major_opcode) {
+                var reader: std.Io.Reader = .fixed(packet);
+                return try decode_xge(&reader);
+            }
         }
     }
 

@@ -22,7 +22,7 @@ XML_PATHS = (
     XML_DIR / "shm.xml",
     XML_DIR / "shape.xml",
     XML_DIR / "xfixes.xml",
-    # XML_DIR / "xinput.xml",
+    XML_DIR / "xinput.xml",
 )
 OUT_DIR = Path("src/gen")
 
@@ -211,7 +211,10 @@ class StructType:
         return self.name if self.module_name is None else f"{self.module_name}.{self.name}"
 
     def byte_len_expr(self, value_expr: str) -> str:
-        return f"{value_expr}.byteLen()"
+        fixed = self.fixed_wire_size()
+        if fixed is not None:
+            return str(fixed)
+        return f"(blk: {{ var writer = zio.CountingWriter.init(); {value_expr}.encode(&writer); break :blk writer.seek; }})"
 
     def fixed_wire_size(self) -> int | None:
         return None if self.decl is None else self.decl.fixed_wire_size
@@ -243,7 +246,10 @@ class UnionType:
         return self.name if self.module_name is None else f"{self.module_name}.{self.name}"
 
     def byte_len_expr(self, value_expr: str) -> str:
-        return f"{value_expr}.byteLen()"
+        fixed = self.fixed_wire_size()
+        if fixed is not None:
+            return str(fixed)
+        return f"(blk: {{ var writer = zio.CountingWriter.init(); {value_expr}.encode(&writer); break :blk writer.seek; }})"
 
     def fixed_wire_size(self) -> int | None:
         return None if self.decl is None else self.decl.raw_size
@@ -566,7 +572,11 @@ class SwitchCaseItem:
     def byte_len_term(self, owner_expr: str, previous_item: Item | None = None) -> str:
         _ = owner_expr
         _ = previous_item
-        return f"{owner_expr}.{render_field_name(self.name)}.byteLen()"
+        return (
+            f"(blk: {{ var writer = zio.CountingWriter.init(); "
+            f"{owner_expr}.{render_field_name(self.name)}.encode(&writer); "
+            f"break :blk writer.seek; }})"
+        )
 
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         _ = owner_expr
@@ -1641,7 +1651,7 @@ def decoded_item_byte_len_term(item: Item, previous_item: Item | None = None) ->
             raise NotImplementedError(f"pad-align decoded byteLen only supports align=4, got {item.align}")
         return f"wire.pad4({previous_item.decoded_payload_len_expr()})"
     if isinstance(item, RequiredStartAlignItem):
-        return f"wire.requiredPad(payload_offset, {item.align}, {item.offset})"
+        raise NotImplementedError("required-start-align decoded length should use reader.seek tracking")
     if isinstance(item, ListItem):
         return item.decoded_payload_len_expr()
     if isinstance(item, SwitchCaseItem):
@@ -1665,7 +1675,7 @@ def payload_has_required_start_align(items: tuple[Item, ...]) -> bool:
 
 
 def payload_needs_offset_tracking(items: tuple[Item, ...]) -> bool:
-    return any(isinstance(item, RequiredStartAlignItem | SwitchCaseItem) for item in items)
+    return False
 
 
 def emit_payload_byte_len(emit: Emit, items: tuple[Item, ...], owner_expr: str) -> None:
@@ -1675,56 +1685,16 @@ def emit_payload_byte_len(emit: Emit, items: tuple[Item, ...], owner_expr: str) 
     emit(f"return {expr};")
 
 
-def emit_struct_byte_len(emit: Emit, decl: StructDecl) -> None:
-    if not payload_needs_offset_tracking(decl.items):
-        emit("pub fn byteLen(self: @This()) usize {")
-        with emit.block():
-            emit_payload_byte_len(emit, decl.items, "self")
-        emit("}")
-        emit()
-        return
-
-    emit("pub fn byteLen(self: @This()) usize {")
-    with emit.block():
-        emit("return self.byteLenFrom(0);")
-    emit("}")
-    emit()
-
-    emit("fn byteLenFrom(self: @This(), start_offset: usize) usize {")
-    with emit.block():
-        emit("var payload_offset: usize = start_offset;")
-        previous_item: Item | None = None
-        for item in decl.items:
-            if isinstance(item, RequiredStartAlignItem):
-                emit(f"payload_offset += wire.requiredPad(payload_offset, {item.align}, {item.offset});")
-            elif isinstance(item, SwitchCaseItem):
-                field_name = render_field_name(item.name)
-                emit(f"payload_offset += self.{field_name}.byteLenFrom(payload_offset);")
-            else:
-                emit(f"payload_offset += {item.byte_len_term('self', previous_item)};")
-            previous_item = item
-        emit("return payload_offset - start_offset;")
-    emit("}")
-    emit()
-
-
 def emit_payload_encode_body(
     emit: Emit,
     items: tuple[Item, ...],
     owner_expr: str,
     previous_item: Item | None = None,
 ) -> None:
-    if not payload_needs_offset_tracking(items):
-        current_previous = previous_item
-        for item in items:
-            item.emit_encode(emit, owner_expr, current_previous)
-            current_previous = item
-        return
-    emit("const start_seek = writer.seek;")
     current_previous = previous_item
     for item in items:
         if isinstance(item, RequiredStartAlignItem):
-            emit(f"const required_pad = wire.requiredPad(writer.seek - start_seek, {item.align}, {item.offset});")
+            emit(f"const required_pad = wire.requiredPad(writer.seek, {item.align}, {item.offset});")
             emit("writer.splatByte(0, required_pad);")
         elif isinstance(item, SwitchCaseItem):
             field_name = render_field_name(item.name)
@@ -1755,38 +1725,23 @@ def emit_payload_decode_body(
     items: tuple[Item, ...],
     previous_item: Item | None = None,
     decode_mode: str = "alloc",
-    start_offset_expr: str = "0",
 ) -> None:
-    if not payload_needs_offset_tracking(items):
-        current_previous = previous_item
-        for item in items:
-            if isinstance(item, ListItem):
-                item.emit_decode(emit, current_previous, decode_mode)
-            else:
-                item.emit_decode(emit, current_previous)
-            current_previous = item
-        return
-    emit(f"var payload_offset: usize = {start_offset_expr};")
     current_previous = previous_item
     for item in items:
         if isinstance(item, RequiredStartAlignItem):
-            emit(f"const required_pad = wire.requiredPad(payload_offset, {item.align}, {item.offset});")
+            emit(f"const required_pad = wire.requiredPad(reader.seek, {item.align}, {item.offset});")
             emit("if (required_pad != 0) _ = try reader.take(required_pad);")
-            emit("payload_offset += required_pad;")
         elif isinstance(item, SwitchCaseItem):
             params = "".join(f"{render_local_name(name)}, " for name in item.context_params)
             emit(
                 f"const {render_local_name(item.name)} = "
                 f"try {item.require_type_name()}.decode("
-                f"allocator, {render_local_name(item.fieldref_name)}, payload_offset, {params}reader);"
+                f"allocator, {render_local_name(item.fieldref_name)}, {params}reader);"
             )
-            emit(f"payload_offset += {render_local_name(item.name)}.byteLenFrom(payload_offset);")
         elif isinstance(item, ListItem):
             item.emit_decode(emit, current_previous, decode_mode)
-            emit(f"payload_offset += {decoded_item_byte_len_term(item, current_previous)};")
         else:
             item.emit_decode(emit, current_previous)
-            emit(f"payload_offset += {decoded_item_byte_len_term(item, current_previous)};")
         current_previous = item
 
 
@@ -1922,59 +1877,7 @@ def emit_switch_case_decl(emit: Emit, item: SwitchCaseItem) -> None:
                 emit_payload_decl_fields(emit, case.items)
             emit("},")
         emit()
-        emit("pub fn byteLen(self: @This()) usize {")
-        with emit.block():
-            emit("return self.byteLenFrom(0);")
-        emit("}")
-        emit()
-        emit("fn byteLenFrom(self: @This(), start_offset: usize) usize {")
-        with emit.block():
-            emit("var payload_offset: usize = start_offset;")
-            emit("switch (self) {")
-            with emit.block():
-                for case in item.cases:
-                    variant_name = case.name or zig_enum_item_name(case.enum_item)
-                    needs_value = False
-                    previous_item: Item | None = None
-                    for case_item in case.items:
-                        if isinstance(case_item, SwitchCaseItem):
-                            needs_value = True
-                            break
-                        if isinstance(case_item, RequiredStartAlignItem):
-                            previous_item = case_item
-                            continue
-                        if "value" in case_item.byte_len_term("value", previous_item):
-                            needs_value = True
-                            break
-                        previous_item = case_item
-                    if needs_value:
-                        emit(f".{render_field_name(variant_name)} => |value| {{")
-                    else:
-                        emit(f".{render_field_name(variant_name)} => {{")
-                    with emit.block():
-                        previous_item: Item | None = None
-                        for case_item in case.items:
-                            if isinstance(case_item, RequiredStartAlignItem):
-                                emit(
-                                    f"payload_offset += wire.requiredPad(payload_offset, {case_item.align}, {case_item.offset});"
-                                )
-                            elif isinstance(case_item, SwitchCaseItem):
-                                field_name = render_field_name(case_item.name)
-                                emit(f"payload_offset += value.{field_name}.byteLenFrom(payload_offset);")
-                            else:
-                                emit(f"payload_offset += {case_item.byte_len_term('value', previous_item)};")
-                            previous_item = case_item
-                    emit("},")
-            emit("}")
-            emit("return payload_offset - start_offset;")
-        emit("}")
-        emit()
-        emit("pub fn encode(self: @This(), writer: *std.Io.Writer) EncodeError!void {")
-        with emit.block():
-            emit("try self.encodeFrom(0, writer);")
-        emit("}")
-        emit()
-        emit("fn encodeFrom(self: @This(), start_offset: usize, writer: *std.Io.Writer) EncodeError!void {")
+        emit("pub fn encode(self: @This(), writer: anytype) void {")
         with emit.block():
             emit("switch (self) {")
             with emit.block():
@@ -1982,23 +1885,7 @@ def emit_switch_case_decl(emit: Emit, item: SwitchCaseItem) -> None:
                     variant_name = case.name or zig_enum_item_name(case.enum_item)
                     emit(f".{render_field_name(variant_name)} => |value| {{")
                     with emit.block():
-                        emit("var payload_offset: usize = start_offset;")
-                        previous_item: Item | None = None
-                        for case_item in case.items:
-                            if isinstance(case_item, RequiredStartAlignItem):
-                                emit(
-                                    f"const required_pad = wire.requiredPad(payload_offset, {case_item.align}, {case_item.offset});"
-                                )
-                                emit("try writer.splatByteAll(0, required_pad);")
-                                emit("payload_offset += required_pad;")
-                            elif isinstance(case_item, SwitchCaseItem):
-                                field_name = render_field_name(case_item.name)
-                                emit(f"try value.{field_name}.encodeFrom(payload_offset, writer);")
-                                emit(f"payload_offset += value.{field_name}.byteLenFrom(payload_offset);")
-                            else:
-                                case_item.emit_encode(emit, "value", previous_item)
-                                emit(f"payload_offset += {case_item.byte_len_term('value', previous_item)};")
-                            previous_item = case_item
+                        emit_payload_encode_body(emit, case.items, "value")
                     emit("},")
             emit("}")
         emit("}")
@@ -2006,19 +1893,17 @@ def emit_switch_case_decl(emit: Emit, item: SwitchCaseItem) -> None:
         ctx = "".join(f"{render_field_name(name)}: anytype, " for name in item.context_params)
         emit(
             f"pub fn decode("
-            f"allocator: std.mem.Allocator, discriminator: anytype, start_offset: usize, {ctx}reader: *std.Io.Reader"
+            f"allocator: std.mem.Allocator, discriminator: anytype, {ctx}reader: *std.Io.Reader"
             f") AllocDecodeError!@This() {{"
         )
         with emit.block():
-            if not payload_needs_offset_tracking(tuple(case_item for case in item.cases for case_item in case.items)):
-                emit("_ = start_offset;")
             emit("return switch (discriminator) {")
             with emit.block():
                 for case in item.cases:
                     variant_name = case.name or zig_enum_item_name(case.enum_item)
                     emit(f"{case.enum_name}.{zig_enum_item_name(case.enum_item)} => blk: {{")
                     with emit.block():
-                        emit_payload_decode_body(emit, case.items, decode_mode="alloc", start_offset_expr="start_offset")
+                        emit_payload_decode_body(emit, case.items, decode_mode="alloc")
                         emit("break :blk .{")
                         with emit.block():
                             emit(f".{render_field_name(variant_name)} = .{{")
@@ -2209,7 +2094,7 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
             if dynamic_parts is not None:
                 prefix_items, dynamic_body_items = dynamic_parts
                 emit_payload_decl_fields(emit, prefix_items)
-                emit("_packet: []const u8,")
+                emit("_body: []const u8,")
                 emit()
                 emit_dynamic_body_decl(emit, decl.name, dynamic_body_items)
             elif not xge_body_dynamic:
@@ -2220,23 +2105,16 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
         if dynamic_parts is not None:
             emit("pub fn getBody(self: @This(), allocator: std.mem.Allocator) AllocDecodeError!Body {")
             with emit.block():
-                emit("var reader_impl: std.Io.Reader = .fixed(self._packet);")
+                emit("var reader_impl: std.Io.Reader = .fixed(self._body);")
                 emit("const reader = &reader_impl;")
-                emit("_ = try reader.takeByte();")
-                emit("_ = try reader.takeByte();")
-                emit("_ = try reader.takeInt(u16, .native);")
-                emit("_ = try reader.takeInt(u32, .native);")
-                emit("_ = try reader.takeInt(u16, .native);")
-                emit("_ = try reader.take(2);")
-                emit("_ = try reader.takeInt(u32, .native);")
                 prefix_items, dynamic_body_items = dynamic_parts
                 used_fieldrefs = set(dynamic_event_body_fieldrefs(dynamic_body_items))
                 for item in prefix_items:
                     if isinstance(item, FieldItem) and item.name in used_fieldrefs:
                         local_name = render_local_name(item.name)
                         emit(f"const {local_name} = self.{render_field_name(item.name)};")
-                    elif isinstance(item, PadBytesItem):
-                        emit(f"_ = try reader.take({item.count});")
+                    elif isinstance(item, FieldItem | PadBytesItem):
+                        continue
                     elif isinstance(item, PadAlignItem):
                         raise NotImplementedError("dynamic XGE event prefix pad-align is not supported")
                     elif isinstance(item, RequiredStartAlignItem):
@@ -2252,57 +2130,13 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                 emit("};")
             emit("}")
             emit()
-            emit("pub fn decodePacket(packet: []const u8) DecodeError!@This() {")
+        if decl.xge != "true":
+            emit("pub fn toBytes(self: @This()) [32]u8 {")
             with emit.block():
-                emit("var reader_impl: std.Io.Reader = .fixed(packet);")
-                emit("const reader = &reader_impl;")
-                emit("_ = try reader.takeByte();")
-                emit("const extension = try reader.takeByte();")
-                emit("_ = try reader.takeInt(u16, .native);")
-                emit("const length = try reader.takeInt(u32, .native);")
-                emit("const event_type = try reader.takeInt(u16, .native);")
-                emit("_ = try reader.take(2);")
-                emit("const full_sequence = try reader.takeInt(u32, .native);")
-                for item in prefix_items:
-                    if isinstance(item, FieldItem):
-                        item.emit_decode(emit)
-                    elif isinstance(item, PadBytesItem):
-                        item.emit_decode(emit)
-                    else:
-                        raise NotImplementedError("dynamic XGE event prefix item is not supported")
-                emit("return .{")
-                with emit.block():
-                    emit(".extension = extension,")
-                    emit(".length = length,")
-                    emit(".event_type = event_type,")
-                    emit(".full_sequence = full_sequence,")
-                    for item in prefix_items:
-                        if isinstance(item, FieldItem):
-                            emit(f".{render_field_name(item.name)} = {render_local_name(item.name)},")
-                    emit("._packet = packet,")
-                emit("};")
-            emit("}")
-            emit()
-        emit("pub fn toBytes(self: @This()) [32]u8 {")
-        with emit.block():
-            if dynamic_parts is not None:
-                emit("_ = self;")
-                emit('std.debug.panic("dynamic XGE event encoding is not implemented", .{});')
-            else:
                 emit("var packet: [32]u8 = std.mem.zeroes([32]u8);")
                 emit("var writer_impl = zio.FixedBufferWriter.init(&packet);")
                 emit("const writer = &writer_impl;")
-                if decl.xge == "true":
-                    emit(f"writer.writeByte({decl.number});")
-                    emit("writer.writeByte(self.extension);")
-                    emit("writer.writeInt(u16, 0);")
-                    emit("writer.writeInt(u32, self.length);")
-                    emit("writer.writeInt(u16, self.event_type);")
-                    emit("writer.writeInt(u16, 0);")
-                    emit("writer.writeInt(u32, self.full_sequence);")
-                    if not xge_body_dynamic:
-                        emit_payload_encode_body(emit, decl.items, "self")
-                elif decl.no_sequence_number == "true":
+                if decl.no_sequence_number == "true":
                     emit(f"writer.writeByte({decl.number});")
                     for item in decl.items:
                         item.emit_encode(emit, "self")
@@ -2320,13 +2154,43 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                         item.emit_encode(emit, "self", current_previous)
                         current_previous = item
                 emit("return packet;")
-        emit("}")
-        emit()
+            emit("}")
+            emit()
         emit("pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {")
         with emit.block():
             if dynamic_parts is not None:
-                emit("_ = reader;")
-                emit('std.debug.panic("dynamic XGE events must be decoded from full packets", .{});')
+                emit("const header = try reader.peek(12);")
+                emit("const length = std.mem.readInt(u32, header[4..8], .native);")
+                emit("const packet = try reader.peek(32 + @as(usize, length) * 4);")
+                emit("_ = try reader.takeByte();")
+                emit("const extension = try reader.takeByte();")
+                emit("_ = try reader.takeInt(u16, .native);")
+                emit("_ = try reader.takeInt(u32, .native);")
+                emit("const event_type = try reader.takeInt(u16, .native);")
+                emit("_ = try reader.take(2);")
+                emit("const full_sequence = try reader.takeInt(u32, .native);")
+                prefix_items, _ = dynamic_parts
+                for item in prefix_items:
+                    if isinstance(item, FieldItem):
+                        item.emit_decode(emit)
+                    elif isinstance(item, PadBytesItem):
+                        item.emit_decode(emit)
+                    else:
+                        raise NotImplementedError("dynamic XGE event prefix item is not supported")
+                emit("const body = packet[reader.seek..];")
+                emit("const remaining_packet_len = packet.len - reader.seek;")
+                emit("if (remaining_packet_len != 0) _ = try reader.take(remaining_packet_len);")
+                emit("return .{")
+                with emit.block():
+                    emit(".extension = extension,")
+                    emit(".length = length,")
+                    emit(".event_type = event_type,")
+                    emit(".full_sequence = full_sequence,")
+                    for item in prefix_items:
+                        if isinstance(item, FieldItem):
+                            emit(f".{render_field_name(item.name)} = {render_local_name(item.name)},")
+                    emit("._body = body,")
+                emit("};")
             elif decl.no_sequence_number == "true":
                 emit_payload_decode_body(emit, decl.items)
                 emit_payload_decode_return(emit, decl.items)
@@ -2350,11 +2214,9 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
                             emit(".full_sequence = full_sequence,")
                         emit("};")
                     else:
+                        emit("const payload_start_seek = reader.seek;")
                         emit_payload_decode_body(emit, decl.items)
-                        if payload_needs_offset_tracking(decl.items):
-                            emit("const xge_body_len = payload_offset;")
-                        else:
-                            emit(f"const xge_body_len = {decoded_payload_byte_len_expr(decl.items)};")
+                        emit("const xge_body_len = reader.seek - payload_start_seek;")
                         emit("const total_body_len = 16 + @as(usize, length) * 4;")
                         emit("if (xge_body_len < total_body_len) _ = try reader.take(total_body_len - xge_body_len);")
                         emit("return .{")
@@ -2428,42 +2290,18 @@ def emit_decode_event(emit: Emit, module: ModuleIR, events: dict[str, EventDecl]
     if not xge_events:
         return
 
-    emit("pub fn decodeXgeEvent(packet: []const u8) DecodeError!global_events.Event {")
+    emit("pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {")
     with emit.block():
-        emit("const header = packet[0..10];")
+        emit("const header = try reader.peek(10);")
         emit("const event_type = std.mem.readInt(u16, header[8..10], .native);")
         emit("return switch (event_type) {")
         with emit.block():
             for name in sorted(xge_events, key=lambda n: xge_events[n].number):
                 decl = xge_events[name]
-                dynamic_parts = (
-                    split_dynamic_event_items(decl.items)
-                    if reply_decode_mode(StructDecl(name=event_struct_name(decl.name), items=decl.items)) == "alloc"
-                    else None
+                emit(
+                    f'{decl.number} => .{{ .{event_tag_name(module, name)} = try {event_struct_name(name)}.decode(reader) }},'
                 )
-                if dynamic_parts is not None:
-                    emit(
-                        f'{decl.number} => .{{ .{event_tag_name(module, name)} = try {event_struct_name(name)}.decodePacket(packet) }},'
-                    )
-                else:
-                    emit(f"{decl.number} => blk: {{")
-                    with emit.block():
-                        emit("var reader: std.Io.Reader = .fixed(packet);")
-                        emit(
-                            f"break :blk .{{ .{event_tag_name(module, name)} = try {event_struct_name(name)}.decode(&reader) }};"
-                        )
-                    emit("},")
-            emit("else => blk: {")
-            with emit.block():
-                emit("var raw: [32]u8 = undefined;")
-                emit("@memcpy(raw[0..], packet[0..32]);")
-                emit("break :blk .{ .Unknown = .{")
-                with emit.block():
-                    emit(".code = packet[0] & 0x7f,")
-                    emit(".sequence = std.mem.readInt(u16, packet[2..4], .native),")
-                    emit(".raw = raw,")
-                emit("} };")
-            emit("},")
+            emit("else => .{ .GEUnknown = try xproto.GeGenericEvent.decode(reader) },")
         emit("};")
     emit("}")
     emit()
@@ -2534,6 +2372,7 @@ def emit_global_event_union(emit: Emit, modules: tuple[ModuleIR, ...]) -> None:
     emit("pub const Event = union(enum) {")
     with emit.block():
         emit("Unknown: UnknownEvent,")
+        emit("GEUnknown: xproto.GeGenericEvent,")
         for module in modules:
             for name in sorted(module.events, key=lambda n: module.events[n].number):
                 emit(f"{event_tag_name(module, name)}: {module.header}.{event_struct_name(name)},")
@@ -2569,7 +2408,7 @@ def emit_extension_event_specs(emit: Emit, modules: tuple[ModuleIR, ...]) -> Non
         emit("max_event_num: u8,")
         emit("decode: ?*const fn (*std.Io.Reader) DecodeError!Event,")
         emit("max_xge_event_num: u16,")
-        emit("decode_xge: ?*const fn ([]const u8) DecodeError!Event,")
+        emit("decode_xge: ?*const fn (*std.Io.Reader) DecodeError!Event,")
     emit("};")
     emit()
 
