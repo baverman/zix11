@@ -1,11 +1,10 @@
 from __future__ import annotations
-from typing import Callable, Generic, TypeVar, Iterable, Any, Union
 
 import sys
 import xml.etree.ElementTree as ET
-
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any, Callable, Generic, Iterable, TypeVar, Union
 
 T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
@@ -140,7 +139,7 @@ class Many:
 
     @cached_property
     def matcher(self) -> AnyItem:
-        return resolve_ref(self._matcher)  #type: ignore[return-value]
+        return resolve_ref(self._matcher)  # type: ignore[return-value]
 
     def match(self, node: ET.Element | Iterable[ET.Element]) -> list[object]:
         result = []

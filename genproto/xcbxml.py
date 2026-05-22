@@ -1,27 +1,39 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Callable, TypeVar, Self, Sequence
-import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING, Callable, Sequence, TypeAlias, TypeVar, cast
 
-
-from schema import (
-    Item,
-    one_of,
-    Many,
-    Seq,
-    StructItem,
-    Ref,
-    TextItem,
+from .schema import (
     IgnoreItem,
-    Node,
-    TextNode,
+    Item,
+    Many,
     OneOf,
     Opt,
+    Ref,
+    Seq,
+    StructItem,
+    TextItem,
+    TextNode,
+    one_of,
 )
 
 T = TypeVar('T')
 
 Attrs = dict[str, object]
+if TYPE_CHECKING:
+    ListExpr: TypeAlias = (
+        'int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef'
+    )
+else:
+    ListExpr = object
+
+
+def cast_kids(attrs: Attrs) -> list[object]:
+    return cast(list[object], attrs.pop('@kids'))
+
+
+def cast_kid_map(attrs: Attrs) -> dict[str, object]:
+    return cast(dict[str, object], attrs.pop('@kids'))
 
 
 def node_text(attrs: Attrs, value: str) -> str:
@@ -55,29 +67,29 @@ class Field:
 class ListField:
     name: str
     item_type: str
-    len_expr: None | FieldRef | Op | SumOf | int
+    len_expr: None | ListExpr
     enum: str | None = None
     mask: str | None = None
 
     @staticmethod
     def make(attrs: Attrs) -> ListField:
         attrs['item_type'] = attrs.pop('type')
-        kids = attrs.pop('@kids')
-        attrs['len_expr'] = kids and kids[0]  # type: ignore[index]
+        kids = cast_kids(attrs)
+        attrs['len_expr'] = kids[0] if kids else None
         return ListField(**attrs)  # type: ignore[arg-type]
 
 
 @dataclass
 class SwitchField:
     name: str
-    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+    expr: ListExpr
     items: list[SwitchItem]
 
     @staticmethod
     def make(attrs: Attrs) -> SwitchField:
-        kids = attrs.pop('@kids')
-        (attrs['expr'],) = kids.pop('_')  # type: ignore[misc]
-        attrs['items'] = kids.pop('bitcase')  # type: ignore[attr-defined]
+        kids = cast(dict[str, list[object]], cast_kid_map(attrs))
+        attrs['expr'] = kids.pop('_')[0]
+        attrs['items'] = kids.pop('bitcase')
         return SwitchField(**attrs)  # type: ignore[arg-type]
 
 
@@ -105,8 +117,8 @@ class RequiredStartAlign:
     @staticmethod
     def make(attrs: Attrs) -> RequiredStartAlign:
         return RequiredStartAlign(
-            align=int(attrs['align']),  # type: ignore[arg-type]
-            offset=int(attrs['offset']),  # type: ignore[arg-type]
+            align=int(cast(str, attrs['align'])),
+            offset=int(cast(str, attrs['offset'])),
         )
 
 
@@ -164,6 +176,7 @@ class Fd:
 DataFields = Field | ListField | Pad | Fd
 RequestDataFields = DataFields | SwitchField | CaseSwitchField
 
+
 @dataclass
 class Reply:
     fields: Sequence[DataFields]
@@ -173,7 +186,7 @@ class Reply:
 class Struct:
     name: str
     fields: Sequence[DataFields | CaseSwitchField | RequiredStartAlign]
-    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
+    length_expr: None | ListExpr = None
 
     @staticmethod
     def make(attrs: Attrs) -> Struct:
@@ -228,7 +241,7 @@ class Request:
     reply: Reply | None
     fields: Sequence[RequestDataFields]
     combine_adjacent: str | None = None
-    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
+    length_expr: None | ListExpr = None
 
     @staticmethod
     def make(attrs: Attrs) -> Request:
@@ -253,7 +266,7 @@ class Event:
     fields: Sequence[DataFields | CaseSwitchField | RequiredStartAlign]
     no_sequence_number: str | None = None
     xge: str | None = None
-    length_expr: None | FieldRef | Op | SumOf | PopCount | ListElementRef | int = None
+    length_expr: None | ListExpr = None
 
     @staticmethod
     def make(attrs: Attrs) -> Event:
@@ -348,24 +361,24 @@ class ParamRef:
 @dataclass
 class Op:
     op: str
-    left: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
-    right: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+    left: ListExpr
+    right: ListExpr
 
     @staticmethod
     def make(attrs: Attrs) -> Op:
-        left, right = attrs.pop('@kids')  # type: ignore[misc]
-        return Op(**attrs, left=left, right=right)  # type: ignore[arg-type, has-type]
+        left, right = cast_kids(attrs)
+        return Op(**attrs, left=cast(ListExpr, left), right=cast(ListExpr, right))  # type: ignore[arg-type]
 
 
 @dataclass
 class Unop:
     op: str
-    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+    expr: ListExpr
 
     @staticmethod
     def make(attrs: Attrs) -> Unop:
-        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
-        return Unop(**attrs, expr=expr)  # type: ignore[arg-type]
+        (expr,) = cast_kids(attrs)
+        return Unop(**attrs, expr=cast(ListExpr, expr))  # type: ignore[arg-type]
 
 
 @dataclass
@@ -378,23 +391,23 @@ class ListElementRef:
 
 @dataclass
 class PopCount:
-    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+    expr: ListExpr
 
     @staticmethod
     def make(attrs: Attrs) -> PopCount:
-        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
-        return PopCount(expr=expr)
+        (expr,) = cast_kids(attrs)
+        return PopCount(expr=cast(ListExpr, expr))
 
 
 @dataclass
 class SumOf:
     ref: str
-    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+    expr: ListExpr
 
     @staticmethod
     def make(attrs: Attrs) -> SumOf:
-        kids = attrs.pop('@kids')
-        expr = kids[0] if kids else ListElementRef()
+        kids = cast_kids(attrs)
+        expr = cast(ListExpr, kids[0]) if kids else ListElementRef()
         return SumOf(ref=attrs['ref'], expr=expr)  # type: ignore[arg-type]
 
 
@@ -414,7 +427,9 @@ list_items = one_of(
     listelement_ref_item,
 )
 
-field_item = Item('field', {'type', 'name', 'mask', 'enum', 'altenum', 'altmask'}, cnv=simple(Field))
+field_item = Item(
+    'field', {'type', 'name', 'mask', 'enum', 'altenum', 'altmask'}, cnv=simple(Field)
+)
 required_start_align_item = Item(
     'required_start_align',
     {'align', 'offset'},
@@ -446,14 +461,20 @@ switch = Item[SwitchField](
 case_switch = Item[CaseSwitchField](
     'switch',
     {'name'},
-    StructItem(fieldref=fieldref_item, required_start_align=Many(required_start_align_item), case=Many(case)),
+    StructItem(
+        fieldref=fieldref_item,
+        required_start_align=Many(required_start_align_item),
+        case=Many(case),
+    ),
     cnv=CaseSwitchField.make,
 )
 
 case_items = one_of(
     field_item,
     Item('pad', {'bytes', 'align', 'serialize'}, cnv=Pad.make),
-    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item(
+        'list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make
+    ),
     Item('fd', {'name'}, cnv=simple(Fd)),
     required_start_align_item,
     switch,
@@ -466,7 +487,9 @@ field_items_tup = (
     switch,
     field_item,
     Item('pad', {'bytes', 'align', 'serialize'}, cnv=Pad.make),
-    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item(
+        'list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make
+    ),
     Item('fd', {'name'}, cnv=simple(Fd)),
     required_start_align_item,
     IgnoreItem('doc'),
@@ -494,7 +517,9 @@ request = Item(
     cnv=Request.make,
 )
 
-struct = Item('struct', {'name'}, StructItem(length=Opt(length_item), _=Many(field_items)), cnv=Struct.make)
+struct = Item(
+    'struct', {'name'}, StructItem(length=Opt(length_item), _=Many(field_items)), cnv=Struct.make
+)
 
 xidtype = Item('xidtype', {'name'}, cnv=simple(XidType))
 
@@ -539,19 +564,8 @@ errorcopy = Item('errorcopy', {'name', 'number', 'ref'}, cnv=simple(ErrorCopy))
 @dataclass
 class Bindings:
     header: str
+    decls: list[object]
     imports: list[str]
-    request: list[Request]
-    struct: list[Struct]
-    xidtype: list[XidType]
-    xidunion: list[XidUnion]
-    typedef: list[TypeDef]
-    enum: list[Enum]
-    event: list[Event]
-    eventcopy: list[EventCopy]
-    eventstruct: list[EventStruct]
-    union: list[Union]
-    error: list[Error]
-    errorcopy: list[ErrorCopy]
     extension_xname: str | None = None
     extension_name: str | None = None
     major_version: str | None = None
@@ -560,9 +574,16 @@ class Bindings:
     @staticmethod
     def make(attrs: Attrs) -> Bindings:
         attrs = {k.replace('-', '_'): v for k, v in attrs.items()}
-        attrs.update(attrs.pop('@kids'))  # type: ignore[call-overload]
-        attrs['imports'] = attrs.pop('import')
-        attrs['request'] = [request for request in attrs['request'] if not request.has_fd]  # type: ignore[index]
+        decls = []
+        imports = []
+        for item in cast_kids(attrs):
+            if isinstance(item, str):
+                imports.append(item)
+            else:
+                decls.append(item)
+        attrs['decls'] = decls
+        attrs['imports'] = imports
+        attrs['decls'] = [decl for decl in decls if not (isinstance(decl, Request) and decl.has_fd)]
         return Bindings(**attrs)  # type: ignore[arg-type]
 
 
@@ -571,20 +592,22 @@ import_item = TextItem('import', cnv=node_text)
 root_item = Item(
     'xcb',
     {'header', 'extension-xname', 'extension-name', 'major-version', 'minor-version'},
-    StructItem(
-        request=Many(request),
-        struct=Many(struct),
-        xidtype=Many(xidtype),
-        xidunion=Many(xidunion),
-        typedef=Many(typedef),
-        enum=Many(enum),
-        event=Many(event),
-        eventcopy=Many(eventcopy),
-        eventstruct=Many(eventstruct),
-        union=Many(union),
-        error=Many(error),
-        errorcopy=Many(errorcopy),
-        **{'import': Many(import_item)},
+    Many(
+        one_of(
+            import_item,
+            request,
+            struct,
+            xidtype,
+            xidunion,
+            typedef,
+            enum,
+            event,
+            eventcopy,
+            eventstruct,
+            union,
+            error,
+            errorcopy,
+        )
     ),
     cnv=Bindings.make,
 )

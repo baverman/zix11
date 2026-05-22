@@ -1,0 +1,3 @@
+import genproto
+
+genproto.main()

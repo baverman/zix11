@@ -1,0 +1,178 @@
+<xcb header="toy" extension-xname="TOY" extension-name="Toy" major-version="1" minor-version="0">
+    <enum name="Mode">
+        <item name="off"> <value>0</value> </item>
+        <item name="on"> <value>1</value> </item>
+    </enum>
+
+    <enum name="Bits">
+        <item name="id"> <value>1</value> </item>
+        <item name="counted"> <value>2</value> </item>
+    </enum>
+
+    <xidtype name="WINDOW" />
+    <xidtype name="PIXMAP" />
+    <xidunion name="DRAWABLE">
+        <type>WINDOW</type>
+        <type>PIXMAP</type>
+    </xidunion>
+    <typedef oldname="CARD32" newname="VISUALID" />
+
+    <struct name="Point">
+        <pad bytes="1" />
+        <field type="INT16" name="x" />
+        <field type="INT16" name="y" />
+        <field type="CARD32" name="serial" />
+    </struct>
+
+    <struct name="ModeCount">
+        <field type="CARD8" name="mode" enum="Mode" />
+        <field type="CARD16" name="count" />
+    </struct>
+
+    <struct name="Tag">
+        <list type="CARD8" name="bytes">
+            <value>4</value>
+        </list>
+    </struct>
+
+    <struct name="AliasHolder">
+        <field type="VISUALID" name="visual" />
+    </struct>
+
+    <struct name="DrawableHolder">
+        <field type="DRAWABLE" name="drawable" />
+    </struct>
+
+    <union name="ClientData">
+        <list type="CARD8" name="data8">
+            <value>4</value>
+        </list>
+        <list type="CARD16" name="data16">
+            <value>2</value>
+        </list>
+        <list type="CARD32" name="data32">
+            <value>1</value>
+        </list>
+    </union>
+
+    <struct name="ClientDataHolder">
+        <field type="ClientData" name="data" />
+    </struct>
+
+    <error name="Request" number="1" />
+    <errorcopy name="Value" number="2" ref="Request" />
+
+    <event name="SimpleNotify" number="1">
+        <field type="CARD8" name="detail" />
+        <field type="CARD16" name="count" />
+        <pad bytes="25" />
+    </event>
+    <eventcopy name="SimpleNotifyCopy" number="2" ref="SimpleNotify" />
+
+    <event name="InfoNotify" number="7" xge="true">
+        <field type="CARD16" name="count" />
+    </event>
+    <eventcopy name="InfoNotifyCopy" number="8" ref="InfoNotify" />
+
+    <struct name="Blob">
+        <field type="CARD16" name="len" />
+        <list type="CARD8" name="bytes">
+            <fieldref>len</fieldref>
+        </list>
+    </struct>
+
+    <struct name="BlobList">
+        <field type="CARD16" name="len" />
+        <list type="Blob" name="blobs">
+            <fieldref>len</fieldref>
+        </list>
+    </struct>
+
+    <struct name="RepeatedLike">
+        <field type="CARD8" name="count" />
+        <list type="CARD32" name="items">
+            <op op="*">
+                <fieldref>count</fieldref>
+                <value>4</value>
+            </op>
+        </list>
+    </struct>
+
+    <struct name="KeysymsLike">
+        <field type="CARD8" name="count" />
+        <field type="CARD8" name="stride" />
+        <list type="CARD32" name="items">
+            <op op="*">
+                <fieldref>count</fieldref>
+                <fieldref>stride</fieldref>
+            </op>
+        </list>
+    </struct>
+
+    <struct name="TailBytes">
+        <list type="CARD8" name="bytes" />
+    </struct>
+
+    <struct name="TailPoints">
+        <list type="Point" name="points" />
+    </struct>
+
+    <struct name="ModePayload">
+        <field type="CARD8" name="mode" enum="Mode" />
+        <switch name="payload">
+            <fieldref>mode</fieldref>
+            <case>
+                <enumref ref="Mode">off</enumref>
+                <field type="CARD8" name="len" />
+                <list type="CARD8" name="blob">
+                    <fieldref>len</fieldref>
+                </list>
+            </case>
+            <case>
+                <enumref ref="Mode">on</enumref>
+                <field type="CARD16" name="count" />
+            </case>
+        </switch>
+    </struct>
+
+    <struct name="BitPayload">
+        <field type="CARD16" name="bits" mask="Bits" />
+        <switch name="payload">
+            <fieldref>bits</fieldref>
+            <bitcase>
+                <enumref ref="Bits">id</enumref>
+                <field type="CARD32" name="id" />
+            </bitcase>
+            <bitcase>
+                <enumref ref="Bits">counted</enumref>
+                <pad bytes="1" />
+                <field type="CARD16" name="count" />
+            </bitcase>
+        </switch>
+    </struct>
+
+    <request name="UseByteField" opcode="1">
+        <field type="CARD8" name="mode" enum="Mode" />
+        <field type="CARD16" name="count" />
+        <reply>
+            <field type="CARD8" name="status" />
+            <field type="CARD16" name="count" />
+        </reply>
+    </request>
+
+    <request name="UseBytePad" opcode="2">
+        <pad bytes="1" />
+        <field type="CARD16" name="count" />
+        <reply>
+            <pad bytes="1" />
+            <field type="CARD16" name="count" />
+        </reply>
+    </request>
+
+    <request name="UseCard32" opcode="3">
+        <field type="CARD32" name="id" />
+        <reply>
+            <field type="CARD32" name="id" />
+        </reply>
+    </request>
+</xcb>
