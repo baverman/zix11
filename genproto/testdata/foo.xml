@@ -1,0 +1,38 @@
+<xcb header="foo" extension-xname="FOO" extension-name="Foo" major-version="1" minor-version="0">
+    <enum name="FooMode">
+        <item name="alpha"> <value>0</value> </item>
+        <item name="beta"> <value>1</value> </item>
+    </enum>
+
+    <enum name="Mode">
+        <item name="local"> <value>2</value> </item>
+    </enum>
+
+    <struct name="ModeRefs">
+        <field type="CARD8" name="core_mode" enum="core:Mode" />
+        <field type="CARD8" name="mode" enum="Mode" />
+    </struct>
+
+    <struct name="FooPoint">
+        <field type="CARD16" name="x" />
+        <field type="CARD16" name="y" />
+        <field type="CARD8" name="mode" enum="FooMode" />
+    </struct>
+
+    <error name="FooFailure" number="0" />
+
+    <event name="FooNotify" number="0">
+        <field type="CARD8" name="detail" />
+        <field type="CARD16" name="count" />
+        <pad bytes="25" />
+    </event>
+
+    <request name="FooPing" opcode="1">
+        <field type="CARD8" name="mode" enum="FooMode" />
+        <field type="CARD16" name="value" />
+        <reply>
+            <field type="CARD8" name="status" />
+            <field type="CARD16" name="value" />
+        </reply>
+    </request>
+</xcb>

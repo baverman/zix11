@@ -1,5 +1,10 @@
 const std = @import("std");
 
+pub const ReplyHeader = struct {
+    byte_slot: u8,
+    length: u32,
+};
+
 pub fn pad(len: usize, alignment: comptime_int) usize {
     comptime std.debug.assert(alignment != 0);
     comptime std.debug.assert((alignment & (alignment - 1)) == 0);

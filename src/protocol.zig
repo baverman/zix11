@@ -86,6 +86,7 @@ pub const Protocol = struct {
         else
             0;
         const packet_len = 32 + extra_len;
+        // TODO: packet_len could be bigger than reader buffer size
         return try reader.take(packet_len);
     }
 

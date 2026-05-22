@@ -1,6 +1,7 @@
 [tool.mypy]
 python_version = "3.11"
 strict = true
+packages = ["genproto"]
 
 [tool.ruff]
 line-length = 100
