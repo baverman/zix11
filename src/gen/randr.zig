@@ -1259,12 +1259,12 @@ pub const GetCrtcTransformReply = struct {
         writer.writeInt(u16, @intCast(self.current_filter_name.len));
         writer.writeInt(u16, @intCast(self.current_params.len));
         writer.write(self.pending_filter_name);
-        writer.splatByte(0, wire.pad4(self.pending_filter_name.len));
+        writer.splatByte(0, wire.pad(self.pending_filter_name.len, 4));
         for (self.pending_params) |elem| {
             writer.writeInt(i32, elem);
         }
         writer.write(self.current_filter_name);
-        writer.splatByte(0, wire.pad4(self.current_filter_name.len));
+        writer.splatByte(0, wire.pad(self.current_filter_name.len, 4));
         for (self.current_params) |elem| {
             writer.writeInt(i32, elem);
         }
@@ -1287,7 +1287,7 @@ pub const GetCrtcTransformReply = struct {
         const pending_filter_name_byte_len = @as(usize, pending_len);
         const pending_filter_name_temp = try reader.take(pending_filter_name_byte_len);
         const pending_filter_name = try allocator.dupe(u8, pending_filter_name_temp);
-        _ = try reader.take(wire.pad4(pending_filter_name.len));
+        _ = try reader.take(wire.pad(pending_filter_name.len, 4));
         const pending_params = try allocator.alloc(i32, @as(usize, pending_nparams));
         errdefer allocator.free(pending_params);
         var pending_params_decoded: usize = 0;
@@ -1299,7 +1299,7 @@ pub const GetCrtcTransformReply = struct {
         const current_filter_name_byte_len = @as(usize, current_len);
         const current_filter_name_temp = try reader.take(current_filter_name_byte_len);
         const current_filter_name = try allocator.dupe(u8, current_filter_name_temp);
-        _ = try reader.take(wire.pad4(current_filter_name.len));
+        _ = try reader.take(wire.pad(current_filter_name.len, 4));
         const current_params = try allocator.alloc(i32, @as(usize, current_nparams));
         errdefer allocator.free(current_params);
         var current_params_decoded: usize = 0;
@@ -2794,7 +2794,7 @@ pub const SetCrtcTransform = struct {
         writer.writeInt(u16, @intCast(self.filter_name.len));
         writer.splatByte(0, 2);
         writer.write(self.filter_name);
-        writer.splatByte(0, wire.pad4(self.filter_name.len));
+        writer.splatByte(0, wire.pad(self.filter_name.len, 4));
         for (self.filter_params) |elem| {
             writer.writeInt(i32, elem);
         }

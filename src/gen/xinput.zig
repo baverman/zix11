@@ -445,7 +445,7 @@ pub const AddMaster = struct {
         writer.writeByte(@intFromBool(self.send_core));
         writer.writeByte(@intFromBool(self.enable));
         writer.write(self.name);
-        writer.splatByte(0, wire.pad4(self.name.len));
+        writer.splatByte(0, wire.pad(self.name.len, 4));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -457,7 +457,7 @@ pub const AddMaster = struct {
         const name_byte_len = @as(usize, name_len);
         const name_temp = try reader.take(name_byte_len);
         const name = try allocator.dupe(u8, name_temp);
-        _ = try reader.take(wire.pad4(name.len));
+        _ = try reader.take(wire.pad(name.len, 4));
         return .{
             .type = @"type",
             .len = len,
@@ -2546,7 +2546,7 @@ pub const HierarchyChange = struct {
                     writer.writeByte(@intFromBool(value.send_core));
                     writer.writeByte(@intFromBool(value.enable));
                     writer.write(value.name);
-                    writer.splatByte(0, wire.pad4(value.name.len));
+                    writer.splatByte(0, wire.pad(value.name.len, 4));
                 },
                 .remove_master => |value| {
                     writer.writeInt(u16, value.deviceid);
@@ -2575,7 +2575,7 @@ pub const HierarchyChange = struct {
                     const name_byte_len = @as(usize, name_len);
                     const name_temp = try reader.take(name_byte_len);
                     const name = try allocator.dupe(u8, name_temp);
-                    _ = try reader.take(wire.pad4(name.len));
+                    _ = try reader.take(wire.pad(name.len, 4));
                     break :blk .{
                         .add_master = .{
                             .name_len = name_len,
@@ -3805,7 +3805,7 @@ pub const XIDeviceInfo = struct {
         writer.writeByte(@intFromBool(self.enabled));
         writer.splatByte(0, 1);
         writer.write(self.name);
-        writer.splatByte(0, wire.pad4(self.name.len));
+        writer.splatByte(0, wire.pad(self.name.len, 4));
         for (self.classes) |elem| {
             elem.encode(writer);
         }
@@ -3822,7 +3822,7 @@ pub const XIDeviceInfo = struct {
         const name_byte_len = @as(usize, name_len);
         const name_temp = try reader.take(name_byte_len);
         const name = try allocator.dupe(u8, name_temp);
-        _ = try reader.take(wire.pad4(name.len));
+        _ = try reader.take(wire.pad(name.len, 4));
         const classes = try allocator.alloc(DeviceClass, @as(usize, num_classes));
         errdefer allocator.free(classes);
         var classes_decoded: usize = 0;
@@ -3990,13 +3990,13 @@ pub const ChangeDevicePropertyItems = union(enum) {
         switch (self) {
             .@"8Bits" => |value| {
                 writer.write(value.data8);
-                writer.splatByte(0, wire.pad4(value.data8.len));
+                writer.splatByte(0, wire.pad(value.data8.len, 4));
             },
             .@"16Bits" => |value| {
                 for (value.data16) |elem| {
                     writer.writeInt(u16, elem);
                 }
-                writer.splatByte(0, wire.pad4(value.data16.len * 2));
+                writer.splatByte(0, wire.pad(value.data16.len * 2, 4));
             },
             .@"32Bits" => |value| {
                 for (value.data32) |elem| {
@@ -4012,7 +4012,7 @@ pub const ChangeDevicePropertyItems = union(enum) {
                 const data8_byte_len = @as(usize, num_items);
                 const data8_temp = try reader.take(data8_byte_len);
                 const data8 = try allocator.dupe(u8, data8_temp);
-                _ = try reader.take(wire.pad4(data8.len));
+                _ = try reader.take(wire.pad(data8.len, 4));
                 break :blk .{
                     .@"8Bits" = .{
                         .data8 = data8,
@@ -4028,7 +4028,7 @@ pub const ChangeDevicePropertyItems = union(enum) {
                     elem.* = elem_value;
                     data16_decoded += 1;
                 }
-                _ = try reader.take(wire.pad4(data16.len * 2));
+                _ = try reader.take(wire.pad(data16.len * 2, 4));
                 break :blk .{
                     .@"16Bits" = .{
                         .data16 = data16,
@@ -4290,7 +4290,7 @@ pub const GetDeviceButtonMappingReply = struct {
         writer.writeByte(@intCast(self.map.len));
         writer.splatByte(0, 23);
         writer.write(self.map);
-        writer.splatByte(0, wire.pad4(self.map.len));
+        writer.splatByte(0, wire.pad(self.map.len, 4));
     }
 
     pub fn decode(scratch: []u8, reader: *std.Io.Reader) BufferDecodeError!@This() {
@@ -4307,7 +4307,7 @@ pub const GetDeviceButtonMappingReply = struct {
         @memcpy(scratch[scratch_used..][0..map_byte_len], map_temp);
         const map = scratch[scratch_used..][0..map_byte_len];
         scratch_used += map_byte_len;
-        _ = try reader.take(wire.pad4(map.len));
+        _ = try reader.take(wire.pad(map.len, 4));
         return .{
             .xi_reply_type = xi_reply_type,
             .map = map,
@@ -4707,13 +4707,13 @@ pub const GetDevicePropertyReply = struct {
             switch (self) {
                 .@"8Bits" => |value| {
                     writer.write(value.data8);
-                    writer.splatByte(0, wire.pad4(value.data8.len));
+                    writer.splatByte(0, wire.pad(value.data8.len, 4));
                 },
                 .@"16Bits" => |value| {
                     for (value.data16) |elem| {
                         writer.writeInt(u16, elem);
                     }
-                    writer.splatByte(0, wire.pad4(value.data16.len * 2));
+                    writer.splatByte(0, wire.pad(value.data16.len * 2, 4));
                 },
                 .@"32Bits" => |value| {
                     for (value.data32) |elem| {
@@ -4729,7 +4729,7 @@ pub const GetDevicePropertyReply = struct {
                     const data8_byte_len = @as(usize, num_items);
                     const data8_temp = try reader.take(data8_byte_len);
                     const data8 = try allocator.dupe(u8, data8_temp);
-                    _ = try reader.take(wire.pad4(data8.len));
+                    _ = try reader.take(wire.pad(data8.len, 4));
                     break :blk .{
                         .@"8Bits" = .{
                             .data8 = data8,
@@ -4745,7 +4745,7 @@ pub const GetDevicePropertyReply = struct {
                         elem.* = elem_value;
                         data16_decoded += 1;
                     }
-                    _ = try reader.take(wire.pad4(data16.len * 2));
+                    _ = try reader.take(wire.pad(data16.len * 2, 4));
                     break :blk .{
                         .@"16Bits" = .{
                             .data16 = data16,
@@ -5265,7 +5265,7 @@ pub const ListInputDevicesReply = struct {
         for (self.names) |elem| {
             elem.encode(writer);
         }
-        writer.splatByte(0, wire.pad4(writer.seek - names_start_seek));
+        writer.splatByte(0, wire.pad(writer.seek - names_start_seek, 4));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -5302,7 +5302,7 @@ pub const ListInputDevicesReply = struct {
             elem.* = elem_value;
             names_decoded += 1;
         }
-        _ = try reader.take(wire.pad4(reader.seek - names_start_seek));
+        _ = try reader.take(wire.pad(reader.seek - names_start_seek, 4));
         return .{
             .xi_reply_type = xi_reply_type,
             .devices = devices,
@@ -5350,7 +5350,7 @@ pub const OpenDeviceReply = struct {
         for (self.class_info) |elem| {
             elem.encode(writer);
         }
-        writer.splatByte(0, wire.pad4(self.class_info.len * 2));
+        writer.splatByte(0, wire.pad(self.class_info.len * 2, 4));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -5368,7 +5368,7 @@ pub const OpenDeviceReply = struct {
             elem.* = elem_value;
             class_info_decoded += 1;
         }
-        _ = try reader.take(wire.pad4(class_info.len * 2));
+        _ = try reader.take(wire.pad(class_info.len * 2, 4));
         return .{
             .xi_reply_type = xi_reply_type,
             .class_info = class_info,
@@ -5917,13 +5917,13 @@ pub const XIChangePropertyItems = union(enum) {
         switch (self) {
             .@"8Bits" => |value| {
                 writer.write(value.data8);
-                writer.splatByte(0, wire.pad4(value.data8.len));
+                writer.splatByte(0, wire.pad(value.data8.len, 4));
             },
             .@"16Bits" => |value| {
                 for (value.data16) |elem| {
                     writer.writeInt(u16, elem);
                 }
-                writer.splatByte(0, wire.pad4(value.data16.len * 2));
+                writer.splatByte(0, wire.pad(value.data16.len * 2, 4));
             },
             .@"32Bits" => |value| {
                 for (value.data32) |elem| {
@@ -5939,7 +5939,7 @@ pub const XIChangePropertyItems = union(enum) {
                 const data8_byte_len = @as(usize, num_items);
                 const data8_temp = try reader.take(data8_byte_len);
                 const data8 = try allocator.dupe(u8, data8_temp);
-                _ = try reader.take(wire.pad4(data8.len));
+                _ = try reader.take(wire.pad(data8.len, 4));
                 break :blk .{
                     .@"8Bits" = .{
                         .data8 = data8,
@@ -5955,7 +5955,7 @@ pub const XIChangePropertyItems = union(enum) {
                     elem.* = elem_value;
                     data16_decoded += 1;
                 }
-                _ = try reader.take(wire.pad4(data16.len * 2));
+                _ = try reader.take(wire.pad(data16.len * 2, 4));
                 break :blk .{
                     .@"16Bits" = .{
                         .data16 = data16,
@@ -6152,13 +6152,13 @@ pub const XIGetPropertyReply = struct {
             switch (self) {
                 .@"8Bits" => |value| {
                     writer.write(value.data8);
-                    writer.splatByte(0, wire.pad4(value.data8.len));
+                    writer.splatByte(0, wire.pad(value.data8.len, 4));
                 },
                 .@"16Bits" => |value| {
                     for (value.data16) |elem| {
                         writer.writeInt(u16, elem);
                     }
-                    writer.splatByte(0, wire.pad4(value.data16.len * 2));
+                    writer.splatByte(0, wire.pad(value.data16.len * 2, 4));
                 },
                 .@"32Bits" => |value| {
                     for (value.data32) |elem| {
@@ -6174,7 +6174,7 @@ pub const XIGetPropertyReply = struct {
                     const data8_byte_len = @as(usize, num_items);
                     const data8_temp = try reader.take(data8_byte_len);
                     const data8 = try allocator.dupe(u8, data8_temp);
-                    _ = try reader.take(wire.pad4(data8.len));
+                    _ = try reader.take(wire.pad(data8.len, 4));
                     break :blk .{
                         .@"8Bits" = .{
                             .data8 = data8,
@@ -6190,7 +6190,7 @@ pub const XIGetPropertyReply = struct {
                         elem.* = elem_value;
                         data16_decoded += 1;
                     }
-                    _ = try reader.take(wire.pad4(data16.len * 2));
+                    _ = try reader.take(wire.pad(data16.len * 2, 4));
                     break :blk .{
                         .@"16Bits" = .{
                             .data16 = data16,

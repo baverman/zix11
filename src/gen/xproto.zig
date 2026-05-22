@@ -1074,7 +1074,7 @@ pub const HOST = struct {
         writer.splatByte(0, 1);
         writer.writeInt(u16, @intCast(self.address.len));
         writer.write(self.address);
-        writer.splatByte(0, wire.pad4(self.address.len));
+        writer.splatByte(0, wire.pad(self.address.len, 4));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -1084,7 +1084,7 @@ pub const HOST = struct {
         const address_byte_len = @as(usize, address_len);
         const address_temp = try reader.take(address_byte_len);
         const address = try allocator.dupe(u8, address_temp);
-        _ = try reader.take(wire.pad4(address.len));
+        _ = try reader.take(wire.pad(address.len, 4));
         return .{
             .family = family,
             .address = address,
@@ -1358,7 +1358,7 @@ pub const Setup = struct {
         writer.writeByte(self.max_keycode);
         writer.splatByte(0, 4);
         writer.write(self.vendor);
-        writer.splatByte(0, wire.pad4(self.vendor.len));
+        writer.splatByte(0, wire.pad(self.vendor.len, 4));
         for (self.pixmap_formats) |elem| {
             elem.encode(writer);
         }
@@ -1391,7 +1391,7 @@ pub const Setup = struct {
         const vendor_byte_len = @as(usize, vendor_len);
         const vendor_temp = try reader.take(vendor_byte_len);
         const vendor = try allocator.dupe(u8, vendor_temp);
-        _ = try reader.take(wire.pad4(vendor.len));
+        _ = try reader.take(wire.pad(vendor.len, 4));
         const pixmap_formats = try allocator.alloc(FORMAT, @as(usize, pixmap_formats_len));
         errdefer allocator.free(pixmap_formats);
         var pixmap_formats_decoded: usize = 0;
@@ -1528,9 +1528,9 @@ pub const SetupRequest = struct {
         writer.writeInt(u16, @intCast(self.authorization_protocol_data.len));
         writer.splatByte(0, 2);
         writer.write(self.authorization_protocol_name);
-        writer.splatByte(0, wire.pad4(self.authorization_protocol_name.len));
+        writer.splatByte(0, wire.pad(self.authorization_protocol_name.len, 4));
         writer.write(self.authorization_protocol_data);
-        writer.splatByte(0, wire.pad4(self.authorization_protocol_data.len));
+        writer.splatByte(0, wire.pad(self.authorization_protocol_data.len, 4));
     }
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) AllocDecodeError!@This() {
@@ -1544,11 +1544,11 @@ pub const SetupRequest = struct {
         const authorization_protocol_name_byte_len = @as(usize, authorization_protocol_name_len);
         const authorization_protocol_name_temp = try reader.take(authorization_protocol_name_byte_len);
         const authorization_protocol_name = try allocator.dupe(u8, authorization_protocol_name_temp);
-        _ = try reader.take(wire.pad4(authorization_protocol_name.len));
+        _ = try reader.take(wire.pad(authorization_protocol_name.len, 4));
         const authorization_protocol_data_byte_len = @as(usize, authorization_protocol_data_len);
         const authorization_protocol_data_temp = try reader.take(authorization_protocol_data_byte_len);
         const authorization_protocol_data = try allocator.dupe(u8, authorization_protocol_data_temp);
-        _ = try reader.take(wire.pad4(authorization_protocol_data.len));
+        _ = try reader.take(wire.pad(authorization_protocol_data.len, 4));
         return .{
             .byte_order = byte_order,
             .protocol_major_version = protocol_major_version,
@@ -1995,35 +1995,203 @@ pub const ChangeGCValueList = struct {
     dash_offset: ?u32 = null,
     dashes: ?u32 = null,
     arc_mode: ?ArcMode = null,
-};
 
-pub const ChangeGCValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
-        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
-        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground), .value_type = u32 },
-        .{ .name = "background", .bit = @intFromEnum(GC.Background), .value_type = u32 },
-        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth), .value_type = u32 },
-        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle), .value_type = LineStyle },
-        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle), .value_type = CapStyle },
-        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle), .value_type = JoinStyle },
-        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle), .value_type = FillStyle },
-        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule), .value_type = FillRule },
-        .{ .name = "tile", .bit = @intFromEnum(GC.Tile), .value_type = Pixmap },
-        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple), .value_type = Pixmap },
-        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX), .value_type = i32 },
-        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY), .value_type = i32 },
-        .{ .name = "font", .bit = @intFromEnum(GC.Font), .value_type = Font },
-        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode), .value_type = SubwindowMode },
-        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures), .value_type = u32 },
-        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX), .value_type = i32 },
-        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY), .value_type = i32 },
-        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask), .value_type = Pixmap },
-        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset), .value_type = u32 },
-        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList), .value_type = u32 },
-        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode), .value_type = ArcMode },
+        .{ .name = "function", .bit = @intFromEnum(GC.Function) },
+        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask) },
+        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground) },
+        .{ .name = "background", .bit = @intFromEnum(GC.Background) },
+        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth) },
+        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle) },
+        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle) },
+        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle) },
+        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle) },
+        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule) },
+        .{ .name = "tile", .bit = @intFromEnum(GC.Tile) },
+        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple) },
+        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX) },
+        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY) },
+        .{ .name = "font", .bit = @intFromEnum(GC.Font) },
+        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode) },
+        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures) },
+        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX) },
+        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY) },
+        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask) },
+        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset) },
+        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList) },
+        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.function) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.plane_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.foreground) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.background) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.line_width) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.line_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.cap_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.join_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.fill_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.fill_rule) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.tile) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.stipple) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.tile_stipple_x_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.tile_stipple_y_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.font) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.subwindow_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.graphics_exposures) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.clip_x_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clip_y_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clip_mask) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.dash_offset) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.dashes) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.arc_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(GC.Function))) != 0) {
+            const function = @as(GX, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.function = function;
+        }
+        if ((discriminator & (@intFromEnum(GC.PlaneMask))) != 0) {
+            const plane_mask = try reader.takeInt(u32, .native);
+            result.plane_mask = plane_mask;
+        }
+        if ((discriminator & (@intFromEnum(GC.Foreground))) != 0) {
+            const foreground = try reader.takeInt(u32, .native);
+            result.foreground = foreground;
+        }
+        if ((discriminator & (@intFromEnum(GC.Background))) != 0) {
+            const background = try reader.takeInt(u32, .native);
+            result.background = background;
+        }
+        if ((discriminator & (@intFromEnum(GC.LineWidth))) != 0) {
+            const line_width = try reader.takeInt(u32, .native);
+            result.line_width = line_width;
+        }
+        if ((discriminator & (@intFromEnum(GC.LineStyle))) != 0) {
+            const line_style = @as(LineStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.line_style = line_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.CapStyle))) != 0) {
+            const cap_style = @as(CapStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.cap_style = cap_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.JoinStyle))) != 0) {
+            const join_style = @as(JoinStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.join_style = join_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.FillStyle))) != 0) {
+            const fill_style = @as(FillStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.fill_style = fill_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.FillRule))) != 0) {
+            const fill_rule = @as(FillRule, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.fill_rule = fill_rule;
+        }
+        if ((discriminator & (@intFromEnum(GC.Tile))) != 0) {
+            const tile = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.tile = tile;
+        }
+        if ((discriminator & (@intFromEnum(GC.Stipple))) != 0) {
+            const stipple = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.stipple = stipple;
+        }
+        if ((discriminator & (@intFromEnum(GC.TileStippleOriginX))) != 0) {
+            const tile_stipple_x_origin = try reader.takeInt(i32, .native);
+            result.tile_stipple_x_origin = tile_stipple_x_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.TileStippleOriginY))) != 0) {
+            const tile_stipple_y_origin = try reader.takeInt(i32, .native);
+            result.tile_stipple_y_origin = tile_stipple_y_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.Font))) != 0) {
+            const font = @as(Font, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.font = font;
+        }
+        if ((discriminator & (@intFromEnum(GC.SubwindowMode))) != 0) {
+            const subwindow_mode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.subwindow_mode = subwindow_mode;
+        }
+        if ((discriminator & (@intFromEnum(GC.GraphicsExposures))) != 0) {
+            const graphics_exposures = try reader.takeInt(u32, .native);
+            result.graphics_exposures = graphics_exposures;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipOriginX))) != 0) {
+            const clip_x_origin = try reader.takeInt(i32, .native);
+            result.clip_x_origin = clip_x_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipOriginY))) != 0) {
+            const clip_y_origin = try reader.takeInt(i32, .native);
+            result.clip_y_origin = clip_y_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipMask))) != 0) {
+            const clip_mask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.clip_mask = clip_mask;
+        }
+        if ((discriminator & (@intFromEnum(GC.DashOffset))) != 0) {
+            const dash_offset = try reader.takeInt(u32, .native);
+            result.dash_offset = dash_offset;
+        }
+        if ((discriminator & (@intFromEnum(GC.DashList))) != 0) {
+            const dashes = try reader.takeInt(u32, .native);
+            result.dashes = dashes;
+        }
+        if ((discriminator & (@intFromEnum(GC.ArcMode))) != 0) {
+            const arc_mode = @as(ArcMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.arc_mode = arc_mode;
+        }
+        return result;
+    }
 };
 
 pub const ChangeGC = struct {
@@ -2041,8 +2209,8 @@ pub const ChangeGC = struct {
 
     pub fn encode(self: @This(), writer: anytype) void {
         writer.writeInt(u32, @intFromEnum(self.gc));
-        writer.writeInt(u32, wire.computeValueMask(ChangeGCValueListSpec, self.value_list));
-        wire.writeValueList(ChangeGCValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(ChangeGCValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -2078,20 +2246,83 @@ pub const ChangeKeyboardControlValueList = struct {
     led_mode: ?LedMode = null,
     key: ?u32 = null,
     auto_repeat_mode: ?AutoRepeatMode = null,
-};
 
-pub const ChangeKeyboardControlValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "key_click_percent", .bit = @intFromEnum(KB.KeyClickPercent), .value_type = i32 },
-        .{ .name = "bell_percent", .bit = @intFromEnum(KB.BellPercent), .value_type = i32 },
-        .{ .name = "bell_pitch", .bit = @intFromEnum(KB.BellPitch), .value_type = i32 },
-        .{ .name = "bell_duration", .bit = @intFromEnum(KB.BellDuration), .value_type = i32 },
-        .{ .name = "led", .bit = @intFromEnum(KB.Led), .value_type = u32 },
-        .{ .name = "led_mode", .bit = @intFromEnum(KB.LedMode), .value_type = LedMode },
-        .{ .name = "key", .bit = @intFromEnum(KB.Key), .value_type = u32 },
-        .{ .name = "auto_repeat_mode", .bit = @intFromEnum(KB.AutoRepeatMode), .value_type = AutoRepeatMode },
+        .{ .name = "key_click_percent", .bit = @intFromEnum(KB.KeyClickPercent) },
+        .{ .name = "bell_percent", .bit = @intFromEnum(KB.BellPercent) },
+        .{ .name = "bell_pitch", .bit = @intFromEnum(KB.BellPitch) },
+        .{ .name = "bell_duration", .bit = @intFromEnum(KB.BellDuration) },
+        .{ .name = "led", .bit = @intFromEnum(KB.Led) },
+        .{ .name = "led_mode", .bit = @intFromEnum(KB.LedMode) },
+        .{ .name = "key", .bit = @intFromEnum(KB.Key) },
+        .{ .name = "auto_repeat_mode", .bit = @intFromEnum(KB.AutoRepeatMode) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.key_click_percent) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.bell_percent) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.bell_pitch) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.bell_duration) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.led) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.led_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.key) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.auto_repeat_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(KB.KeyClickPercent))) != 0) {
+            const key_click_percent = try reader.takeInt(i32, .native);
+            result.key_click_percent = key_click_percent;
+        }
+        if ((discriminator & (@intFromEnum(KB.BellPercent))) != 0) {
+            const bell_percent = try reader.takeInt(i32, .native);
+            result.bell_percent = bell_percent;
+        }
+        if ((discriminator & (@intFromEnum(KB.BellPitch))) != 0) {
+            const bell_pitch = try reader.takeInt(i32, .native);
+            result.bell_pitch = bell_pitch;
+        }
+        if ((discriminator & (@intFromEnum(KB.BellDuration))) != 0) {
+            const bell_duration = try reader.takeInt(i32, .native);
+            result.bell_duration = bell_duration;
+        }
+        if ((discriminator & (@intFromEnum(KB.Led))) != 0) {
+            const led = try reader.takeInt(u32, .native);
+            result.led = led;
+        }
+        if ((discriminator & (@intFromEnum(KB.LedMode))) != 0) {
+            const led_mode = @as(LedMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.led_mode = led_mode;
+        }
+        if ((discriminator & (@intFromEnum(KB.Key))) != 0) {
+            const key = try reader.takeInt(u32, .native);
+            result.key = key;
+        }
+        if ((discriminator & (@intFromEnum(KB.AutoRepeatMode))) != 0) {
+            const auto_repeat_mode = @as(AutoRepeatMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.auto_repeat_mode = auto_repeat_mode;
+        }
+        return result;
+    }
 };
 
 pub const ChangeKeyboardControl = struct {
@@ -2107,8 +2338,8 @@ pub const ChangeKeyboardControl = struct {
     }
 
     pub fn encode(self: @This(), writer: anytype) void {
-        writer.writeInt(u32, wire.computeValueMask(ChangeKeyboardControlValueListSpec, self.value_list));
-        wire.writeValueList(ChangeKeyboardControlValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(ChangeKeyboardControlValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -2227,27 +2458,139 @@ pub const ChangeWindowAttributesValueList = struct {
     do_not_propogate_mask: ?u32 = null,
     colormap: ?Colormap = null,
     cursor: ?Cursor = null,
-};
 
-pub const ChangeWindowAttributesValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
-        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
-        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap), .value_type = Pixmap },
-        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel), .value_type = u32 },
-        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = Gravity },
-        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = Gravity },
-        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = BackingStore },
-        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes), .value_type = u32 },
-        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel), .value_type = u32 },
-        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect), .value_type = u32 },
-        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder), .value_type = u32 },
-        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask), .value_type = u32 },
-        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate), .value_type = u32 },
-        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap), .value_type = Colormap },
-        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor), .value_type = Cursor },
+        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap) },
+        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel) },
+        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap) },
+        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel) },
+        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity) },
+        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity) },
+        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore) },
+        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes) },
+        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel) },
+        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect) },
+        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder) },
+        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask) },
+        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate) },
+        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap) },
+        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.background_pixmap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.background_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.border_pixmap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.border_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.bit_gravity) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.win_gravity) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.backing_store) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.backing_planes) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.backing_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.override_redirect) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.save_under) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.event_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.do_not_propogate_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.colormap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.cursor) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(CW.BackPixmap))) != 0) {
+            const background_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.background_pixmap = background_pixmap;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackPixel))) != 0) {
+            const background_pixel = try reader.takeInt(u32, .native);
+            result.background_pixel = background_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.BorderPixmap))) != 0) {
+            const border_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.border_pixmap = border_pixmap;
+        }
+        if ((discriminator & (@intFromEnum(CW.BorderPixel))) != 0) {
+            const border_pixel = try reader.takeInt(u32, .native);
+            result.border_pixel = border_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.BitGravity))) != 0) {
+            const bit_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.bit_gravity = bit_gravity;
+        }
+        if ((discriminator & (@intFromEnum(CW.WinGravity))) != 0) {
+            const win_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.win_gravity = win_gravity;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingStore))) != 0) {
+            const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.backing_store = backing_store;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingPlanes))) != 0) {
+            const backing_planes = try reader.takeInt(u32, .native);
+            result.backing_planes = backing_planes;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingPixel))) != 0) {
+            const backing_pixel = try reader.takeInt(u32, .native);
+            result.backing_pixel = backing_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.OverrideRedirect))) != 0) {
+            const override_redirect = try reader.takeInt(u32, .native);
+            result.override_redirect = override_redirect;
+        }
+        if ((discriminator & (@intFromEnum(CW.SaveUnder))) != 0) {
+            const save_under = try reader.takeInt(u32, .native);
+            result.save_under = save_under;
+        }
+        if ((discriminator & (@intFromEnum(CW.EventMask))) != 0) {
+            const event_mask = try reader.takeInt(u32, .native);
+            result.event_mask = event_mask;
+        }
+        if ((discriminator & (@intFromEnum(CW.DontPropagate))) != 0) {
+            const do_not_propogate_mask = try reader.takeInt(u32, .native);
+            result.do_not_propogate_mask = do_not_propogate_mask;
+        }
+        if ((discriminator & (@intFromEnum(CW.Colormap))) != 0) {
+            const colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.colormap = colormap;
+        }
+        if ((discriminator & (@intFromEnum(CW.Cursor))) != 0) {
+            const cursor = @as(Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.cursor = cursor;
+        }
+        return result;
+    }
 };
 
 pub const ChangeWindowAttributes = struct {
@@ -2265,8 +2608,8 @@ pub const ChangeWindowAttributes = struct {
 
     pub fn encode(self: @This(), writer: anytype) void {
         writer.writeInt(u32, @intFromEnum(self.window));
-        writer.writeInt(u32, wire.computeValueMask(ChangeWindowAttributesValueListSpec, self.value_list));
-        wire.writeValueList(ChangeWindowAttributesValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(ChangeWindowAttributesValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -2341,19 +2684,75 @@ pub const ConfigureWindowValueList = struct {
     border_width: ?u32 = null,
     sibling: ?Window = null,
     stack_mode: ?StackMode = null,
-};
 
-pub const ConfigureWindowValueListSpec = struct {
-    pub const mask_type = u16;
+    pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "x", .bit = @intFromEnum(ConfigWindow.X), .value_type = i32 },
-        .{ .name = "y", .bit = @intFromEnum(ConfigWindow.Y), .value_type = i32 },
-        .{ .name = "width", .bit = @intFromEnum(ConfigWindow.Width), .value_type = u32 },
-        .{ .name = "height", .bit = @intFromEnum(ConfigWindow.Height), .value_type = u32 },
-        .{ .name = "border_width", .bit = @intFromEnum(ConfigWindow.BorderWidth), .value_type = u32 },
-        .{ .name = "sibling", .bit = @intFromEnum(ConfigWindow.Sibling), .value_type = Window },
-        .{ .name = "stack_mode", .bit = @intFromEnum(ConfigWindow.StackMode), .value_type = StackMode },
+        .{ .name = "x", .bit = @intFromEnum(ConfigWindow.X) },
+        .{ .name = "y", .bit = @intFromEnum(ConfigWindow.Y) },
+        .{ .name = "width", .bit = @intFromEnum(ConfigWindow.Width) },
+        .{ .name = "height", .bit = @intFromEnum(ConfigWindow.Height) },
+        .{ .name = "border_width", .bit = @intFromEnum(ConfigWindow.BorderWidth) },
+        .{ .name = "sibling", .bit = @intFromEnum(ConfigWindow.Sibling) },
+        .{ .name = "stack_mode", .bit = @intFromEnum(ConfigWindow.StackMode) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.x) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.y) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.width) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.height) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.border_width) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.sibling) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.stack_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(ConfigWindow.X))) != 0) {
+            const x = try reader.takeInt(i32, .native);
+            result.x = x;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.Y))) != 0) {
+            const y = try reader.takeInt(i32, .native);
+            result.y = y;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.Width))) != 0) {
+            const width = try reader.takeInt(u32, .native);
+            result.width = width;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.Height))) != 0) {
+            const height = try reader.takeInt(u32, .native);
+            result.height = height;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.BorderWidth))) != 0) {
+            const border_width = try reader.takeInt(u32, .native);
+            result.border_width = border_width;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.Sibling))) != 0) {
+            const sibling = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.sibling = sibling;
+        }
+        if ((discriminator & (@intFromEnum(ConfigWindow.StackMode))) != 0) {
+            const stack_mode = @as(StackMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.stack_mode = stack_mode;
+        }
+        return result;
+    }
 };
 
 pub const ConfigureWindow = struct {
@@ -2371,9 +2770,9 @@ pub const ConfigureWindow = struct {
 
     pub fn encode(self: @This(), writer: anytype) void {
         writer.writeInt(u32, @intFromEnum(self.window));
-        writer.writeInt(u16, wire.computeValueMask(ConfigureWindowValueListSpec, self.value_list));
+        writer.writeInt(u16, @as(u16, @intCast(wire.computeValueMask(ConfigureWindowValueList, self.value_list))));
         writer.splatByte(0, 2);
-        wire.writeValueList(ConfigureWindowValueListSpec, self.value_list, writer);
+        self.value_list.encode(writer);
     }
 
 };
@@ -2600,35 +2999,203 @@ pub const CreateGCValueList = struct {
     dash_offset: ?u32 = null,
     dashes: ?u32 = null,
     arc_mode: ?ArcMode = null,
-};
 
-pub const CreateGCValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "function", .bit = @intFromEnum(GC.Function), .value_type = GX },
-        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask), .value_type = u32 },
-        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground), .value_type = u32 },
-        .{ .name = "background", .bit = @intFromEnum(GC.Background), .value_type = u32 },
-        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth), .value_type = u32 },
-        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle), .value_type = LineStyle },
-        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle), .value_type = CapStyle },
-        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle), .value_type = JoinStyle },
-        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle), .value_type = FillStyle },
-        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule), .value_type = FillRule },
-        .{ .name = "tile", .bit = @intFromEnum(GC.Tile), .value_type = Pixmap },
-        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple), .value_type = Pixmap },
-        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX), .value_type = i32 },
-        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY), .value_type = i32 },
-        .{ .name = "font", .bit = @intFromEnum(GC.Font), .value_type = Font },
-        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode), .value_type = SubwindowMode },
-        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures), .value_type = u32 },
-        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX), .value_type = i32 },
-        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY), .value_type = i32 },
-        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask), .value_type = Pixmap },
-        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset), .value_type = u32 },
-        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList), .value_type = u32 },
-        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode), .value_type = ArcMode },
+        .{ .name = "function", .bit = @intFromEnum(GC.Function) },
+        .{ .name = "plane_mask", .bit = @intFromEnum(GC.PlaneMask) },
+        .{ .name = "foreground", .bit = @intFromEnum(GC.Foreground) },
+        .{ .name = "background", .bit = @intFromEnum(GC.Background) },
+        .{ .name = "line_width", .bit = @intFromEnum(GC.LineWidth) },
+        .{ .name = "line_style", .bit = @intFromEnum(GC.LineStyle) },
+        .{ .name = "cap_style", .bit = @intFromEnum(GC.CapStyle) },
+        .{ .name = "join_style", .bit = @intFromEnum(GC.JoinStyle) },
+        .{ .name = "fill_style", .bit = @intFromEnum(GC.FillStyle) },
+        .{ .name = "fill_rule", .bit = @intFromEnum(GC.FillRule) },
+        .{ .name = "tile", .bit = @intFromEnum(GC.Tile) },
+        .{ .name = "stipple", .bit = @intFromEnum(GC.Stipple) },
+        .{ .name = "tile_stipple_x_origin", .bit = @intFromEnum(GC.TileStippleOriginX) },
+        .{ .name = "tile_stipple_y_origin", .bit = @intFromEnum(GC.TileStippleOriginY) },
+        .{ .name = "font", .bit = @intFromEnum(GC.Font) },
+        .{ .name = "subwindow_mode", .bit = @intFromEnum(GC.SubwindowMode) },
+        .{ .name = "graphics_exposures", .bit = @intFromEnum(GC.GraphicsExposures) },
+        .{ .name = "clip_x_origin", .bit = @intFromEnum(GC.ClipOriginX) },
+        .{ .name = "clip_y_origin", .bit = @intFromEnum(GC.ClipOriginY) },
+        .{ .name = "clip_mask", .bit = @intFromEnum(GC.ClipMask) },
+        .{ .name = "dash_offset", .bit = @intFromEnum(GC.DashOffset) },
+        .{ .name = "dashes", .bit = @intFromEnum(GC.DashList) },
+        .{ .name = "arc_mode", .bit = @intFromEnum(GC.ArcMode) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.function) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.plane_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.foreground) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.background) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.line_width) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.line_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.cap_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.join_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.fill_style) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.fill_rule) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.tile) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.stipple) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.tile_stipple_x_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.tile_stipple_y_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.font) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.subwindow_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.graphics_exposures) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.clip_x_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clip_y_origin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clip_mask) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.dash_offset) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.dashes) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.arc_mode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(GC.Function))) != 0) {
+            const function = @as(GX, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.function = function;
+        }
+        if ((discriminator & (@intFromEnum(GC.PlaneMask))) != 0) {
+            const plane_mask = try reader.takeInt(u32, .native);
+            result.plane_mask = plane_mask;
+        }
+        if ((discriminator & (@intFromEnum(GC.Foreground))) != 0) {
+            const foreground = try reader.takeInt(u32, .native);
+            result.foreground = foreground;
+        }
+        if ((discriminator & (@intFromEnum(GC.Background))) != 0) {
+            const background = try reader.takeInt(u32, .native);
+            result.background = background;
+        }
+        if ((discriminator & (@intFromEnum(GC.LineWidth))) != 0) {
+            const line_width = try reader.takeInt(u32, .native);
+            result.line_width = line_width;
+        }
+        if ((discriminator & (@intFromEnum(GC.LineStyle))) != 0) {
+            const line_style = @as(LineStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.line_style = line_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.CapStyle))) != 0) {
+            const cap_style = @as(CapStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.cap_style = cap_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.JoinStyle))) != 0) {
+            const join_style = @as(JoinStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.join_style = join_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.FillStyle))) != 0) {
+            const fill_style = @as(FillStyle, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.fill_style = fill_style;
+        }
+        if ((discriminator & (@intFromEnum(GC.FillRule))) != 0) {
+            const fill_rule = @as(FillRule, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.fill_rule = fill_rule;
+        }
+        if ((discriminator & (@intFromEnum(GC.Tile))) != 0) {
+            const tile = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.tile = tile;
+        }
+        if ((discriminator & (@intFromEnum(GC.Stipple))) != 0) {
+            const stipple = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.stipple = stipple;
+        }
+        if ((discriminator & (@intFromEnum(GC.TileStippleOriginX))) != 0) {
+            const tile_stipple_x_origin = try reader.takeInt(i32, .native);
+            result.tile_stipple_x_origin = tile_stipple_x_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.TileStippleOriginY))) != 0) {
+            const tile_stipple_y_origin = try reader.takeInt(i32, .native);
+            result.tile_stipple_y_origin = tile_stipple_y_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.Font))) != 0) {
+            const font = @as(Font, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.font = font;
+        }
+        if ((discriminator & (@intFromEnum(GC.SubwindowMode))) != 0) {
+            const subwindow_mode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.subwindow_mode = subwindow_mode;
+        }
+        if ((discriminator & (@intFromEnum(GC.GraphicsExposures))) != 0) {
+            const graphics_exposures = try reader.takeInt(u32, .native);
+            result.graphics_exposures = graphics_exposures;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipOriginX))) != 0) {
+            const clip_x_origin = try reader.takeInt(i32, .native);
+            result.clip_x_origin = clip_x_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipOriginY))) != 0) {
+            const clip_y_origin = try reader.takeInt(i32, .native);
+            result.clip_y_origin = clip_y_origin;
+        }
+        if ((discriminator & (@intFromEnum(GC.ClipMask))) != 0) {
+            const clip_mask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.clip_mask = clip_mask;
+        }
+        if ((discriminator & (@intFromEnum(GC.DashOffset))) != 0) {
+            const dash_offset = try reader.takeInt(u32, .native);
+            result.dash_offset = dash_offset;
+        }
+        if ((discriminator & (@intFromEnum(GC.DashList))) != 0) {
+            const dashes = try reader.takeInt(u32, .native);
+            result.dashes = dashes;
+        }
+        if ((discriminator & (@intFromEnum(GC.ArcMode))) != 0) {
+            const arc_mode = @as(ArcMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.arc_mode = arc_mode;
+        }
+        return result;
+    }
 };
 
 pub const CreateGC = struct {
@@ -2648,8 +3215,8 @@ pub const CreateGC = struct {
     pub fn encode(self: @This(), writer: anytype) void {
         writer.writeInt(u32, @intFromEnum(self.cid));
         self.drawable.encode(writer);
-        writer.writeInt(u32, wire.computeValueMask(CreateGCValueListSpec, self.value_list));
-        wire.writeValueList(CreateGCValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(CreateGCValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -2732,27 +3299,139 @@ pub const CreateWindowValueList = struct {
     do_not_propogate_mask: ?u32 = null,
     colormap: ?Colormap = null,
     cursor: ?Cursor = null,
-};
 
-pub const CreateWindowValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap), .value_type = Pixmap },
-        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel), .value_type = u32 },
-        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap), .value_type = Pixmap },
-        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel), .value_type = u32 },
-        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity), .value_type = Gravity },
-        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity), .value_type = Gravity },
-        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore), .value_type = BackingStore },
-        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes), .value_type = u32 },
-        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel), .value_type = u32 },
-        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect), .value_type = u32 },
-        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder), .value_type = u32 },
-        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask), .value_type = u32 },
-        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate), .value_type = u32 },
-        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap), .value_type = Colormap },
-        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor), .value_type = Cursor },
+        .{ .name = "background_pixmap", .bit = @intFromEnum(CW.BackPixmap) },
+        .{ .name = "background_pixel", .bit = @intFromEnum(CW.BackPixel) },
+        .{ .name = "border_pixmap", .bit = @intFromEnum(CW.BorderPixmap) },
+        .{ .name = "border_pixel", .bit = @intFromEnum(CW.BorderPixel) },
+        .{ .name = "bit_gravity", .bit = @intFromEnum(CW.BitGravity) },
+        .{ .name = "win_gravity", .bit = @intFromEnum(CW.WinGravity) },
+        .{ .name = "backing_store", .bit = @intFromEnum(CW.BackingStore) },
+        .{ .name = "backing_planes", .bit = @intFromEnum(CW.BackingPlanes) },
+        .{ .name = "backing_pixel", .bit = @intFromEnum(CW.BackingPixel) },
+        .{ .name = "override_redirect", .bit = @intFromEnum(CW.OverrideRedirect) },
+        .{ .name = "save_under", .bit = @intFromEnum(CW.SaveUnder) },
+        .{ .name = "event_mask", .bit = @intFromEnum(CW.EventMask) },
+        .{ .name = "do_not_propogate_mask", .bit = @intFromEnum(CW.DontPropagate) },
+        .{ .name = "colormap", .bit = @intFromEnum(CW.Colormap) },
+        .{ .name = "cursor", .bit = @intFromEnum(CW.Cursor) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.background_pixmap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.background_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.border_pixmap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.border_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.bit_gravity) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.win_gravity) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.backing_store) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.backing_planes) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.backing_pixel) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.override_redirect) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.save_under) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.event_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.do_not_propogate_mask) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.colormap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.cursor) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(CW.BackPixmap))) != 0) {
+            const background_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.background_pixmap = background_pixmap;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackPixel))) != 0) {
+            const background_pixel = try reader.takeInt(u32, .native);
+            result.background_pixel = background_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.BorderPixmap))) != 0) {
+            const border_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.border_pixmap = border_pixmap;
+        }
+        if ((discriminator & (@intFromEnum(CW.BorderPixel))) != 0) {
+            const border_pixel = try reader.takeInt(u32, .native);
+            result.border_pixel = border_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.BitGravity))) != 0) {
+            const bit_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.bit_gravity = bit_gravity;
+        }
+        if ((discriminator & (@intFromEnum(CW.WinGravity))) != 0) {
+            const win_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.win_gravity = win_gravity;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingStore))) != 0) {
+            const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.backing_store = backing_store;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingPlanes))) != 0) {
+            const backing_planes = try reader.takeInt(u32, .native);
+            result.backing_planes = backing_planes;
+        }
+        if ((discriminator & (@intFromEnum(CW.BackingPixel))) != 0) {
+            const backing_pixel = try reader.takeInt(u32, .native);
+            result.backing_pixel = backing_pixel;
+        }
+        if ((discriminator & (@intFromEnum(CW.OverrideRedirect))) != 0) {
+            const override_redirect = try reader.takeInt(u32, .native);
+            result.override_redirect = override_redirect;
+        }
+        if ((discriminator & (@intFromEnum(CW.SaveUnder))) != 0) {
+            const save_under = try reader.takeInt(u32, .native);
+            result.save_under = save_under;
+        }
+        if ((discriminator & (@intFromEnum(CW.EventMask))) != 0) {
+            const event_mask = try reader.takeInt(u32, .native);
+            result.event_mask = event_mask;
+        }
+        if ((discriminator & (@intFromEnum(CW.DontPropagate))) != 0) {
+            const do_not_propogate_mask = try reader.takeInt(u32, .native);
+            result.do_not_propogate_mask = do_not_propogate_mask;
+        }
+        if ((discriminator & (@intFromEnum(CW.Colormap))) != 0) {
+            const colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.colormap = colormap;
+        }
+        if ((discriminator & (@intFromEnum(CW.Cursor))) != 0) {
+            const cursor = @as(Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.cursor = cursor;
+        }
+        return result;
+    }
 };
 
 pub const CreateWindow = struct {
@@ -2786,8 +3465,8 @@ pub const CreateWindow = struct {
         writer.writeInt(u16, self.border_width);
         writer.writeInt(u16, @intCast(@intFromEnum(self.class)));
         writer.writeInt(u32, self.visual);
-        writer.writeInt(u32, wire.computeValueMask(CreateWindowValueListSpec, self.value_list));
-        wire.writeValueList(CreateWindowValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(CreateWindowValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };

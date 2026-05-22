@@ -9,6 +9,7 @@ const randr = @import("randr.zig");
 const shm = @import("shm.zig");
 const xfixes = @import("xfixes.zig");
 const xinput = @import("xinput.zig");
+const xkb = @import("xkb.zig");
 
 pub const ProtocolError = struct {
     code: u8,
@@ -53,6 +54,7 @@ pub const TaggedError = union(enum) {
     XInputMode: ProtocolError,
     XInputDeviceBusy: ProtocolError,
     XInputClass: ProtocolError,
+    XKbKeyboard: ProtocolError,
     Unknown: ProtocolError,
     NonX11: anyerror,
 };
@@ -126,6 +128,13 @@ fn decodeXInputError(code: u8, raw: ProtocolError) ?TaggedError {
     };
 }
 
+fn decodeXKbError(code: u8, raw: ProtocolError) ?TaggedError {
+    return switch (code) {
+        0 => .{ .XKbKeyboard = raw },
+        else => null,
+    };
+}
+
 pub fn decodeCoreError(code: u8, raw: ProtocolError) ?TaggedError {
     return decodeCoreErrorImpl(code, raw);
 }
@@ -165,6 +174,11 @@ const xinput_error_spec: ExtensionErrorSpec = .{
     .decode = decodeXInputError,
 };
 
+const xkb_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 0,
+    .decode = decodeXKbError,
+};
+
 pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
         .CORE => &xproto_error_spec,
@@ -173,6 +187,7 @@ pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
         .MIT_SHM => &shm_error_spec,
         .XFIXES => &xfixes_error_spec,
         .XINPUT => &xinput_error_spec,
+        .XKEYBOARD => &xkb_error_spec,
         else => null,
     };
 }

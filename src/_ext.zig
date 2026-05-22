@@ -6,5 +6,6 @@ pub const Extension = enum {
     MIT_SHM,
     SHAPE,
     XINPUT,
+    XKEYBOARD,
     XFIXES,
 };

@@ -11,6 +11,7 @@ const shm = @import("shm.zig");
 const shape = @import("shape.zig");
 const xfixes = @import("xfixes.zig");
 const xinput = @import("xinput.zig");
+const xkb = @import("xkb.zig");
 const DecodeError = errors.DecodeError;
 
 pub const UnknownEvent = struct {
@@ -112,6 +113,18 @@ pub const Event = union(enum) {
     XInputGestureSwipeBegin: xinput.GestureSwipeBeginEvent,
     XInputGestureSwipeUpdate: xinput.GestureSwipeUpdateEvent,
     XInputGestureSwipeEnd: xinput.GestureSwipeEndEvent,
+    XKbNewKeyboardNotify: xkb.NewKeyboardNotifyEvent,
+    XKbMapNotify: xkb.MapNotifyEvent,
+    XKbStateNotify: xkb.StateNotifyEvent,
+    XKbControlsNotify: xkb.ControlsNotifyEvent,
+    XKbIndicatorStateNotify: xkb.IndicatorStateNotifyEvent,
+    XKbIndicatorMapNotify: xkb.IndicatorMapNotifyEvent,
+    XKbNamesNotify: xkb.NamesNotifyEvent,
+    XKbCompatMapNotify: xkb.CompatMapNotifyEvent,
+    XKbBellNotify: xkb.BellNotifyEvent,
+    XKbActionMessage: xkb.ActionMessageEvent,
+    XKbAccessXNotify: xkb.AccessXNotifyEvent,
+    XKbExtensionDeviceNotify: xkb.ExtensionDeviceNotifyEvent,
 };
 
 pub const ExtensionEventSpec = struct {
@@ -170,6 +183,13 @@ const xinput_event_spec: ExtensionEventSpec = .{
     .decode_xge = xinput.decodeXgeEvent,
 };
 
+const xkb_event_spec: ExtensionEventSpec = .{
+    .max_event_num = 11,
+    .decode = xkb.decodeEvent,
+    .max_xge_event_num = 0,
+    .decode_xge = null,
+};
+
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
     return switch (extension) {
         .CORE => &xproto_event_spec,
@@ -179,6 +199,7 @@ pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
         .SHAPE => &shape_event_spec,
         .XFIXES => &xfixes_event_spec,
         .XINPUT => &xinput_event_spec,
+        .XKEYBOARD => &xkb_event_spec,
         else => null,
     };
 }

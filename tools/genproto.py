@@ -23,6 +23,7 @@ XML_PATHS = (
     XML_DIR / "shape.xml",
     XML_DIR / "xfixes.xml",
     XML_DIR / "xinput.xml",
+    XML_DIR / "xkb.xml",
 )
 OUT_DIR = Path("src/gen")
 
@@ -56,7 +57,7 @@ class Emit:
         return "\n".join(self.lines)
 
 
-Expr = xcbxml.FieldRef | xcbxml.ParamRef | xcbxml.Op | xcbxml.SumOf | xcbxml.PopCount | xcbxml.ListElementRef | int
+Expr = xcbxml.FieldRef | xcbxml.ParamRef | xcbxml.Op | xcbxml.Unop | xcbxml.SumOf | xcbxml.PopCount | xcbxml.ListElementRef | int
 
 
 @dataclass(frozen=True)
@@ -286,8 +287,7 @@ class FieldItem:
                 return
             if isinstance(self.derived_from, MaskListItem):
                 value_expr = (
-                    f"wire.computeValueMask({self.derived_from.require_spec_name()}, "
-                    f"{owner_expr}.{render_field_name(self.derived_from.name)})"
+                    f"@as({self.type_ref.render_zig()}, @intCast({self.derived_from.compute_mask_expr(owner_expr)}))"
                 )
                 self.type_ref.emit_encode(emit, value_expr)
                 return
@@ -332,29 +332,26 @@ class PadAlignItem:
     def byte_len_term(self, owner_expr: str, previous_item: Item | None = None) -> str:
         if not isinstance(previous_item, ListItem):
             raise NotImplementedError("pad-align byteLen requires preceding list item")
-        if self.align != 4:
-            raise NotImplementedError(f"pad-align byteLen only supports align=4, got {self.align}")
-        return f"wire.pad4({previous_item.payload_len_expr(owner_expr)})"
+        payload_len = previous_item.payload_len_expr(owner_expr)
+        return f"wire.pad({payload_len}, {self.align})"
 
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         if not isinstance(previous_item, ListItem):
             raise NotImplementedError("pad-align encode requires preceding list item")
-        if self.align != 4:
-            raise NotImplementedError(f"pad-align encode only supports align=4, got {self.align}")
         if previous_item.item_type.fixed_wire_size() is None:
-            emit(f"writer.splatByte(0, wire.pad4(writer.seek - {list_pad_seek_name(previous_item)}));")
+            emit(f"writer.splatByte(0, wire.pad(writer.seek - {list_pad_seek_name(previous_item)}, {self.align}));")
         else:
-            emit(f"writer.splatByte(0, wire.pad4({previous_item.payload_len_expr(owner_expr)}));")
+            payload_len = previous_item.payload_len_expr(owner_expr)
+            emit(f"writer.splatByte(0, wire.pad({payload_len}, {self.align}));")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
         if not isinstance(previous_item, ListItem):
             raise NotImplementedError("pad-align decode requires preceding list item")
-        if self.align != 4:
-            raise NotImplementedError(f"pad-align decode only supports align=4, got {self.align}")
         if previous_item.item_type.fixed_wire_size() is None:
-            emit(f"_ = try reader.take(wire.pad4(reader.seek - {list_pad_seek_name(previous_item)}));")
+            emit(f"_ = try reader.take(wire.pad(reader.seek - {list_pad_seek_name(previous_item)}, {self.align}));")
         else:
-            emit(f"_ = try reader.take(wire.pad4({previous_item.decoded_payload_len_expr()}));")
+            payload_len = previous_item.decoded_payload_len_expr()
+            emit(f"_ = try reader.take(wire.pad({payload_len}, {self.align}));")
 
 
 @dataclass(frozen=True)
@@ -513,10 +510,9 @@ class ListItem:
 
 @dataclass(frozen=True)
 class MaskCase:
-    field_name: str
-    enum_name: str
-    enum_item: str
-    value_type: TypeRef
+    enum_refs: tuple[tuple[str, str], ...]
+    items: tuple[Item, ...]
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -602,49 +598,95 @@ class SwitchCaseItem:
 @dataclass
 class MaskListItem:
     name: str
-    mask_field_name: str
+    expr: Expr
     cases: tuple[MaskCase, ...]
     type_name: str | None = None
-    spec_name: str | None = None
-    mask_type: str | None = None
 
     def set_generated_names(self, request_name: str) -> None:
         suffix = "".join(part[:1].upper() + part[1:] for part in self.name.split("_"))
         self.type_name = f"{request_name}{suffix}"
-        self.spec_name = f"{self.type_name}Spec"
 
     def require_type_name(self) -> str:
         if self.type_name is None:
             raise ValueError(f"mask-list type name was not initialized for {self.name}")
         return self.type_name
 
-    def require_spec_name(self) -> str:
-        if self.spec_name is None:
-            raise ValueError(f"mask-list spec name was not initialized for {self.name}")
-        return self.spec_name
+    def compute_mask_expr(self, owner_expr: str) -> str:
+        return (
+            f"wire.computeValueMask("
+            f"{self.require_type_name()}, "
+            f"{owner_expr}.{render_field_name(self.name)})"
+        )
 
-    def require_mask_type(self) -> str:
-        if self.mask_type is None:
-            raise ValueError(f"mask-list mask type was not initialized for {self.name}")
-        return self.mask_type
+    @cached_property
+    def context_params(self) -> tuple[str, ...]:
+        names: list[str] = []
+        local_names_all: set[str] = set()
+
+        def add(name: str) -> None:
+            if name not in names:
+                names.append(name)
+
+        for case in self.cases:
+            local_names: set[str] = set()
+            for case_item in case.items:
+                if isinstance(case_item, ListItem):
+                    for name in expr_fieldrefs(case_item.len_expr):
+                        if name not in local_names:
+                            add(name)
+                    for name in expr_paramrefs(case_item.len_expr):
+                        add(name)
+                elif isinstance(case_item, FieldItem) and isinstance(case_item.type_ref, StructType):
+                    if case_item.type_ref.decl is not None:
+                        for name in case_item.type_ref.decl.context_params:
+                            if name not in local_names:
+                                add(name)
+                elif isinstance(case_item, SwitchCaseItem):
+                    for name in case_item.context_params:
+                        if name not in local_names:
+                            add(name)
+                elif isinstance(case_item, MaskListItem):
+                    for name in case_item.context_params:
+                        if name not in local_names:
+                            add(name)
+                if isinstance(case_item, FieldItem | ListItem | SwitchCaseItem | MaskListItem):
+                    local_names.add(case_item.name)
+            local_names_all.update(local_names)
+        for name in expr_fieldrefs(self.expr):
+            if name not in local_names_all:
+                add(name)
+        return tuple(names)
 
     def emit_decl(self, emit: Emit) -> None:
         emit(f"{render_field_name(self.name)}: {self.require_type_name()},")
 
     def byte_len_term(self, owner_expr: str, previous_item: Item | None = None) -> str:
         _ = previous_item
-        return f"wire.valueListByteLen({self.require_spec_name()}, {owner_expr}.{render_field_name(self.name)})"
+        return (
+            f"(blk: {{ var writer = zio.CountingWriter.init(); "
+            f"{owner_expr}.{render_field_name(self.name)}.encode(&writer); "
+            f"break :blk writer.seek; }})"
+        )
 
     def emit_encode(self, emit: Emit, owner_expr: str, previous_item: Item | None = None) -> None:
         _ = previous_item
-        emit(
-            f"wire.writeValueList({self.require_spec_name()}, {owner_expr}.{render_field_name(self.name)}, writer);"
-        )
+        emit(f"{owner_expr}.{render_field_name(self.name)}.encode(writer);")
 
     def emit_decode(self, emit: Emit, previous_item: Item | None = None) -> None:
-        _ = emit
         _ = previous_item
-        raise NotImplementedError(f"mask-list decode emission is not implemented for {self.name}")
+        params = "".join(f"{render_local_name(name)}, " for name in self.context_params)
+        if any(item_decode_uses_allocator(case_item) for case in self.cases for case_item in case.items):
+            emit(
+                f"const {render_local_name(self.name)} = "
+                f"try {self.require_type_name()}.decode("
+                f"allocator, {params}reader);"
+            )
+        else:
+            emit(
+                f"const {render_local_name(self.name)} = "
+                f"try {self.require_type_name()}.decode("
+                f"{params}reader);"
+            )
 
 
 Item = (
@@ -667,6 +709,8 @@ class StructDecl:
     def is_dynamic(self) -> bool:
         for item in self.items:
             if isinstance(item, ListItem) and not item.is_inline_fixed():
+                return True
+            if isinstance(item, MaskListItem) and item_needs_deinit(item):
                 return True
             if isinstance(item, SwitchCaseItem):
                 return True
@@ -832,8 +876,9 @@ class Resolver:
                 del self.enums[name]
         if bindings.error or bindings.errorcopy:
             prefix = zig_extension_error_prefix(bindings.header) if bindings.extension_xname is not None else ""
+            error_enum_name = "ErrorCode" if "Error" in self.enums else "Error"
             self.core_error_codes = EnumDecl(
-                "Error",
+                error_enum_name,
                 tuple(
                     [EnumItemDecl(f"{prefix}{it.name}", int(it.number)) for it in bindings.error]
                     + [EnumItemDecl(f"{prefix}{it.name}", int(it.number)) for it in bindings.errorcopy]
@@ -852,10 +897,9 @@ class Resolver:
                     result.add(item.mask)
                 elif isinstance(item, xcbxml.SwitchField):
                     for case in item.items:
-                        enum_name, _ = case.enum_ref
-                        result.add(enum_name)
-                        if case.field.mask is not None:
-                            result.add(case.field.mask)
+                        for enum_name, _ in case.enum_refs:
+                            result.add(enum_name)
+                        visit_items(case.fields)
 
         for struct in self.bindings.struct:
             visit_items(struct.fields)
@@ -1059,16 +1103,10 @@ class Resolver:
         )
 
     def resolve_mask_case(self, item: xcbxml.SwitchItem) -> MaskCase:
-        enum_name, enum_item = item.enum_ref
         return MaskCase(
-            field_name=item.field.name,
-            enum_name=enum_name,
-            enum_item=enum_item,
-            value_type=self.resolve_type(
-                item.field.type,
-                enum_name=item.field.enum,
-                mask_name=item.field.mask,
-            ),
+            enum_refs=tuple(item.enum_refs),
+            items=self.resolve_items(item.fields),
+            name=item.name,
         )
 
     def resolve_switch_case(self, item: xcbxml.CaseItem) -> SwitchCaseDecl:
@@ -1099,7 +1137,7 @@ class Resolver:
         if isinstance(item, xcbxml.SwitchField):
             return MaskListItem(
                 name=item.name,
-                mask_field_name=item.fieldref.ref,
+                expr=item.expr,
                 cases=tuple(self.resolve_mask_case(case) for case in item.items),
             )
         if isinstance(item, xcbxml.CaseSwitchField):
@@ -1132,12 +1170,8 @@ class Resolver:
                 if item.len_expr.ref in fields:
                     fields[item.len_expr.ref].derived_from = item
             elif isinstance(item, MaskListItem):
-                if item.mask_field_name in fields:
-                    fields[item.mask_field_name].derived_from = item
-                    type_ref = fields[item.mask_field_name].type_ref
-                    if not isinstance(type_ref, MaskType):
-                        raise TypeError(f"mask field must use MaskType: {item.mask_field_name}")
-                    item.mask_type = type_ref.render_zig()
+                if isinstance(item.expr, xcbxml.FieldRef) and item.expr.ref in fields:
+                    fields[item.expr.ref].derived_from = item
 
     def resolve_struct(self, struct: xcbxml.Struct) -> StructDecl:
         items = self.resolve_items(struct.fields)
@@ -1459,6 +1493,8 @@ def render_expr(expr: Expr, *, owner_expr: str | None = None, list_elem_name: st
             "-": "-",
             "*": "*",
             "/": "/",
+            "&": "&",
+            "|": "|",
         }.get(expr.op)
         if op is None:
             raise NotImplementedError(f"unsupported expression operator: {expr.op}")
@@ -1467,6 +1503,13 @@ def render_expr(expr: Expr, *, owner_expr: str | None = None, list_elem_name: st
             f"{op} "
             f"{render_expr(expr.right, owner_expr=owner_expr, list_elem_name=list_elem_name)})"
         )
+    if isinstance(expr, xcbxml.Unop):
+        op = {
+            "~": "~",
+        }.get(expr.op)
+        if op is None:
+            raise NotImplementedError(f"unsupported unary expression operator: {expr.op}")
+        return f"({op}{render_expr(expr.expr, owner_expr=owner_expr, list_elem_name=list_elem_name)})"
     raise TypeError(f"unsupported expression: {expr!r}")
 
 
@@ -1487,6 +1530,8 @@ def expr_uses_fieldref(expr: Expr | None, name: str) -> bool:
         return expr.ref == name or expr_uses_fieldref(expr.expr, name)
     if isinstance(expr, xcbxml.Op):
         return expr_uses_fieldref(expr.left, name) or expr_uses_fieldref(expr.right, name)
+    if isinstance(expr, xcbxml.Unop):
+        return expr_uses_fieldref(expr.expr, name)
     raise TypeError(f"unsupported expression: {expr!r}")
 
 
@@ -1505,6 +1550,8 @@ def expr_paramrefs(expr: Expr | None) -> tuple[str, ...]:
         return expr_paramrefs(expr.expr)
     if isinstance(expr, xcbxml.Op):
         return expr_paramrefs(expr.left) + expr_paramrefs(expr.right)
+    if isinstance(expr, xcbxml.Unop):
+        return expr_paramrefs(expr.expr)
     raise TypeError(f"unsupported expression: {expr!r}")
 
 
@@ -1524,6 +1571,8 @@ def expr_fieldrefs(expr: Expr | None) -> tuple[str, ...]:
         return refs + expr_fieldrefs(expr.expr)
     if isinstance(expr, xcbxml.Op):
         return expr_fieldrefs(expr.left) + expr_fieldrefs(expr.right)
+    if isinstance(expr, xcbxml.Unop):
+        return expr_fieldrefs(expr.expr)
     raise TypeError(f"unsupported expression: {expr!r}")
 
 
@@ -1531,6 +1580,62 @@ def item_uses_fieldref(item: Item, name: str) -> bool:
     if isinstance(item, ListItem):
         return expr_uses_fieldref(item.len_expr, name)
     return False
+
+
+def item_decode_uses_allocator(item: Item) -> bool:
+    if isinstance(item, ListItem):
+        return True
+    if isinstance(item, FieldItem) and isinstance(item.type_ref, StructType):
+        return item.type_ref.is_dynamic
+    if isinstance(item, SwitchCaseItem):
+        return True
+    if isinstance(item, MaskListItem):
+        for case in item.cases:
+            for case_item in case.items:
+                if item_decode_uses_allocator(case_item):
+                    return True
+        return False
+    return False
+
+
+def item_needs_deinit(item: Item) -> bool:
+    if isinstance(item, ListItem):
+        return not item.is_inline_fixed()
+    if isinstance(item, FieldItem) and isinstance(item.type_ref, StructType):
+        return item.type_ref.is_dynamic
+    if isinstance(item, SwitchCaseItem):
+        return True
+    if isinstance(item, MaskListItem):
+        for case in item.cases:
+            for case_item in case.items:
+                if item_needs_deinit(case_item):
+                    return True
+        return False
+    return False
+
+
+def mask_case_direct_field(case: MaskCase) -> FieldItem | None:
+    if case.name is not None or len(case.items) != 1:
+        return None
+    item = case.items[0]
+    if isinstance(item, FieldItem) and item.derived_from is None:
+        return item
+    return None
+
+
+def mask_case_storage_name(case: MaskCase) -> str:
+    direct_field = mask_case_direct_field(case)
+    if direct_field is not None:
+        return direct_field.name
+    _, first_enum_item = case.enum_refs[0]
+    return case.name or zig_enum_item_name(first_enum_item)
+
+
+def mask_case_bit_expr(case: MaskCase) -> str:
+    return " | ".join(
+        f"@intFromEnum({enum_name}.{zig_enum_item_name(enum_item)})"
+        for enum_name, enum_item in case.enum_refs
+    )
 
 
 def reply_name(request_name: str) -> str:
@@ -1584,6 +1689,8 @@ def reply_decode_mode(decl: StructDecl) -> str:
                 continue
             if item.item_type.fixed_wire_size() != 1:
                 return "alloc"
+        elif isinstance(item, MaskListItem):
+            return "alloc"
         elif isinstance(item, SwitchCaseItem):
             return "alloc"
         elif isinstance(item, FieldItem) and isinstance(item.type_ref, StructType):
@@ -1779,7 +1886,7 @@ def emit_payload_decode_return(emit: Emit, items: tuple[Item, ...]) -> None:
         for item in items:
             if isinstance(item, FieldItem) and item.derived_from is not None:
                 continue
-            if isinstance(item, FieldItem | ListItem | SwitchCaseItem):
+            if isinstance(item, FieldItem | ListItem | SwitchCaseItem | MaskListItem):
                 emit(f".{render_field_name(item.name)} = {render_local_name(item.name)},")
     emit("};")
 
@@ -1798,16 +1905,26 @@ def emit_struct_deinit(emit: Emit, decl: StructDecl) -> None:
         return
     emit("pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {")
     with emit.block():
+        emitted = False
         for item in decl.items:
             if isinstance(item, ListItem) and not item.is_inline_fixed():
+                emitted = True
                 field_name = render_field_name(item.name)
                 if isinstance(item.item_type, StructType) and item.item_type.is_dynamic:
                     emit(f"for (self.{field_name}) |*elem| elem.deinit(allocator);")
                 emit(f"allocator.free(self.{field_name});")
             elif isinstance(item, FieldItem) and isinstance(item.type_ref, StructType) and item.type_ref.is_dynamic:
+                emitted = True
                 emit(f"self.{render_field_name(item.name)}.deinit(allocator);")
             elif isinstance(item, SwitchCaseItem):
+                emitted = True
                 emit(f"self.{render_field_name(item.name)}.deinit(allocator);")
+            elif isinstance(item, MaskListItem) and item_needs_deinit(item):
+                emitted = True
+                emit(f"self.{render_field_name(item.name)}.deinit(allocator);")
+        if not emitted:
+            emit("_ = self;")
+            emit("_ = allocator;")
     emit("}")
     emit()
 
@@ -1815,7 +1932,7 @@ def emit_struct_deinit(emit: Emit, decl: StructDecl) -> None:
 def emit_struct_decl(emit: Emit, decl: StructDecl) -> None:
     emit(f"pub const {decl.name} = struct {{")
     with emit.block():
-        emit_switch_case_decls(emit, decl.name, decl.items)
+        emit_aux_decls_for_items(emit, decl.name, decl.items)
         emit_payload_decl_fields(emit, decl.items)
         emit()
         emit_struct_encode(emit, decl)
@@ -1836,7 +1953,7 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
 
     emit(f"pub const {reply_name(request.name)} = struct {{")
     with emit.block():
-        emit_switch_case_decls(emit, reply_name(request.name), items)
+        emit_aux_decls_for_items(emit, reply_name(request.name), items)
         emit_payload_decl_fields(emit, items)
         emit()
         emit_struct_encode(emit, decl)
@@ -1872,25 +1989,109 @@ def emit_reply_decl(emit: Emit, request: RequestDecl) -> None:
 
 
 def emit_mask_list_decl(emit: Emit, item: MaskListItem) -> None:
+    needs_allocator = any(item_decode_uses_allocator(case_item) for case in item.cases for case_item in case.items)
+    needs_deinit = any(item_needs_deinit(case_item) for case in item.cases for case_item in case.items)
     emit(f"pub const {item.require_type_name()} = struct {{")
     with emit.block():
         for case in item.cases:
-            emit(f"{render_field_name(case.field_name)}: ?{case.value_type.render_zig()} = null,")
-    emit("};")
-    emit()
-
-    emit(f"pub const {item.require_spec_name()} = struct {{")
-    with emit.block():
-        emit(f"pub const mask_type = {item.require_mask_type()};")
+            variant_name = mask_case_storage_name(case)
+            direct_field = mask_case_direct_field(case)
+            if direct_field is not None:
+                emit(f"{render_field_name(variant_name)}: ?{direct_field.type_ref.render_zig()} = null,")
+            else:
+                emit(f"{render_field_name(variant_name)}: ?struct {{")
+                with emit.block():
+                    emit_payload_decl_fields(emit, case.items)
+                emit("} = null,")
+        emit()
+        emit("pub const mask_type = u32;")
         emit("pub const fields = .{")
         with emit.block():
             for case in item.cases:
                 emit(
-                    f'.{{ .name = "{render_field_name(case.field_name)}", '
-                    f'.bit = @intFromEnum({case.enum_name}.{zig_enum_item_name(case.enum_item)}), '
-                    f".value_type = {case.value_type.render_zig()} }},"
+                    f".{{ .name = \"{render_field_name(mask_case_storage_name(case))}\", "
+                    f".bit = {mask_case_bit_expr(case)} }},"
                 )
         emit("};")
+        emit()
+        emit("pub fn encode(self: @This(), writer: anytype) void {")
+        with emit.block():
+            for case in item.cases:
+                variant_name = mask_case_storage_name(case)
+                direct_field = mask_case_direct_field(case)
+                emit(f"if (self.{render_field_name(variant_name)}) |value| {{")
+                with emit.block():
+                    if direct_field is not None:
+                        direct_field.type_ref.emit_encode(emit, "value")
+                    else:
+                        emit_payload_encode_body(emit, case.items, "value")
+                emit("}")
+        emit("}")
+        emit()
+        ctx = "".join(f"{render_field_name(name)}: anytype, " for name in item.context_params)
+        if needs_allocator:
+            emit(
+                f"pub fn decode("
+                f"allocator: std.mem.Allocator, {ctx}reader: *std.Io.Reader"
+                f") AllocDecodeError!@This() {{"
+            )
+        else:
+            emit(
+                f"pub fn decode("
+                f"{ctx}reader: *std.Io.Reader"
+                f") DecodeError!@This() {{"
+            )
+        with emit.block():
+            emit("var result: @This() = .{};")
+            emit(f"const discriminator = {render_expr(item.expr)};")
+            for case in item.cases:
+                variant_name = mask_case_storage_name(case)
+                direct_field = mask_case_direct_field(case)
+                cond_expr = mask_case_bit_expr(case)
+                emit(f"if ((discriminator & ({cond_expr})) != 0) {{")
+                with emit.block():
+                    emit_payload_decode_body(emit, case.items, decode_mode="alloc")
+                    if direct_field is not None:
+                        emit(
+                            f"result.{render_field_name(variant_name)} = "
+                            f"{render_local_name(direct_field.name)};"
+                        )
+                    else:
+                        emit(f"result.{render_field_name(variant_name)} = .{{")
+                        with emit.block():
+                            for case_item in case.items:
+                                if isinstance(case_item, FieldItem | ListItem | SwitchCaseItem | MaskListItem):
+                                    emit(
+                                        f".{render_field_name(case_item.name)} = "
+                                        f"{render_local_name(case_item.name)},"
+                                    )
+                        emit("};")
+                emit("}")
+            emit("return result;")
+        emit("}")
+        if needs_deinit:
+            emit()
+            emit("pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {")
+            with emit.block():
+                for case in item.cases:
+                    variant_name = mask_case_storage_name(case)
+                    dynamic_items = tuple(case_item for case_item in case.items if item_needs_deinit(case_item))
+                    if not dynamic_items:
+                        continue
+                    emit(f"if (self.{render_field_name(variant_name)}) |*value| {{")
+                    with emit.block():
+                        for case_item in dynamic_items:
+                            if isinstance(case_item, ListItem):
+                                field_name = render_field_name(case_item.name)
+                                if isinstance(case_item.item_type, StructType) and case_item.item_type.is_dynamic:
+                                    emit(f"for (value.{field_name}) |*elem| elem.deinit(allocator);")
+                                emit(f"allocator.free(value.{field_name});")
+                            elif isinstance(case_item, FieldItem) and isinstance(case_item.type_ref, StructType) and case_item.type_ref.is_dynamic:
+                                emit(f"value.{render_field_name(case_item.name)}.deinit(allocator);")
+                            elif isinstance(case_item, SwitchCaseItem | MaskListItem):
+                                emit(f"value.{render_field_name(case_item.name)}.deinit(allocator);")
+                    emit("}")
+            emit("}")
     emit("};")
     emit()
 
@@ -1996,11 +2197,33 @@ def emit_switch_case_decls(emit: Emit, prefix: str, items: tuple[Item, ...]) -> 
             emit_switch_case_decl(emit, item)
 
 
-def emit_request_aux_decls(emit: Emit, request: RequestDecl) -> None:
-    for item in request.items:
+def init_generated_item_names(prefix: str, items: tuple[Item, ...]) -> None:
+    for item in items:
+        if isinstance(item, MaskListItem):
+            item.set_generated_names(prefix)
+            for case in item.cases:
+                init_generated_item_names(prefix, case.items)
+        elif isinstance(item, SwitchCaseItem):
+            item.set_generated_name(prefix)
+            for case in item.cases:
+                init_generated_item_names(prefix, case.items)
+
+
+def emit_aux_decls_for_items(emit: Emit, prefix: str, items: tuple[Item, ...]) -> None:
+    init_generated_item_names(prefix, items)
+    for item in items:
         if isinstance(item, MaskListItem):
             emit_mask_list_decl(emit, item)
-    emit_switch_case_decls(emit, request.name, request.items)
+            for case in item.cases:
+                emit_aux_decls_for_items(prefix=prefix, emit=emit, items=case.items)
+        elif isinstance(item, SwitchCaseItem):
+            emit_switch_case_decl(emit, item)
+            for case in item.cases:
+                emit_aux_decls_for_items(prefix=prefix, emit=emit, items=case.items)
+
+
+def emit_request_aux_decls(emit: Emit, request: RequestDecl) -> None:
+    emit_aux_decls_for_items(emit, request.name, request.items)
 
 
 def request_uses_header_slot(module: ModuleIR, request: RequestDecl) -> bool:
@@ -2114,6 +2337,8 @@ def emit_event_decl(emit: Emit, decl: EventDecl) -> None:
     dynamic_parts = split_dynamic_event_items(decl.items) if decl.xge == "true" and xge_body_dynamic else None
     emit(f"pub const {event_struct_name(decl.name)} = struct {{")
     with emit.block():
+        if dynamic_parts is None:
+            emit_aux_decls_for_items(emit, event_struct_name(decl.name), decl.items)
         if decl.xge == "true":
             emit("extension: u8,")
             emit("length: u32,")

@@ -16,6 +16,7 @@ pub const render = @import("gen/render.zig");
 pub const shape = @import("gen/shape.zig");
 pub const shm = @import("gen/shm.zig");
 pub const xinput = @import("gen/xinput.zig");
+pub const xkb = @import("gen/xkb.zig");
 pub const xfixes = @import("gen/xfixes.zig");
 
 pub fn xname(ext: Extension) []const u8 {
@@ -27,6 +28,7 @@ pub fn xname(ext: Extension) []const u8 {
         .MIT_SHM => "MIT-SHM",
         .SHAPE => "SHAPE",
         .XINPUT => "XInputExtension",
+        .XKEYBOARD => "XKEYBOARD",
         .XFIXES => "XFIXES",
     };
 }

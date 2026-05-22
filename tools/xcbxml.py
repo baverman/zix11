@@ -70,28 +70,29 @@ class ListField:
 @dataclass
 class SwitchField:
     name: str
-    fieldref: FieldRef
+    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
     items: list[SwitchItem]
 
     @staticmethod
     def make(attrs: Attrs) -> SwitchField:
         kids = attrs.pop('@kids')
-        attrs['fieldref'] = kids.pop('fieldref') # type: ignore[attr-defined]
+        (attrs['expr'],) = kids.pop('_')  # type: ignore[misc]
         attrs['items'] = kids.pop('bitcase')  # type: ignore[attr-defined]
         return SwitchField(**attrs)  # type: ignore[arg-type]
 
 
 @dataclass
 class SwitchItem:
-    enum_ref: tuple[str, str]
-    field: Field
+    enum_refs: Sequence[tuple[str, str]]
+    fields: Sequence[RequestDataFields | RequiredStartAlign]
+    name: str | None = None
 
     @staticmethod
     def make(attrs: Attrs) -> SwitchItem:
         kids = attrs.pop('@kids')
-        enumref: TextNode = kids.pop('enumref')  # type: ignore[attr-defined]
-        attrs['enum_ref'] = enumref.attrs['ref'], enumref.value
-        attrs['field'] = kids.pop('field')  # type: ignore[attr-defined]
+        enumrefs: list[TextNode] = kids.pop('enumref')  # type: ignore[attr-defined]
+        attrs['enum_refs'] = [(enumref.attrs['ref'], enumref.value) for enumref in enumrefs]
+        attrs['fields'] = kids.pop('_')  # type: ignore[attr-defined]
         assert not kids
         return SwitchItem(**attrs)  # type: ignore[arg-type]
 
@@ -147,6 +148,7 @@ class Pad:
 
     @staticmethod
     def make(attrs: Attrs) -> Pad:
+        attrs.pop('serialize', None)
         if 'bytes' in attrs:
             attrs['count'] = int(attrs.pop('bytes'))  # type: ignore[call-overload]
         obj = Pad(**attrs)  # type: ignore[arg-type]
@@ -346,13 +348,24 @@ class ParamRef:
 @dataclass
 class Op:
     op: str
-    left: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
-    right: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+    left: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+    right: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
 
     @staticmethod
     def make(attrs: Attrs) -> Op:
         left, right = attrs.pop('@kids')  # type: ignore[misc]
         return Op(**attrs, left=left, right=right)  # type: ignore[arg-type, has-type]
+
+
+@dataclass
+class Unop:
+    op: str
+    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
+
+    @staticmethod
+    def make(attrs: Attrs) -> Unop:
+        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
+        return Unop(**attrs, expr=expr)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -365,7 +378,7 @@ class ListElementRef:
 
 @dataclass
 class PopCount:
-    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
 
     @staticmethod
     def make(attrs: Attrs) -> PopCount:
@@ -376,11 +389,12 @@ class PopCount:
 @dataclass
 class SumOf:
     ref: str
-    expr: int | FieldRef | ParamRef | Op | SumOf | PopCount | ListElementRef
+    expr: int | FieldRef | ParamRef | Op | Unop | SumOf | PopCount | ListElementRef
 
     @staticmethod
     def make(attrs: Attrs) -> SumOf:
-        (expr,) = attrs.pop('@kids')  # type: ignore[misc]
+        kids = attrs.pop('@kids')
+        expr = kids[0] if kids else ListElementRef()
         return SumOf(ref=attrs['ref'], expr=expr)  # type: ignore[arg-type]
 
 
@@ -394,8 +408,9 @@ list_items = one_of(
     paramref_item,
     TextItem('value', cnv=node_int),
     Item('op', {'op'}, Seq(list_items_ref, list_items_ref), cnv=Op.make),
+    Item('unop', {'op'}, Seq(list_items_ref), cnv=Unop.make),
     Item('popcount', set(), Seq(list_items_ref), cnv=PopCount.make),
-    Item('sumof', {'ref'}, Seq(list_items_ref), cnv=SumOf.make),
+    Item('sumof', {'ref'}, Seq(list_items_ref, optional=True), cnv=SumOf.make),
     listelement_ref_item,
 )
 
@@ -405,34 +420,26 @@ required_start_align_item = Item(
     {'align', 'offset'},
     cnv=RequiredStartAlign.make,
 )
+case_items_ref = Ref[OneOf]('case_items')
 
 bitcase = Item(
     'bitcase',
-    set(),
-    StructItem(enumref=TextItem('enumref', {'ref'}), field=field_item),
+    {'name'},
+    StructItem(enumref=Many(TextItem('enumref', {'ref'})), _=Many(case_items_ref)),
     cnv=SwitchItem.make,
-)
-
-case_items = one_of(
-    field_item,
-    Item('pad', {'bytes', 'align'}, cnv=Pad.make),
-    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
-    Item('fd', {'name'}, cnv=simple(Fd)),
-    required_start_align_item,
-    IgnoreItem('doc'),
 )
 
 case = Item(
     'case',
     {'name'},
-    StructItem(enumref=TextItem('enumref', {'ref'}), _=Many(case_items)),
+    StructItem(enumref=TextItem('enumref', {'ref'}), _=Many(case_items_ref)),
     cnv=CaseItem.make,
 )
 
 switch = Item[SwitchField](
     'switch',
     {'name'},
-    StructItem(fieldref=fieldref_item, bitcase=Many(bitcase)),
+    StructItem(_=Many(list_items), bitcase=Many(bitcase)),
     cnv=SwitchField.make,
 )
 
@@ -443,11 +450,22 @@ case_switch = Item[CaseSwitchField](
     cnv=CaseSwitchField.make,
 )
 
+case_items = one_of(
+    field_item,
+    Item('pad', {'bytes', 'align', 'serialize'}, cnv=Pad.make),
+    Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
+    Item('fd', {'name'}, cnv=simple(Fd)),
+    required_start_align_item,
+    switch,
+    case_switch,
+    IgnoreItem('doc'),
+)
+
 field_items_tup = (
     case_switch,
     switch,
     field_item,
-    Item('pad', {'bytes', 'align'}, cnv=Pad.make),
+    Item('pad', {'bytes', 'align', 'serialize'}, cnv=Pad.make),
     Item('list', {'type', 'name', 'enum', 'mask'}, Seq(list_items, optional=True), cnv=ListField.make),
     Item('fd', {'name'}, cnv=simple(Fd)),
     required_start_align_item,

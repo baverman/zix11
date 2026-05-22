@@ -1,7 +1,14 @@
 const std = @import("std");
 
+pub fn pad(len: usize, alignment: comptime_int) usize {
+    comptime std.debug.assert(alignment != 0);
+    comptime std.debug.assert((alignment & (alignment - 1)) == 0);
+    const mask: comptime_int = alignment - 1;
+    return (alignment - (len & mask)) & mask;
+}
+
 pub fn pad4(len: usize) usize {
-    return (4 - (len & 3)) & 3;
+    return pad(len, 4);
 }
 
 pub fn requiredPad(offset: usize, alignment: usize, start_offset: usize) usize {
@@ -72,6 +79,16 @@ test "pad4" {
     try std.testing.expectEqual(@as(usize, 2), pad4(2));
     try std.testing.expectEqual(@as(usize, 1), pad4(3));
     try std.testing.expectEqual(@as(usize, 0), pad4(4));
+}
+
+test "pad" {
+    try std.testing.expectEqual(@as(usize, 0), pad(0, 4));
+    try std.testing.expectEqual(@as(usize, 3), pad(1, 4));
+    try std.testing.expectEqual(@as(usize, 2), pad(2, 4));
+    try std.testing.expectEqual(@as(usize, 1), pad(3, 4));
+    try std.testing.expectEqual(@as(usize, 0), pad(4, 4));
+    try std.testing.expectEqual(@as(usize, 1), pad(3, 2));
+    try std.testing.expectEqual(@as(usize, 5), pad(3, 8));
 }
 
 test "requiredPad" {

@@ -690,25 +690,123 @@ pub const ChangePictureValueList = struct {
     polymode: ?PolyMode = null,
     dither: ?xproto.Atom = null,
     componentalpha: ?u32 = null,
-};
 
-pub const ChangePictureValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat), .value_type = Repeat },
-        .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap), .value_type = Picture },
-        .{ .name = "alphaxorigin", .bit = @intFromEnum(CP.AlphaXOrigin), .value_type = i32 },
-        .{ .name = "alphayorigin", .bit = @intFromEnum(CP.AlphaYOrigin), .value_type = i32 },
-        .{ .name = "clipxorigin", .bit = @intFromEnum(CP.ClipXOrigin), .value_type = i32 },
-        .{ .name = "clipyorigin", .bit = @intFromEnum(CP.ClipYOrigin), .value_type = i32 },
-        .{ .name = "clipmask", .bit = @intFromEnum(CP.ClipMask), .value_type = xproto.Pixmap },
-        .{ .name = "graphicsexposure", .bit = @intFromEnum(CP.GraphicsExposure), .value_type = u32 },
-        .{ .name = "subwindowmode", .bit = @intFromEnum(CP.SubwindowMode), .value_type = xproto.SubwindowMode },
-        .{ .name = "polyedge", .bit = @intFromEnum(CP.PolyEdge), .value_type = PolyEdge },
-        .{ .name = "polymode", .bit = @intFromEnum(CP.PolyMode), .value_type = PolyMode },
-        .{ .name = "dither", .bit = @intFromEnum(CP.Dither), .value_type = xproto.Atom },
-        .{ .name = "componentalpha", .bit = @intFromEnum(CP.ComponentAlpha), .value_type = u32 },
+        .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat) },
+        .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap) },
+        .{ .name = "alphaxorigin", .bit = @intFromEnum(CP.AlphaXOrigin) },
+        .{ .name = "alphayorigin", .bit = @intFromEnum(CP.AlphaYOrigin) },
+        .{ .name = "clipxorigin", .bit = @intFromEnum(CP.ClipXOrigin) },
+        .{ .name = "clipyorigin", .bit = @intFromEnum(CP.ClipYOrigin) },
+        .{ .name = "clipmask", .bit = @intFromEnum(CP.ClipMask) },
+        .{ .name = "graphicsexposure", .bit = @intFromEnum(CP.GraphicsExposure) },
+        .{ .name = "subwindowmode", .bit = @intFromEnum(CP.SubwindowMode) },
+        .{ .name = "polyedge", .bit = @intFromEnum(CP.PolyEdge) },
+        .{ .name = "polymode", .bit = @intFromEnum(CP.PolyMode) },
+        .{ .name = "dither", .bit = @intFromEnum(CP.Dither) },
+        .{ .name = "componentalpha", .bit = @intFromEnum(CP.ComponentAlpha) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.repeat) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.alphamap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.alphaxorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.alphayorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipxorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipyorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipmask) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.graphicsexposure) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.subwindowmode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.polyedge) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.polymode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.dither) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.componentalpha) |value| {
+            writer.writeInt(u32, value);
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(CP.Repeat))) != 0) {
+            const repeat = @as(Repeat, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.repeat = repeat;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaMap))) != 0) {
+            const alphamap = @as(Picture, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.alphamap = alphamap;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaXOrigin))) != 0) {
+            const alphaxorigin = try reader.takeInt(i32, .native);
+            result.alphaxorigin = alphaxorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaYOrigin))) != 0) {
+            const alphayorigin = try reader.takeInt(i32, .native);
+            result.alphayorigin = alphayorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipXOrigin))) != 0) {
+            const clipxorigin = try reader.takeInt(i32, .native);
+            result.clipxorigin = clipxorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipYOrigin))) != 0) {
+            const clipyorigin = try reader.takeInt(i32, .native);
+            result.clipyorigin = clipyorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipMask))) != 0) {
+            const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.clipmask = clipmask;
+        }
+        if ((discriminator & (@intFromEnum(CP.GraphicsExposure))) != 0) {
+            const graphicsexposure = try reader.takeInt(u32, .native);
+            result.graphicsexposure = graphicsexposure;
+        }
+        if ((discriminator & (@intFromEnum(CP.SubwindowMode))) != 0) {
+            const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.subwindowmode = subwindowmode;
+        }
+        if ((discriminator & (@intFromEnum(CP.PolyEdge))) != 0) {
+            const polyedge = @as(PolyEdge, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.polyedge = polyedge;
+        }
+        if ((discriminator & (@intFromEnum(CP.PolyMode))) != 0) {
+            const polymode = @as(PolyMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.polymode = polymode;
+        }
+        if ((discriminator & (@intFromEnum(CP.Dither))) != 0) {
+            const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.dither = dither;
+        }
+        if ((discriminator & (@intFromEnum(CP.ComponentAlpha))) != 0) {
+            const componentalpha = try reader.takeInt(u32, .native);
+            result.componentalpha = componentalpha;
+        }
+        return result;
+    }
 };
 
 pub const ChangePicture = struct {
@@ -726,8 +824,8 @@ pub const ChangePicture = struct {
 
     pub fn encode(self: @This(), writer: anytype) void {
         writer.writeInt(u32, @intFromEnum(self.picture));
-        writer.writeInt(u32, wire.computeValueMask(ChangePictureValueListSpec, self.value_list));
-        wire.writeValueList(ChangePictureValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(ChangePictureValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -1014,25 +1112,123 @@ pub const CreatePictureValueList = struct {
     polymode: ?PolyMode = null,
     dither: ?xproto.Atom = null,
     componentalpha: ?u32 = null,
-};
 
-pub const CreatePictureValueListSpec = struct {
     pub const mask_type = u32;
     pub const fields = .{
-        .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat), .value_type = Repeat },
-        .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap), .value_type = Picture },
-        .{ .name = "alphaxorigin", .bit = @intFromEnum(CP.AlphaXOrigin), .value_type = i32 },
-        .{ .name = "alphayorigin", .bit = @intFromEnum(CP.AlphaYOrigin), .value_type = i32 },
-        .{ .name = "clipxorigin", .bit = @intFromEnum(CP.ClipXOrigin), .value_type = i32 },
-        .{ .name = "clipyorigin", .bit = @intFromEnum(CP.ClipYOrigin), .value_type = i32 },
-        .{ .name = "clipmask", .bit = @intFromEnum(CP.ClipMask), .value_type = xproto.Pixmap },
-        .{ .name = "graphicsexposure", .bit = @intFromEnum(CP.GraphicsExposure), .value_type = u32 },
-        .{ .name = "subwindowmode", .bit = @intFromEnum(CP.SubwindowMode), .value_type = xproto.SubwindowMode },
-        .{ .name = "polyedge", .bit = @intFromEnum(CP.PolyEdge), .value_type = PolyEdge },
-        .{ .name = "polymode", .bit = @intFromEnum(CP.PolyMode), .value_type = PolyMode },
-        .{ .name = "dither", .bit = @intFromEnum(CP.Dither), .value_type = xproto.Atom },
-        .{ .name = "componentalpha", .bit = @intFromEnum(CP.ComponentAlpha), .value_type = u32 },
+        .{ .name = "repeat", .bit = @intFromEnum(CP.Repeat) },
+        .{ .name = "alphamap", .bit = @intFromEnum(CP.AlphaMap) },
+        .{ .name = "alphaxorigin", .bit = @intFromEnum(CP.AlphaXOrigin) },
+        .{ .name = "alphayorigin", .bit = @intFromEnum(CP.AlphaYOrigin) },
+        .{ .name = "clipxorigin", .bit = @intFromEnum(CP.ClipXOrigin) },
+        .{ .name = "clipyorigin", .bit = @intFromEnum(CP.ClipYOrigin) },
+        .{ .name = "clipmask", .bit = @intFromEnum(CP.ClipMask) },
+        .{ .name = "graphicsexposure", .bit = @intFromEnum(CP.GraphicsExposure) },
+        .{ .name = "subwindowmode", .bit = @intFromEnum(CP.SubwindowMode) },
+        .{ .name = "polyedge", .bit = @intFromEnum(CP.PolyEdge) },
+        .{ .name = "polymode", .bit = @intFromEnum(CP.PolyMode) },
+        .{ .name = "dither", .bit = @intFromEnum(CP.Dither) },
+        .{ .name = "componentalpha", .bit = @intFromEnum(CP.ComponentAlpha) },
     };
+
+    pub fn encode(self: @This(), writer: anytype) void {
+        if (self.repeat) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.alphamap) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.alphaxorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.alphayorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipxorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipyorigin) |value| {
+            writer.writeInt(i32, value);
+        }
+        if (self.clipmask) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.graphicsexposure) |value| {
+            writer.writeInt(u32, value);
+        }
+        if (self.subwindowmode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.polyedge) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.polymode) |value| {
+            writer.writeInt(u32, @intCast(@intFromEnum(value)));
+        }
+        if (self.dither) |value| {
+            writer.writeInt(u32, @intFromEnum(value));
+        }
+        if (self.componentalpha) |value| {
+            writer.writeInt(u32, value);
+        }
+    }
+
+    pub fn decode(value_mask: anytype, reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = .{};
+        const discriminator = value_mask;
+        if ((discriminator & (@intFromEnum(CP.Repeat))) != 0) {
+            const repeat = @as(Repeat, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.repeat = repeat;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaMap))) != 0) {
+            const alphamap = @as(Picture, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.alphamap = alphamap;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaXOrigin))) != 0) {
+            const alphaxorigin = try reader.takeInt(i32, .native);
+            result.alphaxorigin = alphaxorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.AlphaYOrigin))) != 0) {
+            const alphayorigin = try reader.takeInt(i32, .native);
+            result.alphayorigin = alphayorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipXOrigin))) != 0) {
+            const clipxorigin = try reader.takeInt(i32, .native);
+            result.clipxorigin = clipxorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipYOrigin))) != 0) {
+            const clipyorigin = try reader.takeInt(i32, .native);
+            result.clipyorigin = clipyorigin;
+        }
+        if ((discriminator & (@intFromEnum(CP.ClipMask))) != 0) {
+            const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.clipmask = clipmask;
+        }
+        if ((discriminator & (@intFromEnum(CP.GraphicsExposure))) != 0) {
+            const graphicsexposure = try reader.takeInt(u32, .native);
+            result.graphicsexposure = graphicsexposure;
+        }
+        if ((discriminator & (@intFromEnum(CP.SubwindowMode))) != 0) {
+            const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.subwindowmode = subwindowmode;
+        }
+        if ((discriminator & (@intFromEnum(CP.PolyEdge))) != 0) {
+            const polyedge = @as(PolyEdge, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.polyedge = polyedge;
+        }
+        if ((discriminator & (@intFromEnum(CP.PolyMode))) != 0) {
+            const polymode = @as(PolyMode, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.polymode = polymode;
+        }
+        if ((discriminator & (@intFromEnum(CP.Dither))) != 0) {
+            const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.dither = dither;
+        }
+        if ((discriminator & (@intFromEnum(CP.ComponentAlpha))) != 0) {
+            const componentalpha = try reader.takeInt(u32, .native);
+            result.componentalpha = componentalpha;
+        }
+        return result;
+    }
 };
 
 pub const CreatePicture = struct {
@@ -1054,8 +1250,8 @@ pub const CreatePicture = struct {
         writer.writeInt(u32, @intFromEnum(self.pid));
         self.drawable.encode(writer);
         writer.writeInt(u32, @intFromEnum(self.format));
-        writer.writeInt(u32, wire.computeValueMask(CreatePictureValueListSpec, self.value_list));
-        wire.writeValueList(CreatePictureValueListSpec, self.value_list, writer);
+        writer.writeInt(u32, @as(u32, @intCast(wire.computeValueMask(CreatePictureValueList, self.value_list))));
+        self.value_list.encode(writer);
     }
 
 };
@@ -1540,7 +1736,7 @@ pub const SetPictureFilter = struct {
         writer.writeInt(u16, @intCast(self.filter.len));
         writer.splatByte(0, 2);
         writer.write(self.filter);
-        writer.splatByte(0, wire.pad4(self.filter.len));
+        writer.splatByte(0, wire.pad(self.filter.len, 4));
         for (self.values) |elem| {
             writer.writeInt(i32, elem);
         }
