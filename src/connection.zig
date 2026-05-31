@@ -108,6 +108,13 @@ pub const Authorization = struct {
         .data = "",
     };
 
+    pub fn fromCookie(cookie: []const u8) Authorization {
+        return .{
+            .name = AuthName,
+            .data = cookie,
+        };
+    }
+
     pub fn fromEnv(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Authorization {
         const display_spec = try DisplaySpec.fromEnv(environ_map);
         return .fromEnvWithDisplay(io, allocator, environ_map, display_spec);
@@ -115,12 +122,7 @@ pub const Authorization = struct {
 
     pub fn fromEnvWithDisplay(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map, display: DisplaySpec) !Authorization {
         const cookie = try readXAuthorityCookie(io, allocator, environ_map, display);
-        defer allocator.free(cookie);
-
-        return .{
-            .name = AuthName,
-            .data = cookie,
-        };
+        return .fromCookie(cookie);
     }
 
     fn readXAuthorityCookie(
