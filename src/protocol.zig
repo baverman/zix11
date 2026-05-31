@@ -6,8 +6,10 @@ const events = @import("events.zig");
 const zio = @import("io.zig");
 const wire = @import("_wire.zig");
 const x = @import("gen/xproto.zig");
+const connection = @import("connection.zig");
 
 pub const ProtocolError = errors.ProtocolError;
+const Authorisation = connection.Authorisation;
 
 pub const ReplyMode = enum {
     fixed,
@@ -233,7 +235,7 @@ pub const Protocol = struct {
         return @as(T, @enumFromInt(id));
     }
 
-    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
+    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, auth: Authorisation) !void {
         const request = x.SetupRequest{
             .byte_order = switch (builtin.cpu.arch.endian()) {
                 .little => 'l',
@@ -241,8 +243,8 @@ pub const Protocol = struct {
             },
             .protocol_major_version = 11,
             .protocol_minor_version = 0,
-            .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
-            .authorization_protocol_data = cookie,
+            .authorization_protocol_name = auth.name,
+            .authorization_protocol_data = auth.data,
         };
         var counting_writer = zio.CountingWriter.init();
         request.encode(&counting_writer);

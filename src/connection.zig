@@ -12,12 +12,27 @@ const FamilyWild: u16 = 65535;
 const read_buffer_size = 16 * 1024;
 const write_buffer_size = 4 * 1024;
 
-const DisplaySpec = struct {
-    host: []u8,
+pub const DisplaySpec = struct {
+    host: []const u8,
     display_number: u16,
 
-    fn deinit(self: @This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.host);
+    pub fn parse(display: []const u8) !DisplaySpec {
+        const colon = std.mem.indexOfScalar(u8, display, ':') orelse return error.UnsupportedDisplayFormat;
+        const host = display[0..colon];
+
+        var tail = display[colon + 1 ..];
+        if (tail.len == 0) return error.UnsupportedDisplayFormat;
+        if (std.mem.indexOfScalar(u8, tail, '.')) |dot| tail = tail[0..dot];
+
+        return .{
+            .host = host,
+            .display_number = try std.fmt.parseUnsigned(u16, tail, 10),
+        };
+    }
+
+    pub fn fromEnv(environ_map: *const std.process.Environ.Map) !DisplaySpec {
+        const display = environ_map.get("DISPLAY") orelse return error.MissingDisplay;
+        return DisplaySpec.parse(display);
     }
 };
 
@@ -84,6 +99,71 @@ pub const StreamTransport = struct {
     }
 };
 
+pub const Authorisation = struct {
+    name: []const u8,
+    data: []const u8,
+
+    pub const none: Authorisation = .{
+        .name = "",
+        .data = "",
+    };
+
+    pub fn fromEnv(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Authorisation {
+        const display_spec = try DisplaySpec.fromEnv(environ_map);
+        return .fromEnvWithDisplay(io, allocator, environ_map, display_spec);
+    }
+
+    pub fn fromEnvWithDisplay(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map, display: DisplaySpec) !Authorisation {
+        const cookie = try readXAuthorityCookie(io, allocator, environ_map, display);
+        defer allocator.free(cookie);
+
+        return .{
+            .name = AuthName,
+            .data = cookie,
+        };
+    }
+
+    fn readXAuthorityCookie(
+        io: std.Io,
+        allocator: std.mem.Allocator,
+        environ_map: *const std.process.Environ.Map,
+        display: DisplaySpec,
+    ) ![]u8 {
+        const path = try xauthorityPath(allocator, environ_map);
+        defer allocator.free(path);
+
+        const contents = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(1024 * 1024));
+        defer allocator.free(contents);
+
+        const host_name = try localHostName(allocator);
+        defer allocator.free(host_name);
+
+        var offset: usize = 0;
+        while (offset < contents.len) {
+            const family = try readCountedU16(contents, &offset);
+            const address = try readCountedSlice(contents, &offset);
+            const number = try readCountedSlice(contents, &offset);
+            const name = try readCountedSlice(contents, &offset);
+            const data = try readCountedSlice(contents, &offset);
+
+            if (!std.mem.eql(u8, name, AuthName)) continue;
+            if (!matchDisplayNumber(display, number)) continue;
+            if (!matchAuthorityAddress(display, family, address, host_name)) continue;
+
+            return allocator.dupe(u8, data);
+        }
+
+        return error.XAuthorityCookieNotFound;
+    }
+
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.data);
+        if (self.name.ptr != AuthName) {
+            allocator.free(self.name);
+        }
+    }
+};
+
 pub const Connection = struct {
     allocator: std.mem.Allocator,
     proto: *protocol_mod.Protocol,
@@ -95,20 +175,21 @@ pub const Connection = struct {
         io: std.Io,
         environ_map: *const std.process.Environ.Map,
     ) !Connection {
-        const display = environ_map.get("DISPLAY") orelse return error.MissingDisplay;
-        const display_spec = try parseDisplay(allocator, display);
-        defer display_spec.deinit(allocator);
+        const display_spec = try DisplaySpec.fromEnv(environ_map);
 
-        const cookie = try readXAuthorityCookie(io, allocator, environ_map, display_spec);
-        defer allocator.free(cookie);
+        const auth = Authorisation.fromEnv(io, allocator, environ_map) catch |err| switch (err) {
+            error.FileNotFound => Authorisation.none,
+            else => |e| return e,
+        };
+        defer auth.deinit(allocator);
 
-        return connect(allocator, io, cookie, display_spec);
+        return connect(allocator, io, auth, display_spec);
     }
 
     pub fn connect(
         allocator: std.mem.Allocator,
         io: std.Io,
-        cookie: []const u8,
+        auth: Authorisation,
         display: DisplaySpec,
     ) !Connection {
         if (display.host.len != 0) return error.RemoteDisplayUnsupported;
@@ -129,7 +210,7 @@ pub const Connection = struct {
         transport.* = try .init(allocator, io, stream);
         errdefer transport.deinit(allocator);
 
-        try proto.sendSetup(transport.writer(), cookie);
+        try proto.sendSetup(transport.writer(), auth);
         try proto.readSetupReply(transport.reader());
 
         return .{
@@ -209,39 +290,6 @@ pub const Connection = struct {
     }
 };
 
-fn readXAuthorityCookie(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    environ_map: *const std.process.Environ.Map,
-    display: DisplaySpec,
-) ![]u8 {
-    const path = try xauthorityPath(allocator, environ_map);
-    defer allocator.free(path);
-
-    const contents = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(1024 * 1024));
-    defer allocator.free(contents);
-
-    const host_name = try localHostName(allocator);
-    defer allocator.free(host_name);
-
-    var offset: usize = 0;
-    while (offset < contents.len) {
-        const family = try readCountedU16(contents, &offset);
-        const address = try readCountedSlice(contents, &offset);
-        const number = try readCountedSlice(contents, &offset);
-        const name = try readCountedSlice(contents, &offset);
-        const data = try readCountedSlice(contents, &offset);
-
-        if (!std.mem.eql(u8, name, AuthName)) continue;
-        if (!matchDisplayNumber(display, number)) continue;
-        if (!matchAuthorityAddress(display, family, address, host_name)) continue;
-
-        return allocator.dupe(u8, data);
-    }
-
-    return error.XAuthorityCookieNotFound;
-}
-
 fn xauthorityPath(allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) ![]u8 {
     if (environ_map.get("XAUTHORITY")) |path| {
         return allocator.dupe(u8, path);
@@ -296,20 +344,6 @@ fn matchAuthorityAddress(
         },
         else => return false,
     }
-}
-
-fn parseDisplay(allocator: std.mem.Allocator, display: []const u8) !DisplaySpec {
-    const colon = std.mem.indexOfScalar(u8, display, ':') orelse return error.UnsupportedDisplayFormat;
-    const host = try allocator.dupe(u8, display[0..colon]);
-
-    var tail = display[colon + 1 ..];
-    if (tail.len == 0) return error.UnsupportedDisplayFormat;
-    if (std.mem.indexOfScalar(u8, tail, '.')) |dot| tail = tail[0..dot];
-
-    return .{
-        .host = host,
-        .display_number = try std.fmt.parseUnsigned(u16, tail, 10),
-    };
 }
 
 fn connectUnix(io: std.Io, display_number: u16) !std.Io.net.Stream {
