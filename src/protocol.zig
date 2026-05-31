@@ -9,7 +9,7 @@ const x = @import("gen/xproto.zig");
 const connection = @import("connection.zig");
 
 pub const ProtocolError = errors.ProtocolError;
-const Authorisation = connection.Authorisation;
+const Authorization = connection.Authorization;
 
 pub const ReplyMode = enum {
     fixed,
@@ -235,7 +235,7 @@ pub const Protocol = struct {
         return @as(T, @enumFromInt(id));
     }
 
-    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, auth: Authorisation) !void {
+    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, auth: Authorization) !void {
         const request = x.SetupRequest{
             .byte_order = switch (builtin.cpu.arch.endian()) {
                 .little => 'l',

@@ -99,21 +99,21 @@ pub const StreamTransport = struct {
     }
 };
 
-pub const Authorisation = struct {
+pub const Authorization = struct {
     name: []const u8,
     data: []const u8,
 
-    pub const none: Authorisation = .{
+    pub const none: Authorization = .{
         .name = "",
         .data = "",
     };
 
-    pub fn fromEnv(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Authorisation {
+    pub fn fromEnv(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Authorization {
         const display_spec = try DisplaySpec.fromEnv(environ_map);
         return .fromEnvWithDisplay(io, allocator, environ_map, display_spec);
     }
 
-    pub fn fromEnvWithDisplay(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map, display: DisplaySpec) !Authorisation {
+    pub fn fromEnvWithDisplay(io: std.Io, allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map, display: DisplaySpec) !Authorization {
         const cookie = try readXAuthorityCookie(io, allocator, environ_map, display);
         defer allocator.free(cookie);
 
@@ -177,8 +177,8 @@ pub const Connection = struct {
     ) !Connection {
         const display_spec = try DisplaySpec.fromEnv(environ_map);
 
-        const auth = Authorisation.fromEnv(io, allocator, environ_map) catch |err| switch (err) {
-            error.FileNotFound => Authorisation.none,
+        const auth = Authorization.fromEnv(io, allocator, environ_map) catch |err| switch (err) {
+            error.FileNotFound => Authorization.none,
             else => |e| return e,
         };
         defer auth.deinit(allocator);
@@ -189,7 +189,7 @@ pub const Connection = struct {
     pub fn connect(
         allocator: std.mem.Allocator,
         io: std.Io,
-        auth: Authorisation,
+        auth: Authorization,
         display: DisplaySpec,
     ) !Connection {
         if (display.host.len != 0) return error.RemoteDisplayUnsupported;
