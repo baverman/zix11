@@ -6,9 +6,7 @@ const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
 const DecodeError = @import("../_errors.zig").DecodeError;
 const global_events = @import("events.zig");
-const Drawable = @import("xproto.zig").Drawable;
-const Gcontext = @import("xproto.zig").Gcontext;
-const Pixmap = @import("xproto.zig").Pixmap;
+const xproto = @import("xproto.zig");
 
 pub const Seg = enum(u32) {
     _,
@@ -75,8 +73,8 @@ pub const Detach = struct {
 pub const PutImage = struct {
     pub const opcode: u8 = 3;
 
-    drawable: Drawable,
-    gc: Gcontext,
+    drawable: xproto.Drawable,
+    gc: xproto.Gcontext,
     total_width: u16,
     total_height: u16,
     src_x: u16,
@@ -114,7 +112,7 @@ pub const PutImage = struct {
 pub const GetImage = struct {
     pub const opcode: u8 = 4;
 
-    drawable: Drawable,
+    drawable: xproto.Drawable,
     x: i16,
     y: i16,
     width: u16,
@@ -157,8 +155,8 @@ pub const GetImage = struct {
 pub const CreatePixmap = struct {
     pub const opcode: u8 = 5;
 
-    pid: Pixmap,
-    drawable: Drawable,
+    pid: xproto.Pixmap,
+    drawable: xproto.Drawable,
     width: u16,
     height: u16,
     depth: u8,
@@ -178,7 +176,7 @@ pub const CreatePixmap = struct {
 };
 
 pub const CompletionEvent = struct {
-    drawable: Drawable,
+    drawable: xproto.Drawable,
     minor_event: u16,
     major_event: u8,
     shmseg: Seg,

@@ -28,7 +28,7 @@ class RequestType:
     opcode: int
     is_core: bool
     byte_slot: Field | None
-    items: tuple[Field, ...]
+    items: list[Field]
     reply: ReplyType | None
 
     @staticmethod
@@ -82,7 +82,7 @@ class RequestType:
 @dataclass(frozen=True)
 class ReplyType(BaseType):
     byte_slot: Field | None
-    items: tuple[Field, ...]
+    items: list[Field]
     uses_reply_length: bool
 
     @staticmethod
@@ -99,14 +99,14 @@ class ReplyType(BaseType):
         byte_slot = get_byte_slot(items) if is_core else None
         if byte_slot:
             if byte_slot.name != '_pad_':
-                items = (
+                items = [
                     Field(
                         name=byte_slot.name,
                         type=InjectedType(arg_name=REPLY_BYTE_EXPR, base_type=byte_slot.type),
                         public=byte_slot.public,
                     ),
                     *items[1:],
-                )
+                ]
             else:
                 items = items[1:]
 
@@ -137,17 +137,16 @@ class ReplyType(BaseType):
         emit('pub const Reply = struct {')
         with emit.block():
             emit_decl_items(emit, self.items)
-            unused_args = []
-            if all(isinstance(item.type, InjectedType) for item in self.items):
-                unused_args.append('reader')
-            if not any(isinstance(item.type, InjectedType) for item in self.items):
-                unused_args.append('header_')
+            used_args: set[str] = set()
+            for item in self.items:
+                used_args |= item.type.decode_args()
+            unused_args = tuple(a for a in ('reader', 'header_') if a not in used_args)
             emit_decode_fn(
                 emit,
                 self.size == 'dyn',
                 self.items,
                 args=('header_: wire.ReplyHeader',),
-                unused_args=tuple(unused_args),
+                unused_args=unused_args,
             )
             emit_deinit_fn(emit, self.size == 'dyn', self.items)
         emit('};')

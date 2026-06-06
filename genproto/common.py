@@ -2,12 +2,43 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterable, Iterator, Literal, Protocol, TypeVar
+from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Protocol, TypeVar
 
 from . import xcbxml
 
+if TYPE_CHECKING:
+    from .resolver import Resolver
+
 Size = int | Literal['dyn'] | Literal['fixed']
 Parent = xcbxml.Request | xcbxml.Reply | xcbxml.Union | xcbxml.Struct | xcbxml.Event | xcbxml.SwitchField | xcbxml.CaseSwitchField
+
+
+def zig_tag_name(name: str) -> str:
+    if name.isidentifier() and not name[0].isdigit():
+        return name
+    return f'@"{name}"'
+
+
+ZIG_RESERVED = frozenset({
+    # primitive types
+    'type', 'void', 'bool', 'noreturn', 'anytype', 'anyopaque', 'anyerror',
+    'isize', 'usize', 'comptime_int', 'comptime_float',
+    'c_char', 'c_short', 'c_ushort', 'c_int', 'c_uint', 'c_long', 'c_ulong',
+    'c_longlong', 'c_ulonglong', 'c_longdouble',
+    # keywords
+    'addrspace', 'align', 'allowzero', 'and', 'asm', 'async', 'await', 'break',
+    'callconv', 'catch', 'comptime', 'const', 'continue', 'defer', 'else',
+    'enum', 'errdefer', 'error', 'export', 'extern', 'fn', 'for', 'if', 'inline',
+    'linksection', 'noalias', 'nosuspend', 'opaque', 'or', 'orelse', 'packed',
+    'pub', 'resume', 'return', 'struct', 'suspend', 'switch', 'test', 'threadlocal',
+    'try', 'union', 'unreachable', 'usingnamespace', 'var', 'volatile', 'while',
+})
+
+
+def zig_local_name(name: str) -> str:
+    if not name.isidentifier() or name[0].isdigit() or name in ZIG_RESERVED:
+        return f'@"{name}"'
+    return name
 
 class Emit:
     def __init__(self) -> None:
@@ -47,6 +78,10 @@ class TypeProtocol(Protocol):
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None: ...
 
+    def decode_args(self) -> set[str]: ...
+
+    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]: ...
+
     def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None: ...
 
     def coerce_to_raw(self, value_expr: str) -> str: ...
@@ -63,6 +98,12 @@ class BaseType(TypeProtocol):
     def with_module_prefix(self: TypeProtocolT, prefix: str) -> TypeProtocolT:
         _ = prefix
         return self
+
+    def decode_args(self) -> set[str]:
+        return {'reader'}
+
+    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:
+        return []
 
     def coerce_from_raw(self, value_expr: str) -> str:
         return value_expr
@@ -99,10 +140,10 @@ class Field:
     def decode_target_expr(self, owner_expr: str) -> str:
         if self.public:
             return f'{owner_expr}.{self.name}'
-        return f'const {self.name}'
+        return f'const {zig_local_name(self.name)}'
 
 
-def emit_expr(expr: xcbxml.ListExpr, prefix: str) -> str:
+def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = None) -> str:
     if isinstance(expr, int):
         return str(expr)
     if isinstance(expr, xcbxml.FieldRef):
@@ -110,9 +151,19 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str) -> str:
     if isinstance(expr, xcbxml.ParamRef):
         return expr.ref
     if isinstance(expr, xcbxml.Op):
-        return f'({emit_expr(expr.left, prefix)} {expr.op} {emit_expr(expr.right, prefix)})'
+        return f'({emit_expr(expr.left, prefix, element_expr)} {expr.op} {emit_expr(expr.right, prefix, element_expr)})'
     if isinstance(expr, xcbxml.PopCount):
-        return f'@popCount({emit_expr(expr.expr, prefix)})'
+        return f'@popCount({emit_expr(expr.expr, prefix, element_expr)})'
+    if isinstance(expr, xcbxml.SumOf):
+        elem_value = emit_expr(expr.expr, 'elem.', 'elem')
+        return (
+            f'(blk: {{ var total: usize = 0; for ({prefix}{expr.ref}) |elem| '
+            f'total += @as(usize, {elem_value}); break :blk total; }})'
+        )
+    if isinstance(expr, xcbxml.ListElementRef):
+        if element_expr is None:
+            raise NotImplementedError('listelement-ref requires list element context')
+        return element_expr
     raise NotImplementedError(f'unsupported list expression: {type(expr).__name__}')
 
 
@@ -137,6 +188,9 @@ class InjectedType(BaseType):
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         self.base_type.emit_deinit(emit, value_expr)
+
+    def decode_args(self) -> set[str]:
+        return {'header_'} if self.arg_name.split('.', 1)[0] == 'header_' else set()
 
 
 def emit_decl_items(emit: Emit, items: Iterable[Field]) -> None:
@@ -204,15 +258,19 @@ def emit_deinit_items(emit: Emit, items: Iterable[Field]) -> None:
         item.type.emit_deinit(emit, f'self.{item.name}')
 
 
-def expr_refs(expr: xcbxml.ListExpr) -> tuple[str, ...]:
+def expr_refs(expr: xcbxml.ListExpr) -> list[str]:
     if isinstance(expr, int):
-        return ()
+        return []
     if isinstance(expr, xcbxml.FieldRef):
-        return (expr.ref,)
+        return [expr.ref]
     if isinstance(expr, xcbxml.Op):
         return expr_refs(expr.left) + expr_refs(expr.right)
     if isinstance(expr, xcbxml.PopCount):
         return expr_refs(expr.expr)
+    if isinstance(expr, xcbxml.SumOf):
+        return [expr.ref] + expr_refs(expr.expr)
+    if isinstance(expr, xcbxml.ListElementRef):
+        return []
     raise NotImplementedError(f'unsupported list expression: {type(expr).__name__}')
 
 

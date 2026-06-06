@@ -12,7 +12,7 @@ from .fields import build_items
 @dataclass(frozen=True)
 class UnionType(BaseType):
     name: str
-    items: tuple[Field, ...]
+    items: list[Field]
     module_prefix: str = ''
 
     @property
@@ -68,14 +68,16 @@ class UnionType(BaseType):
                 emit(f'pub fn from{suffix}(value: {item.type.decl_name}) @This() {{')
                 with emit.block():
                     emit(f'var raw = std.mem.zeroes([{self.size}]u8);')
-                    emit('var writer = io.FixedBufferWriter.init(&raw);')
+                    emit('var writer_impl = io.FixedBufferWriter.init(&raw);')
+                    emit('const writer = &writer_impl;')
                     item.type.emit_encode(emit, 'value')
                     emit('return .{ .raw = raw };')
                 emit('}')
                 emit()
                 emit(f'pub fn as{suffix}(self: @This()) !{item.type.decl_name} {{')
                 with emit.block():
-                    emit('var reader: std.Io.Reader = .fixed(&self.raw);')
+                    emit('var reader_impl: std.Io.Reader = .fixed(&self.raw);')
+                    emit('const reader = &reader_impl;')
                     emit(f'var value: {item.type.decl_name} = undefined;')
                     item.type.emit_decode(emit, 'value')
                     emit('return value;')

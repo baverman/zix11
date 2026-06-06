@@ -6,14 +6,9 @@ const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
 const DecodeError = @import("../_errors.zig").DecodeError;
 const global_events = @import("events.zig");
-const Picture = @import("render.zig").Picture;
-const SK = @import("shape.zig").SK;
-const Atom = @import("xproto.zig").Atom;
-const Cursor = @import("xproto.zig").Cursor;
-const Gcontext = @import("xproto.zig").Gcontext;
-const Pixmap = @import("xproto.zig").Pixmap;
-const RECTANGLE = @import("xproto.zig").RECTANGLE;
-const Window = @import("xproto.zig").Window;
+const render = @import("render.zig");
+const shape = @import("shape.zig");
+const xproto = @import("xproto.zig");
 
 pub const Region = enum(u32) {
     None = 0,
@@ -105,7 +100,7 @@ pub const ChangeSaveSet = struct {
     mode: SaveSetMode,
     target: SaveSetTarget,
     map: SaveSetMapping,
-    window: Window,
+    window: xproto.Window,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeByte(@intCast(@intFromEnum(self.mode)));
@@ -119,8 +114,8 @@ pub const ChangeSaveSet = struct {
 pub const SelectSelectionInput = struct {
     pub const opcode: u8 = 2;
 
-    window: Window,
-    selection: Atom,
+    window: xproto.Window,
+    selection: xproto.Atom,
     event_mask: u32,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -133,7 +128,7 @@ pub const SelectSelectionInput = struct {
 pub const SelectCursorInput = struct {
     pub const opcode: u8 = 3;
 
-    window: Window,
+    window: xproto.Window,
     event_mask: u32,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -198,8 +193,8 @@ pub const CreateRegion = struct {
     pub const opcode: u8 = 5;
 
     region: Region,
-    rectangles: []const RECTANGLE,
-    decoded_rectangles_buf: ?[]RECTANGLE = null,
+    rectangles: []const xproto.RECTANGLE,
+    decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -213,7 +208,7 @@ pub const CreateRegionFromBitmap = struct {
     pub const opcode: u8 = 6;
 
     region: Region,
-    bitmap: Pixmap,
+    bitmap: xproto.Pixmap,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -225,8 +220,8 @@ pub const CreateRegionFromWindow = struct {
     pub const opcode: u8 = 7;
 
     region: Region,
-    window: Window,
-    kind: SK,
+    window: xproto.Window,
+    kind: shape.SK,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -240,7 +235,7 @@ pub const CreateRegionFromGC = struct {
     pub const opcode: u8 = 8;
 
     region: Region,
-    gc: Gcontext,
+    gc: xproto.Gcontext,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -252,7 +247,7 @@ pub const CreateRegionFromPicture = struct {
     pub const opcode: u8 = 9;
 
     region: Region,
-    picture: Picture,
+    picture: render.Picture,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -274,8 +269,8 @@ pub const SetRegion = struct {
     pub const opcode: u8 = 11;
 
     region: Region,
-    rectangles: []const RECTANGLE,
-    decoded_rectangles_buf: ?[]RECTANGLE = null,
+    rectangles: []const xproto.RECTANGLE,
+    decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.region)));
@@ -343,7 +338,7 @@ pub const InvertRegion = struct {
     pub const opcode: u8 = 16;
 
     source: Region,
-    bounds: RECTANGLE,
+    bounds: xproto.RECTANGLE,
     destination: Region,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -385,19 +380,19 @@ pub const FetchRegion = struct {
     region: Region,
 
     pub const Reply = struct {
-        extents: RECTANGLE,
-        rectangles: []const RECTANGLE,
-        decoded_rectangles_buf: ?[]RECTANGLE = null,
+        extents: xproto.RECTANGLE,
+        rectangles: []const xproto.RECTANGLE,
+        decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
             _ = header_;
             _ = try reader.take(1);
-            result.extents = try RECTANGLE.decode(reader);
+            result.extents = try xproto.RECTANGLE.decode(reader);
             _ = try reader.take(16);
-            const decoded_rectangles_buf = try allocator.alloc(RECTANGLE, @intCast((result.length / 2)));
+            const decoded_rectangles_buf = try allocator.alloc(xproto.RECTANGLE, @intCast((result.length / 2)));
             for (decoded_rectangles_buf) |*elem| {
-                elem.* = try RECTANGLE.decode(reader);
+                elem.* = try xproto.RECTANGLE.decode(reader);
             }
             result.rectangles = decoded_rectangles_buf;
             result.decoded_rectangles_buf = decoded_rectangles_buf;
@@ -422,7 +417,7 @@ pub const FetchRegion = struct {
 pub const SetGCClipRegion = struct {
     pub const opcode: u8 = 20;
 
-    gc: Gcontext,
+    gc: xproto.Gcontext,
     region: Region,
     x_origin: i16,
     y_origin: i16,
@@ -438,8 +433,8 @@ pub const SetGCClipRegion = struct {
 pub const SetWindowShapeRegion = struct {
     pub const opcode: u8 = 21;
 
-    dest: Window,
-    dest_kind: SK,
+    dest: xproto.Window,
+    dest_kind: shape.SK,
     x_offset: i16,
     y_offset: i16,
     region: Region,
@@ -457,7 +452,7 @@ pub const SetWindowShapeRegion = struct {
 pub const SetPictureClipRegion = struct {
     pub const opcode: u8 = 22;
 
-    picture: Picture,
+    picture: render.Picture,
     region: Region,
     x_origin: i16,
     y_origin: i16,
@@ -473,7 +468,7 @@ pub const SetPictureClipRegion = struct {
 pub const SetCursorName = struct {
     pub const opcode: u8 = 23;
 
-    cursor: Cursor,
+    cursor: xproto.Cursor,
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
@@ -488,10 +483,10 @@ pub const SetCursorName = struct {
 pub const GetCursorName = struct {
     pub const opcode: u8 = 24;
 
-    cursor: Cursor,
+    cursor: xproto.Cursor,
 
     pub const Reply = struct {
-        atom: Atom,
+        atom: xproto.Atom,
         name: []const u8,
         decoded_name_buf: ?[]u8 = null,
 
@@ -499,7 +494,7 @@ pub const GetCursorName = struct {
             var result: @This() = undefined;
             _ = header_;
             _ = try reader.take(1);
-            result.atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.atom = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             const nbytes = try reader.takeInt(u16, .native);
             _ = try reader.take(18);
             const decoded_name_buf = try allocator.dupe(u8, try reader.take(@intCast(nbytes)));
@@ -535,7 +530,7 @@ pub const GetCursorImageAndName = struct {
         xhot: u16,
         yhot: u16,
         cursor_serial: u32,
-        cursor_atom: Atom,
+        cursor_atom: xproto.Atom,
         cursor_image: []const u32,
         decoded_cursor_image_buf: ?[]u32 = null,
         name: []const u8,
@@ -552,7 +547,7 @@ pub const GetCursorImageAndName = struct {
             result.xhot = try reader.takeInt(u16, .native);
             result.yhot = try reader.takeInt(u16, .native);
             result.cursor_serial = try reader.takeInt(u32, .native);
-            result.cursor_atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.cursor_atom = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             const nbytes = try reader.takeInt(u16, .native);
             _ = try reader.take(2);
             const decoded_cursor_image_buf = try allocator.alloc(u32, @intCast((result.width * result.height)));
@@ -591,8 +586,8 @@ pub const GetCursorImageAndName = struct {
 pub const ChangeCursor = struct {
     pub const opcode: u8 = 26;
 
-    source: Cursor,
-    destination: Cursor,
+    source: xproto.Cursor,
+    destination: xproto.Cursor,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.source)));
@@ -603,7 +598,7 @@ pub const ChangeCursor = struct {
 pub const ChangeCursorByName = struct {
     pub const opcode: u8 = 27;
 
-    src: Cursor,
+    src: xproto.Cursor,
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
@@ -638,7 +633,7 @@ pub const ExpandRegion = struct {
 pub const HideCursor = struct {
     pub const opcode: u8 = 29;
 
-    window: Window,
+    window: xproto.Window,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.window)));
@@ -648,7 +643,7 @@ pub const HideCursor = struct {
 pub const ShowCursor = struct {
     pub const opcode: u8 = 30;
 
-    window: Window,
+    window: xproto.Window,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.window)));
@@ -659,7 +654,7 @@ pub const CreatePointerBarrier = struct {
     pub const opcode: u8 = 31;
 
     barrier: Barrier,
-    window: Window,
+    window: xproto.Window,
     x1: u16,
     y1: u16,
     x2: u16,
@@ -730,9 +725,9 @@ pub const GetClientDisconnectMode = struct {
 
 pub const SelectionNotifyEvent = struct {
     subtype: SelectionEvent,
-    window: Window,
-    owner: Window,
-    selection: Atom,
+    window: xproto.Window,
+    owner: xproto.Window,
+    selection: xproto.Atom,
     timestamp: u32,
     selection_timestamp: u32,
 
@@ -741,9 +736,9 @@ pub const SelectionNotifyEvent = struct {
         _ = try reader.takeByte();
         result.subtype = @as(SelectionEvent, @enumFromInt(try reader.takeByte()));
         _ = try reader.takeInt(u16, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
-        result.owner = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
-        result.selection = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.owner = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.selection = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.timestamp = try reader.takeInt(u32, .native);
         result.selection_timestamp = try reader.takeInt(u32, .native);
         _ = try reader.take(8);
@@ -753,20 +748,20 @@ pub const SelectionNotifyEvent = struct {
 
 pub const CursorNotifyEvent = struct {
     subtype: CursorNotify,
-    window: Window,
+    window: xproto.Window,
     cursor_serial: u32,
     timestamp: u32,
-    name: Atom,
+    name: xproto.Atom,
 
     pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.subtype = @as(CursorNotify, @enumFromInt(try reader.takeByte()));
         _ = try reader.takeInt(u16, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.cursor_serial = try reader.takeInt(u32, .native);
         result.timestamp = try reader.takeInt(u32, .native);
-        result.name = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.name = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         _ = try reader.take(12);
         return result;
     }

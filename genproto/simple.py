@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from . import xcbxml
-from .common import BaseType, Emit, Size
+from .common import BaseType, Emit, Size, zig_tag_name
 
 
 @dataclass(frozen=True)
@@ -166,10 +166,7 @@ class EnumType(BaseType):
             values: dict[int, str] = {}
             aliases: list[tuple[str, int]] = []
             for item in self.items:
-                if item.name.isdigit():
-                    name = f'@"{item.name}"'
-                else:
-                    name = item.name[0].upper() + item.name[1:]
+                name = zig_tag_name(item.name[0].upper() + item.name[1:])
                 value = int(item.value)
                 if value in values:
                     aliases.append((name, value))
@@ -190,6 +187,9 @@ class EnumType(BaseType):
 class EnumWireType(BaseType):
     enum_type: EnumType
     scalar_type: ScalarType
+
+    def with_module_prefix(self, prefix: str) -> EnumWireType:
+        return replace(self, enum_type=self.enum_type.with_module_prefix(prefix))
 
     @property
     def decl_name(self) -> str:

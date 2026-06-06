@@ -4,3 +4,4 @@ __pycache__
 /test*.zig
 /src/oldgen
 /src/testgen
+/tags

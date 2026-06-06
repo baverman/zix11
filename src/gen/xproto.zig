@@ -1377,13 +1377,15 @@ pub const ClientMessageData = struct {
 
     pub fn fromData8(value: [20]u8) @This() {
         var raw = std.mem.zeroes([20]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         writer.write(value[0..]);
         return .{ .raw = raw };
     }
 
     pub fn asData8(self: @This()) ![20]u8 {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: [20]u8 = undefined;
         for (&value) |*elem| {
             elem.* = try reader.takeByte();
@@ -1393,7 +1395,8 @@ pub const ClientMessageData = struct {
 
     pub fn fromData16(value: [10]u16) @This() {
         var raw = std.mem.zeroes([20]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         for (value) |elem| {
             writer.writeInt(u16, elem);
         }
@@ -1401,7 +1404,8 @@ pub const ClientMessageData = struct {
     }
 
     pub fn asData16(self: @This()) ![10]u16 {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: [10]u16 = undefined;
         for (&value) |*elem| {
             elem.* = try reader.takeInt(u16, .native);
@@ -1411,7 +1415,8 @@ pub const ClientMessageData = struct {
 
     pub fn fromData32(value: [5]u32) @This() {
         var raw = std.mem.zeroes([20]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         for (value) |elem| {
             writer.writeInt(u32, elem);
         }
@@ -1419,7 +1424,8 @@ pub const ClientMessageData = struct {
     }
 
     pub fn asData32(self: @This()) ![5]u32 {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: [5]u32 = undefined;
         for (&value) |*elem| {
             elem.* = try reader.takeInt(u32, .native);

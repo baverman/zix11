@@ -4,14 +4,7 @@
 const std = @import("std");
 const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
-const Atom = @import("xproto.zig").Atom;
-const Colormap = @import("xproto.zig").Colormap;
-const Cursor = @import("xproto.zig").Cursor;
-const Drawable = @import("xproto.zig").Drawable;
-const Pixmap = @import("xproto.zig").Pixmap;
-const RECTANGLE = @import("xproto.zig").RECTANGLE;
-const STR = @import("xproto.zig").STR;
-const SubwindowMode = @import("xproto.zig").SubwindowMode;
+const xproto = @import("xproto.zig");
 
 pub const Glyphset = enum(u32) {
     _,
@@ -169,7 +162,7 @@ pub const PICTFORMINFO = struct {
     type: PictType,
     depth: u8,
     direct: DIRECTFORMAT,
-    colormap: Colormap,
+    colormap: xproto.Colormap,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.id)));
@@ -187,7 +180,7 @@ pub const PICTFORMINFO = struct {
         result.depth = try reader.takeByte();
         _ = try reader.take(2);
         result.direct = try DIRECTFORMAT.decode(reader);
-        result.colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.colormap = @as(xproto.Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
         return result;
     }
 };
@@ -480,7 +473,7 @@ pub const TRANSFORM = struct {
 };
 
 pub const ANIMCURSORELT = struct {
-    cursor: Cursor,
+    cursor: xproto.Cursor,
     delay: u32,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -490,7 +483,7 @@ pub const ANIMCURSORELT = struct {
 
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
-        result.cursor = @as(Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.cursor = @as(xproto.Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
         result.delay = try reader.takeInt(u32, .native);
         return result;
     }
@@ -678,7 +671,7 @@ pub const CreatePicture = struct {
     pub const opcode: u8 = 4;
 
     pid: Picture,
-    drawable: Drawable,
+    drawable: xproto.Drawable,
     format: Pictformat,
     value_list: Value_list,
 
@@ -689,12 +682,12 @@ pub const CreatePicture = struct {
         alphayorigin: ?i32 = null,
         clipxorigin: ?i32 = null,
         clipyorigin: ?i32 = null,
-        clipmask: ?Pixmap = null,
+        clipmask: ?xproto.Pixmap = null,
         graphicsexposure: ?u32 = null,
-        subwindowmode: ?SubwindowMode = null,
+        subwindowmode: ?xproto.SubwindowMode = null,
         polyedge: ?PolyEdge = null,
         polymode: ?PolyMode = null,
-        dither: ?Atom = null,
+        dither: ?xproto.Atom = null,
         componentalpha: ?u32 = null,
 
         pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -784,7 +777,7 @@ pub const CreatePicture = struct {
                 result.clipyorigin = clipyorigin;
             }
             if ((switch_value & 64) != 0) {
-                const clipmask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+                const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clipmask = clipmask;
             }
             if ((switch_value & 128) != 0) {
@@ -792,7 +785,7 @@ pub const CreatePicture = struct {
                 result.graphicsexposure = graphicsexposure;
             }
             if ((switch_value & 256) != 0) {
-                const subwindowmode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+                const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindowmode = subwindowmode;
             }
             if ((switch_value & 512) != 0) {
@@ -804,7 +797,7 @@ pub const CreatePicture = struct {
                 result.polymode = polymode;
             }
             if ((switch_value & 2048) != 0) {
-                const dither = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+                const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.dither = dither;
             }
             if ((switch_value & 4096) != 0) {
@@ -837,12 +830,12 @@ pub const ChangePicture = struct {
         alphayorigin: ?i32 = null,
         clipxorigin: ?i32 = null,
         clipyorigin: ?i32 = null,
-        clipmask: ?Pixmap = null,
+        clipmask: ?xproto.Pixmap = null,
         graphicsexposure: ?u32 = null,
-        subwindowmode: ?SubwindowMode = null,
+        subwindowmode: ?xproto.SubwindowMode = null,
         polyedge: ?PolyEdge = null,
         polymode: ?PolyMode = null,
-        dither: ?Atom = null,
+        dither: ?xproto.Atom = null,
         componentalpha: ?u32 = null,
 
         pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -932,7 +925,7 @@ pub const ChangePicture = struct {
                 result.clipyorigin = clipyorigin;
             }
             if ((switch_value & 64) != 0) {
-                const clipmask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
+                const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clipmask = clipmask;
             }
             if ((switch_value & 128) != 0) {
@@ -940,7 +933,7 @@ pub const ChangePicture = struct {
                 result.graphicsexposure = graphicsexposure;
             }
             if ((switch_value & 256) != 0) {
-                const subwindowmode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
+                const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindowmode = subwindowmode;
             }
             if ((switch_value & 512) != 0) {
@@ -952,7 +945,7 @@ pub const ChangePicture = struct {
                 result.polymode = polymode;
             }
             if ((switch_value & 2048) != 0) {
-                const dither = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+                const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.dither = dither;
             }
             if ((switch_value & 4096) != 0) {
@@ -976,8 +969,8 @@ pub const SetPictureClipRectangles = struct {
     picture: Picture,
     clip_x_origin: i16,
     clip_y_origin: i16,
-    rectangles: []const RECTANGLE,
-    decoded_rectangles_buf: ?[]RECTANGLE = null,
+    rectangles: []const xproto.RECTANGLE,
+    decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.picture)));
@@ -1293,8 +1286,8 @@ pub const FillRectangles = struct {
     op: PictOp,
     dst: Picture,
     color: COLOR,
-    rects: []const RECTANGLE,
-    decoded_rects_buf: ?[]RECTANGLE = null,
+    rects: []const xproto.RECTANGLE,
+    decoded_rects_buf: ?[]xproto.RECTANGLE = null,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeByte(@intCast(@intFromEnum(self.op)));
@@ -1310,7 +1303,7 @@ pub const FillRectangles = struct {
 pub const CreateCursor = struct {
     pub const opcode: u8 = 27;
 
-    cid: Cursor,
+    cid: xproto.Cursor,
     source: Picture,
     x: u16,
     y: u16,
@@ -1338,13 +1331,13 @@ pub const SetPictureTransform = struct {
 pub const QueryFilters = struct {
     pub const opcode: u8 = 29;
 
-    drawable: Drawable,
+    drawable: xproto.Drawable,
 
     pub const Reply = struct {
         aliases: []const u16,
         decoded_aliases_buf: ?[]u16 = null,
-        filters: []const STR,
-        decoded_filters_buf: ?[]STR = null,
+        filters: []const xproto.STR,
+        decoded_filters_buf: ?[]xproto.STR = null,
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
@@ -1359,9 +1352,9 @@ pub const QueryFilters = struct {
             }
             result.aliases = decoded_aliases_buf;
             result.decoded_aliases_buf = decoded_aliases_buf;
-            const decoded_filters_buf = try allocator.alloc(STR, @intCast(num_filters));
+            const decoded_filters_buf = try allocator.alloc(xproto.STR, @intCast(num_filters));
             for (decoded_filters_buf) |*elem| {
-                elem.* = try STR.decode(allocator, reader);
+                elem.* = try xproto.STR.decode(allocator, reader);
             }
             result.filters = decoded_filters_buf;
             result.decoded_filters_buf = decoded_filters_buf;
@@ -1415,7 +1408,7 @@ pub const SetPictureFilter = struct {
 pub const CreateAnimCursor = struct {
     pub const opcode: u8 = 31;
 
-    cid: Cursor,
+    cid: xproto.Cursor,
     cursors: []const ANIMCURSORELT,
     decoded_cursors_buf: ?[]ANIMCURSORELT = null,
 

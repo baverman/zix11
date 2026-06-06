@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 
 from . import xcbxml
-from .common import Emit, Field, InnerType, Size, emit_decl_items, items_size, Parent
+from .common import Emit, Field, InnerType, Size, emit_decl_items, items_size, Parent, zig_tag_name, zig_local_name
 from .resolver import Resolver
 from .fields import build_items
+from .list_type import ListType
 from .simple import EnumType
 
 
@@ -14,7 +15,7 @@ from .simple import EnumType
 class CaseArm:
     name: str
     value: int
-    items: tuple[Field, ...]
+    items: list[Field]
 
     @staticmethod
     def from_schema(
@@ -36,7 +37,7 @@ class CaseArm:
                 f'unknown enum item: {case_item.enum_ref[0]}.{case_item.enum_ref[1]}'
             )
         return CaseArm(
-            name=case_item.name or case_item.enum_ref[1],
+            name=zig_tag_name(case_item.name or case_item.enum_ref[1]),
             value=value,
             items=build_items(parents, case_item.fields, resolver, owner_name),
         )
@@ -73,7 +74,7 @@ class CaseArm:
 class BitcaseArm:
     name: str
     value: int
-    items: tuple[Field, ...]
+    items: list[Field]
 
     @staticmethod
     def from_schema(
@@ -105,7 +106,7 @@ class BitcaseArm:
         else:
             raise NotImplementedError('multi-enumref bitcase requires explicit name')
         return BitcaseArm(
-            name=name,
+            name=zig_tag_name(name),
             value=value,
             items=items,
         )
@@ -153,7 +154,8 @@ class BitcaseArm:
 class CaseType(InnerType):
     name: str
     field_name: str
-    arms: tuple[CaseArm, ...]
+    arms: list[CaseArm]
+    decode_params: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def decl_name(self) -> str:
@@ -177,18 +179,20 @@ class CaseType(InnerType):
         return CaseType(
             name=case_switch.name[:1].upper() + case_switch.name[1:],
             field_name=case_switch.fieldref.ref,
-            arms=tuple(arms),
+            arms=arms,
         )
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
-        switch_value = f'@intFromEnum({self.field_name})'
+        switch_value = f'@intFromEnum({zig_local_name(self.field_name)})'
+        owner_expr = value_expr.rpartition('.')[0]
+        extra = ''.join(f', {owner_expr}.{name}' for name, _ in self.decode_params)
         if self.size == 'dyn':
-            emit(f'{value_expr} = try {self.name}.decode(allocator, reader, {switch_value});')
+            emit(f'{value_expr} = try {self.name}.decode(allocator, reader, {switch_value}{extra});')
         else:
-            emit(f'{value_expr} = try {self.name}.decode(reader, {switch_value});')
+            emit(f'{value_expr} = try {self.name}.decode(reader, {switch_value}{extra});')
 
     def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
         discrim_field = fields_by_name[self.field_name]
@@ -197,6 +201,14 @@ class CaseType(InnerType):
             f'@as({discrim_field.type.decl_name}, '
             f'@enumFromInt({{owner}}.{field.name}.switchValue()))'
         )
+        seen = {self.field_name}
+        for arm in self.arms:
+            for it in arm.items:
+                if isinstance(it.type, ListType) and isinstance(it.type.len, xcbxml.FieldRef):
+                    ref = it.type.len.ref
+                    if ref in fields_by_name and ref not in seen:
+                        seen.add(ref)
+                        self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -229,12 +241,13 @@ class CaseType(InnerType):
                 emit('};')
             emit('}')
             emit()
+            params_sig = ''.join(f', {name}: {ztype}' for name, ztype in self.decode_params)
             if self.size == 'dyn':
                 emit(
-                    'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {'
+                    f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
                 )
             else:
-                emit('pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {')
+                emit(f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{')
             with emit.block():
                 emit('return switch (switch_value) {')
                 with emit.block():
@@ -270,7 +283,7 @@ class CaseType(InnerType):
 class BitcaseType(InnerType):
     name: str
     field_name: str
-    arms: tuple[BitcaseArm, ...]
+    arms: list[BitcaseArm]
 
     @property
     def decl_name(self) -> str:
@@ -296,14 +309,14 @@ class BitcaseType(InnerType):
         return BitcaseType(
             name=switch.name[:1].upper() + switch.name[1:],
             field_name=switch.expr.ref,
-            arms=tuple(arms),
+            arms=arms,
         )
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
-        switch_value = self.field_name
+        switch_value = zig_local_name(self.field_name)
         if self.size == 'dyn':
             emit(f'{value_expr} = try {self.name}.decode(allocator, reader, {switch_value});')
         else:

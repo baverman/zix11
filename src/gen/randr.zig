@@ -6,12 +6,8 @@ const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
 const DecodeError = @import("../_errors.zig").DecodeError;
 const global_events = @import("events.zig");
-const SubPixel = @import("render.zig").SubPixel;
-const TRANSFORM = @import("render.zig").TRANSFORM;
-const Atom = @import("xproto.zig").Atom;
-const PropMode = @import("xproto.zig").PropMode;
-const Property = @import("xproto.zig").Property;
-const Window = @import("xproto.zig").Window;
+const render = @import("render.zig");
+const xproto = @import("xproto.zig");
 
 pub const Mode = enum(u32) {
     _,
@@ -214,7 +210,7 @@ pub const ModeInfo = struct {
 
 pub const CrtcChange = struct {
     timestamp: u32,
-    window: Window,
+    window: xproto.Window,
     crtc: Crtc,
     mode: Mode,
     rotation: u16,
@@ -239,7 +235,7 @@ pub const CrtcChange = struct {
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.crtc = @as(Crtc, @enumFromInt(try reader.takeInt(u32, .native)));
         result.mode = @as(Mode, @enumFromInt(try reader.takeInt(u32, .native)));
         result.rotation = try reader.takeInt(u16, .native);
@@ -255,13 +251,13 @@ pub const CrtcChange = struct {
 pub const OutputChange = struct {
     timestamp: u32,
     config_timestamp: u32,
-    window: Window,
+    window: xproto.Window,
     output: Output,
     crtc: Crtc,
     mode: Mode,
     rotation: u16,
     connection: Connection,
-    subpixel_order: SubPixel,
+    subpixel_order: render.SubPixel,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, self.timestamp);
@@ -279,23 +275,23 @@ pub const OutputChange = struct {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.config_timestamp = try reader.takeInt(u32, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.output = @as(Output, @enumFromInt(try reader.takeInt(u32, .native)));
         result.crtc = @as(Crtc, @enumFromInt(try reader.takeInt(u32, .native)));
         result.mode = @as(Mode, @enumFromInt(try reader.takeInt(u32, .native)));
         result.rotation = try reader.takeInt(u16, .native);
         result.connection = @as(Connection, @enumFromInt(try reader.takeByte()));
-        result.subpixel_order = @as(SubPixel, @enumFromInt(try reader.takeByte()));
+        result.subpixel_order = @as(render.SubPixel, @enumFromInt(try reader.takeByte()));
         return result;
     }
 };
 
 pub const OutputProperty = struct {
-    window: Window,
+    window: xproto.Window,
     output: Output,
-    atom: Atom,
+    atom: xproto.Atom,
     timestamp: u32,
-    status: Property,
+    status: xproto.Property,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.window)));
@@ -308,11 +304,11 @@ pub const OutputProperty = struct {
 
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.output = @as(Output, @enumFromInt(try reader.takeInt(u32, .native)));
-        result.atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.atom = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.timestamp = try reader.takeInt(u32, .native);
-        result.status = @as(Property, @enumFromInt(try reader.takeByte()));
+        result.status = @as(xproto.Property, @enumFromInt(try reader.takeByte()));
         _ = try reader.take(11);
         return result;
     }
@@ -320,7 +316,7 @@ pub const OutputProperty = struct {
 
 pub const ProviderChange = struct {
     timestamp: u32,
-    window: Window,
+    window: xproto.Window,
     provider: Provider,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -333,7 +329,7 @@ pub const ProviderChange = struct {
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.provider = @as(Provider, @enumFromInt(try reader.takeInt(u32, .native)));
         _ = try reader.take(16);
         return result;
@@ -341,9 +337,9 @@ pub const ProviderChange = struct {
 };
 
 pub const ProviderProperty = struct {
-    window: Window,
+    window: xproto.Window,
     provider: Provider,
-    atom: Atom,
+    atom: xproto.Atom,
     timestamp: u32,
     state: u8,
 
@@ -358,9 +354,9 @@ pub const ProviderProperty = struct {
 
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.provider = @as(Provider, @enumFromInt(try reader.takeInt(u32, .native)));
-        result.atom = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.atom = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.timestamp = try reader.takeInt(u32, .native);
         result.state = try reader.takeByte();
         _ = try reader.take(11);
@@ -370,7 +366,7 @@ pub const ProviderProperty = struct {
 
 pub const ResourceChange = struct {
     timestamp: u32,
-    window: Window,
+    window: xproto.Window,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, self.timestamp);
@@ -381,14 +377,14 @@ pub const ResourceChange = struct {
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         _ = try reader.take(20);
         return result;
     }
 };
 
 pub const MonitorInfo = struct {
-    name: Atom,
+    name: xproto.Atom,
     primary: bool,
     automatic: bool,
     x: i16,
@@ -418,7 +414,7 @@ pub const MonitorInfo = struct {
 
     pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
-        result.name = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.name = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.primary = (try reader.takeByte()) != 0;
         result.automatic = (try reader.takeByte()) != 0;
         const nOutput = try reader.takeInt(u16, .native);
@@ -448,7 +444,7 @@ pub const MonitorInfo = struct {
 
 pub const LeaseNotify = struct {
     timestamp: u32,
-    window: Window,
+    window: xproto.Window,
     lease: Lease,
     created: u8,
 
@@ -463,7 +459,7 @@ pub const LeaseNotify = struct {
     pub fn decode(reader: *std.Io.Reader) !@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
-        result.window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.lease = @as(Lease, @enumFromInt(try reader.takeInt(u32, .native)));
         result.created = try reader.takeByte();
         _ = try reader.take(15);
@@ -494,13 +490,15 @@ pub const NotifyData = struct {
 
     pub fn fromCc(value: CrtcChange) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asCc(self: @This()) !CrtcChange {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: CrtcChange = undefined;
         value = try CrtcChange.decode(reader);
         return value;
@@ -508,13 +506,15 @@ pub const NotifyData = struct {
 
     pub fn fromOc(value: OutputChange) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asOc(self: @This()) !OutputChange {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: OutputChange = undefined;
         value = try OutputChange.decode(reader);
         return value;
@@ -522,13 +522,15 @@ pub const NotifyData = struct {
 
     pub fn fromOp(value: OutputProperty) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asOp(self: @This()) !OutputProperty {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: OutputProperty = undefined;
         value = try OutputProperty.decode(reader);
         return value;
@@ -536,13 +538,15 @@ pub const NotifyData = struct {
 
     pub fn fromPc(value: ProviderChange) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asPc(self: @This()) !ProviderChange {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: ProviderChange = undefined;
         value = try ProviderChange.decode(reader);
         return value;
@@ -550,13 +554,15 @@ pub const NotifyData = struct {
 
     pub fn fromPp(value: ProviderProperty) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asPp(self: @This()) !ProviderProperty {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: ProviderProperty = undefined;
         value = try ProviderProperty.decode(reader);
         return value;
@@ -564,13 +570,15 @@ pub const NotifyData = struct {
 
     pub fn fromRc(value: ResourceChange) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asRc(self: @This()) !ResourceChange {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: ResourceChange = undefined;
         value = try ResourceChange.decode(reader);
         return value;
@@ -578,13 +586,15 @@ pub const NotifyData = struct {
 
     pub fn fromLc(value: LeaseNotify) @This() {
         var raw = std.mem.zeroes([28]u8);
-        var writer = io.FixedBufferWriter.init(&raw);
+        var writer_impl = io.FixedBufferWriter.init(&raw);
+        const writer = &writer_impl;
         try value.encode(writer);
         return .{ .raw = raw };
     }
 
     pub fn asLc(self: @This()) !LeaseNotify {
-        var reader: std.Io.Reader = .fixed(&self.raw);
+        var reader_impl: std.Io.Reader = .fixed(&self.raw);
+        const reader = &reader_impl;
         var value: LeaseNotify = undefined;
         value = try LeaseNotify.decode(reader);
         return value;
@@ -622,7 +632,7 @@ pub const QueryVersion = struct {
 pub const SetScreenConfig = struct {
     pub const opcode: u8 = 2;
 
-    window: Window,
+    window: xproto.Window,
     timestamp: u32,
     config_timestamp: u32,
     sizeID: u16,
@@ -633,8 +643,8 @@ pub const SetScreenConfig = struct {
         status: SetConfig,
         new_timestamp: u32,
         config_timestamp: u32,
-        root: Window,
-        subpixel_order: SubPixel,
+        root: xproto.Window,
+        subpixel_order: render.SubPixel,
 
         pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
@@ -642,8 +652,8 @@ pub const SetScreenConfig = struct {
             result.status = @as(SetConfig, @enumFromInt(try reader.takeByte()));
             result.new_timestamp = try reader.takeInt(u32, .native);
             result.config_timestamp = try reader.takeInt(u32, .native);
-            result.root = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
-            result.subpixel_order = @as(SubPixel, @enumFromInt(try reader.takeInt(u16, .native)));
+            result.root = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.subpixel_order = @as(render.SubPixel, @enumFromInt(try reader.takeInt(u16, .native)));
             _ = try reader.take(10);
             return result;
         }
@@ -664,7 +674,7 @@ pub const SetScreenConfig = struct {
 pub const SelectInput = struct {
     pub const opcode: u8 = 4;
 
-    window: Window,
+    window: xproto.Window,
     enable: u16,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -677,11 +687,11 @@ pub const SelectInput = struct {
 pub const GetScreenInfo = struct {
     pub const opcode: u8 = 5;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         rotations: u8,
-        root: Window,
+        root: xproto.Window,
         timestamp: u32,
         config_timestamp: u32,
         sizeID: u16,
@@ -697,7 +707,7 @@ pub const GetScreenInfo = struct {
             var result: @This() = undefined;
             _ = header_;
             result.rotations = try reader.takeByte();
-            result.root = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.root = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
             result.timestamp = try reader.takeInt(u32, .native);
             result.config_timestamp = try reader.takeInt(u32, .native);
             const nSizes = try reader.takeInt(u16, .native);
@@ -747,7 +757,7 @@ pub const GetScreenInfo = struct {
 pub const GetScreenSizeRange = struct {
     pub const opcode: u8 = 6;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         min_width: u16,
@@ -777,7 +787,7 @@ pub const GetScreenSizeRange = struct {
 pub const SetScreenSize = struct {
     pub const opcode: u8 = 7;
 
-    window: Window,
+    window: xproto.Window,
     width: u16,
     height: u16,
     mm_width: u32,
@@ -795,7 +805,7 @@ pub const SetScreenSize = struct {
 pub const GetScreenResources = struct {
     pub const opcode: u8 = 8;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         timestamp: u32,
@@ -887,7 +897,7 @@ pub const GetOutputInfo = struct {
         mm_width: u32,
         mm_height: u32,
         connection: Connection,
-        subpixel_order: SubPixel,
+        subpixel_order: render.SubPixel,
         num_preferred: u16,
         crtcs: []const Crtc,
         decoded_crtcs_buf: ?[]Crtc = null,
@@ -907,7 +917,7 @@ pub const GetOutputInfo = struct {
             result.mm_width = try reader.takeInt(u32, .native);
             result.mm_height = try reader.takeInt(u32, .native);
             result.connection = @as(Connection, @enumFromInt(try reader.takeByte()));
-            result.subpixel_order = @as(SubPixel, @enumFromInt(try reader.takeByte()));
+            result.subpixel_order = @as(render.SubPixel, @enumFromInt(try reader.takeByte()));
             const num_crtcs = try reader.takeInt(u16, .native);
             const num_modes = try reader.takeInt(u16, .native);
             result.num_preferred = try reader.takeInt(u16, .native);
@@ -974,8 +984,8 @@ pub const ListOutputProperties = struct {
     output: Output,
 
     pub const Reply = struct {
-        atoms: []const Atom,
-        decoded_atoms_buf: ?[]Atom = null,
+        atoms: []const xproto.Atom,
+        decoded_atoms_buf: ?[]xproto.Atom = null,
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
@@ -983,9 +993,9 @@ pub const ListOutputProperties = struct {
             _ = try reader.take(1);
             const num_atoms = try reader.takeInt(u16, .native);
             _ = try reader.take(22);
-            const decoded_atoms_buf = try allocator.alloc(Atom, @intCast(num_atoms));
+            const decoded_atoms_buf = try allocator.alloc(xproto.Atom, @intCast(num_atoms));
             for (decoded_atoms_buf) |*elem| {
-                elem.* = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+                elem.* = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             }
             result.atoms = decoded_atoms_buf;
             result.decoded_atoms_buf = decoded_atoms_buf;
@@ -1011,7 +1021,7 @@ pub const QueryOutputProperty = struct {
     pub const opcode: u8 = 11;
 
     output: Output,
-    property: Atom,
+    property: xproto.Atom,
 
     pub const Reply = struct {
         pending: bool,
@@ -1022,7 +1032,6 @@ pub const QueryOutputProperty = struct {
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
-            _ = header_;
             _ = try reader.take(1);
             result.pending = (try reader.takeByte()) != 0;
             result.range = (try reader.takeByte()) != 0;
@@ -1057,7 +1066,7 @@ pub const ConfigureOutputProperty = struct {
     pub const opcode: u8 = 12;
 
     output: Output,
-    property: Atom,
+    property: xproto.Atom,
     pending: bool,
     range: bool,
     values: []const i32,
@@ -1079,10 +1088,10 @@ pub const ChangeOutputProperty = struct {
     pub const opcode: u8 = 13;
 
     output: Output,
-    property: Atom,
-    type: Atom,
+    property: xproto.Atom,
+    type: xproto.Atom,
     format: u8,
-    mode: PropMode,
+    mode: xproto.PropMode,
     num_units: u32,
     data: []const u8,
     decoded_data_buf: ?[]u8 = null,
@@ -1103,7 +1112,7 @@ pub const DeleteOutputProperty = struct {
     pub const opcode: u8 = 14;
 
     output: Output,
-    property: Atom,
+    property: xproto.Atom,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.output)));
@@ -1115,8 +1124,8 @@ pub const GetOutputProperty = struct {
     pub const opcode: u8 = 15;
 
     output: Output,
-    property: Atom,
-    type: Atom,
+    property: xproto.Atom,
+    type: xproto.Atom,
     long_offset: u32,
     long_length: u32,
     delete: bool,
@@ -1124,7 +1133,7 @@ pub const GetOutputProperty = struct {
 
     pub const Reply = struct {
         format: u8,
-        type: Atom,
+        type: xproto.Atom,
         bytes_after: u32,
         num_items: u32,
         data: []const u8,
@@ -1134,7 +1143,7 @@ pub const GetOutputProperty = struct {
             var result: @This() = undefined;
             _ = header_;
             result.format = try reader.takeByte();
-            result.type = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             result.bytes_after = try reader.takeInt(u32, .native);
             result.num_items = try reader.takeInt(u32, .native);
             _ = try reader.take(12);
@@ -1169,7 +1178,7 @@ pub const GetOutputProperty = struct {
 pub const CreateMode = struct {
     pub const opcode: u8 = 16;
 
-    window: Window,
+    window: xproto.Window,
     mode_info: ModeInfo,
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
@@ -1462,7 +1471,7 @@ pub const SetCrtcGamma = struct {
 pub const GetScreenResourcesCurrent = struct {
     pub const opcode: u8 = 25;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         timestamp: u32,
@@ -1545,7 +1554,7 @@ pub const SetCrtcTransform = struct {
     pub const opcode: u8 = 26;
 
     crtc: Crtc,
-    transform: TRANSFORM,
+    transform: render.TRANSFORM,
     filter_name: []const u8,
     decoded_filter_name_buf: ?[]u8 = null,
     filter_params: []const i32,
@@ -1570,9 +1579,9 @@ pub const GetCrtcTransform = struct {
     crtc: Crtc,
 
     pub const Reply = struct {
-        pending_transform: TRANSFORM,
+        pending_transform: render.TRANSFORM,
         has_transforms: bool,
-        current_transform: TRANSFORM,
+        current_transform: render.TRANSFORM,
         pending_filter_name: []const u8,
         decoded_pending_filter_name_buf: ?[]u8 = null,
         pending_params: []const i32,
@@ -1586,10 +1595,10 @@ pub const GetCrtcTransform = struct {
             var result: @This() = undefined;
             _ = header_;
             _ = try reader.take(1);
-            result.pending_transform = try TRANSFORM.decode(reader);
+            result.pending_transform = try render.TRANSFORM.decode(reader);
             result.has_transforms = (try reader.takeByte()) != 0;
             _ = try reader.take(3);
-            result.current_transform = try TRANSFORM.decode(reader);
+            result.current_transform = try render.TRANSFORM.decode(reader);
             _ = try reader.take(4);
             const pending_len = try reader.takeInt(u16, .native);
             const pending_nparams = try reader.takeInt(u16, .native);
@@ -1749,7 +1758,7 @@ pub const SetPanning = struct {
 pub const SetOutputPrimary = struct {
     pub const opcode: u8 = 30;
 
-    window: Window,
+    window: xproto.Window,
     output: Output,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -1761,7 +1770,7 @@ pub const SetOutputPrimary = struct {
 pub const GetOutputPrimary = struct {
     pub const opcode: u8 = 31;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         output: Output,
@@ -1784,7 +1793,7 @@ pub const GetOutputPrimary = struct {
 pub const GetProviders = struct {
     pub const opcode: u8 = 32;
 
-    window: Window,
+    window: xproto.Window,
 
     pub const Reply = struct {
         timestamp: u32,
@@ -1954,8 +1963,8 @@ pub const ListProviderProperties = struct {
     provider: Provider,
 
     pub const Reply = struct {
-        atoms: []const Atom,
-        decoded_atoms_buf: ?[]Atom = null,
+        atoms: []const xproto.Atom,
+        decoded_atoms_buf: ?[]xproto.Atom = null,
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
@@ -1963,9 +1972,9 @@ pub const ListProviderProperties = struct {
             _ = try reader.take(1);
             const num_atoms = try reader.takeInt(u16, .native);
             _ = try reader.take(22);
-            const decoded_atoms_buf = try allocator.alloc(Atom, @intCast(num_atoms));
+            const decoded_atoms_buf = try allocator.alloc(xproto.Atom, @intCast(num_atoms));
             for (decoded_atoms_buf) |*elem| {
-                elem.* = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+                elem.* = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             }
             result.atoms = decoded_atoms_buf;
             result.decoded_atoms_buf = decoded_atoms_buf;
@@ -1991,7 +2000,7 @@ pub const QueryProviderProperty = struct {
     pub const opcode: u8 = 37;
 
     provider: Provider,
-    property: Atom,
+    property: xproto.Atom,
 
     pub const Reply = struct {
         pending: bool,
@@ -2002,7 +2011,6 @@ pub const QueryProviderProperty = struct {
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
-            _ = header_;
             _ = try reader.take(1);
             result.pending = (try reader.takeByte()) != 0;
             result.range = (try reader.takeByte()) != 0;
@@ -2037,7 +2045,7 @@ pub const ConfigureProviderProperty = struct {
     pub const opcode: u8 = 38;
 
     provider: Provider,
-    property: Atom,
+    property: xproto.Atom,
     pending: bool,
     range: bool,
     values: []const i32,
@@ -2059,8 +2067,8 @@ pub const ChangeProviderProperty = struct {
     pub const opcode: u8 = 39;
 
     provider: Provider,
-    property: Atom,
-    type: Atom,
+    property: xproto.Atom,
+    type: xproto.Atom,
     format: u8,
     mode: u8,
     num_items: u32,
@@ -2083,7 +2091,7 @@ pub const DeleteProviderProperty = struct {
     pub const opcode: u8 = 40;
 
     provider: Provider,
-    property: Atom,
+    property: xproto.Atom,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.provider)));
@@ -2095,8 +2103,8 @@ pub const GetProviderProperty = struct {
     pub const opcode: u8 = 41;
 
     provider: Provider,
-    property: Atom,
-    type: Atom,
+    property: xproto.Atom,
+    type: xproto.Atom,
     long_offset: u32,
     long_length: u32,
     delete: bool,
@@ -2104,7 +2112,7 @@ pub const GetProviderProperty = struct {
 
     pub const Reply = struct {
         format: u8,
-        type: Atom,
+        type: xproto.Atom,
         bytes_after: u32,
         num_items: u32,
         data: []const u8,
@@ -2114,7 +2122,7 @@ pub const GetProviderProperty = struct {
             var result: @This() = undefined;
             _ = header_;
             result.format = try reader.takeByte();
-            result.type = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));
+            result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
             result.bytes_after = try reader.takeInt(u32, .native);
             result.num_items = try reader.takeInt(u32, .native);
             _ = try reader.take(12);
@@ -2149,7 +2157,7 @@ pub const GetProviderProperty = struct {
 pub const GetMonitors = struct {
     pub const opcode: u8 = 42;
 
-    window: Window,
+    window: xproto.Window,
     get_active: bool,
 
     pub const Reply = struct {
@@ -2197,7 +2205,7 @@ pub const GetMonitors = struct {
 pub const SetMonitor = struct {
     pub const opcode: u8 = 43;
 
-    window: Window,
+    window: xproto.Window,
     monitorinfo: MonitorInfo,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -2209,8 +2217,8 @@ pub const SetMonitor = struct {
 pub const DeleteMonitor = struct {
     pub const opcode: u8 = 44;
 
-    window: Window,
-    name: Atom,
+    window: xproto.Window,
+    name: xproto.Atom,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeInt(u32, @intCast(@intFromEnum(self.window)));
@@ -2234,10 +2242,10 @@ pub const ScreenChangeNotifyEvent = struct {
     rotation: u8,
     timestamp: u32,
     config_timestamp: u32,
-    root: Window,
-    request_window: Window,
+    root: xproto.Window,
+    request_window: xproto.Window,
     sizeID: u16,
-    subpixel_order: SubPixel,
+    subpixel_order: render.SubPixel,
     width: u16,
     height: u16,
     mwidth: u16,
@@ -2250,10 +2258,10 @@ pub const ScreenChangeNotifyEvent = struct {
         _ = try reader.takeInt(u16, .native);
         result.timestamp = try reader.takeInt(u32, .native);
         result.config_timestamp = try reader.takeInt(u32, .native);
-        result.root = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
-        result.request_window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.root = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.request_window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.sizeID = try reader.takeInt(u16, .native);
-        result.subpixel_order = @as(SubPixel, @enumFromInt(try reader.takeInt(u16, .native)));
+        result.subpixel_order = @as(render.SubPixel, @enumFromInt(try reader.takeInt(u16, .native)));
         result.width = try reader.takeInt(u16, .native);
         result.height = try reader.takeInt(u16, .native);
         result.mwidth = try reader.takeInt(u16, .native);

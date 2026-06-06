@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 from . import xcbxml
 from .common import BaseType, Emit, Field, Size, TypeProtocol, emit_expr, Parent
 from .resolver import Resolver
+
+if TYPE_CHECKING:
+    from .struct import StructType
 
 
 @dataclass
@@ -48,7 +52,7 @@ class ListType(BaseType):
         if isinstance(self.len, int):
             emit(f'for (&{value_expr}) |*elem| {{')
             with emit.block():
-                T.emit_decode(emit, 'elem.*')
+                self._emit_element_decode(emit, 'elem.*', value_expr.rpartition('.')[0])
             emit('}')
             return
 
@@ -74,7 +78,7 @@ class ListType(BaseType):
                         emit('else => |e| return e,')
                     emit('};')
                     emit(f'var elem: {T.decl_name} = undefined;')
-                    T.emit_decode(emit, 'elem')
+                    self._emit_element_decode(emit, 'elem', owner_expr)
                     emit(f'try decoded_{name}_list.append(allocator, elem);')
                 emit('}')
                 emit(f'const decoded_{name}_buf = try decoded_{name}_list.toOwnedSlice(allocator);')
@@ -92,10 +96,29 @@ class ListType(BaseType):
                 emit(f'const decoded_{name}_buf = try allocator.alloc({T.decl_name}, {len_expr});')
                 emit(f'for (decoded_{name}_buf) |*elem| {{')
                 with emit.block():
-                    T.emit_decode(emit, 'elem.*')
+                    self._emit_element_decode(emit, 'elem.*', owner_expr)
                 emit('}')
         emit(f'{value_expr} = decoded_{name}_buf;')
         emit(f'{owner_expr}.decoded_{name}_buf = decoded_{name}_buf;')
+
+    def _emit_element_decode(self, emit: Emit, target: str, owner_expr: str) -> None:
+        params = getattr(self.item_type, 'decode_params', ())
+        if params:
+            args = ''.join(f', {owner_expr}.{name}' for name, _ in params)
+            cast('StructType', self.item_type).emit_decode(emit, target, decode_args=args)
+        else:
+            self.item_type.emit_decode(emit, target)
+
+    def decode_args(self) -> set[str]:
+        args = {'reader'}
+        if isinstance(self.len, xcbxml.FieldRef) and self.len.ref.split('.', 1)[0] == 'header_':
+            args.add('header_')
+        return args
+
+    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:
+        if isinstance(self.len, xcbxml.ParamRef):
+            return [(self.len.ref, resolver.get(self.len.type).decl_name)]
+        return []
 
     def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
         if isinstance(self.len, xcbxml.FieldRef):
@@ -103,6 +126,7 @@ class ListType(BaseType):
                 self.len = xcbxml.FieldRef("header_.length")
                 return
 
+            # TODO: what about external refs?
             if self.len.ref in fields_by_name:
                 len_field = fields_by_name[self.len.ref]
                 len_field.public = False

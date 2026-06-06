@@ -6,10 +6,7 @@ const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
 const DecodeError = @import("../_errors.zig").DecodeError;
 const global_events = @import("events.zig");
-const ClipOrdering = @import("xproto.zig").ClipOrdering;
-const Pixmap = @import("xproto.zig").Pixmap;
-const RECTANGLE = @import("xproto.zig").RECTANGLE;
-const Window = @import("xproto.zig").Window;
+const xproto = @import("xproto.zig");
 
 pub const SO = enum(u32) {
     Set = 0,
@@ -55,12 +52,12 @@ pub const Rectangles = struct {
 
     operation: SO,
     destination_kind: SK,
-    ordering: ClipOrdering,
-    destination_window: Window,
+    ordering: xproto.ClipOrdering,
+    destination_window: xproto.Window,
     x_offset: i16,
     y_offset: i16,
-    rectangles: []const RECTANGLE,
-    decoded_rectangles_buf: ?[]RECTANGLE = null,
+    rectangles: []const xproto.RECTANGLE,
+    decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeByte(@intCast(@intFromEnum(self.operation)));
@@ -81,10 +78,10 @@ pub const Mask = struct {
 
     operation: SO,
     destination_kind: SK,
-    destination_window: Window,
+    destination_window: xproto.Window,
     x_offset: i16,
     y_offset: i16,
-    source_bitmap: Pixmap,
+    source_bitmap: xproto.Pixmap,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeByte(@intCast(@intFromEnum(self.operation)));
@@ -103,10 +100,10 @@ pub const Combine = struct {
     operation: SO,
     destination_kind: SK,
     source_kind: SK,
-    destination_window: Window,
+    destination_window: xproto.Window,
     x_offset: i16,
     y_offset: i16,
-    source_window: Window,
+    source_window: xproto.Window,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
         writer.writeByte(@intCast(@intFromEnum(self.operation)));
@@ -124,7 +121,7 @@ pub const Offset = struct {
     pub const opcode: u8 = 4;
 
     destination_kind: SK,
-    destination_window: Window,
+    destination_window: xproto.Window,
     x_offset: i16,
     y_offset: i16,
 
@@ -140,7 +137,7 @@ pub const Offset = struct {
 pub const QueryExtents = struct {
     pub const opcode: u8 = 5;
 
-    destination_window: Window,
+    destination_window: xproto.Window,
 
     pub const Reply = struct {
         bounding_shaped: bool,
@@ -182,7 +179,7 @@ pub const QueryExtents = struct {
 pub const SelectInput = struct {
     pub const opcode: u8 = 6;
 
-    destination_window: Window,
+    destination_window: xproto.Window,
     enable: bool,
 
     pub fn encode(self: *const @This(), writer: anytype) !void {
@@ -195,7 +192,7 @@ pub const SelectInput = struct {
 pub const InputSelected = struct {
     pub const opcode: u8 = 7;
 
-    destination_window: Window,
+    destination_window: xproto.Window,
 
     pub const Reply = struct {
         enabled: bool,
@@ -217,23 +214,23 @@ pub const InputSelected = struct {
 pub const GetRectangles = struct {
     pub const opcode: u8 = 8;
 
-    window: Window,
+    window: xproto.Window,
     source_kind: SK,
 
     pub const Reply = struct {
-        ordering: ClipOrdering,
-        rectangles: []const RECTANGLE,
-        decoded_rectangles_buf: ?[]RECTANGLE = null,
+        ordering: xproto.ClipOrdering,
+        rectangles: []const xproto.RECTANGLE,
+        decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
         pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
             _ = header_;
-            result.ordering = @as(ClipOrdering, @enumFromInt(try reader.takeByte()));
+            result.ordering = @as(xproto.ClipOrdering, @enumFromInt(try reader.takeByte()));
             const rectangles_len = try reader.takeInt(u32, .native);
             _ = try reader.take(20);
-            const decoded_rectangles_buf = try allocator.alloc(RECTANGLE, @intCast(rectangles_len));
+            const decoded_rectangles_buf = try allocator.alloc(xproto.RECTANGLE, @intCast(rectangles_len));
             for (decoded_rectangles_buf) |*elem| {
-                elem.* = try RECTANGLE.decode(reader);
+                elem.* = try xproto.RECTANGLE.decode(reader);
             }
             result.rectangles = decoded_rectangles_buf;
             result.decoded_rectangles_buf = decoded_rectangles_buf;
@@ -259,7 +256,7 @@ pub const GetRectangles = struct {
 
 pub const NotifyEvent = struct {
     shape_kind: SK,
-    affected_window: Window,
+    affected_window: xproto.Window,
     extents_x: i16,
     extents_y: i16,
     extents_width: u16,
@@ -272,7 +269,7 @@ pub const NotifyEvent = struct {
         _ = try reader.takeByte();
         result.shape_kind = @as(SK, @enumFromInt(try reader.takeByte()));
         _ = try reader.takeInt(u16, .native);
-        result.affected_window = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
+        result.affected_window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.extents_x = try reader.takeInt(i16, .native);
         result.extents_y = try reader.takeInt(i16, .native);
         result.extents_width = try reader.takeInt(u16, .native);

@@ -4,6 +4,19 @@ from . import xcbxml
 from .common import Field, Parent
 from .resolver import Resolver
 
+def collect_decode_params(items: Sequence[Field], resolver: Resolver) -> tuple[tuple[str, str], ...]:
+    field_names = {it.name for it in items}
+    seen: set[str] = set()
+    params: list[tuple[str, str]] = []
+    for it in items:
+        for name, ztype in it.type.free_decode_args(resolver):
+            if name in field_names or name in seen:
+                continue
+            seen.add(name)
+            params.append((name, ztype))
+    return tuple(params)
+
+
 def get_byte_slot(items: Sequence[Field]) -> Field | None:
     if items:
         field_type = items[0].type
@@ -29,6 +42,8 @@ def item_from_schema(
             wire_type = resolver.get(item.type)
             if not isinstance(wire_type, ScalarType):
                 raise NotImplementedError(f'enum field must use scalar wire type: {item.type}')
+            if wire_type.name == 'bool':
+                wire_type = SCALAR_TYPES['CARD8']
             return Field(
                 name=item.name,
                 type=EnumWireType(enum_type=enum_type, scalar_type=wire_type),
@@ -69,7 +84,7 @@ def build_items(
     ],
     resolver: Resolver,
     owner_name: str,
-) -> tuple[Field, ...]:
+) -> list[Field]:
     items: list[Field] = []
     fields_by_name: dict[str, Field] = {}
 
@@ -89,7 +104,7 @@ def build_items(
     for i, it in enumerate(items):
         if isinstance(it.type, ListType) and it.type.len is None and i != len(items) - 1:
             raise NotImplementedError('tail lists must be the final item')
-    return tuple(items)
+    return items
 
 
 from .list_type import ListType  # noqa

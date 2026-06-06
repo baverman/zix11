@@ -41,6 +41,11 @@ pub const TaggedError = union(enum) {
     RandRBadProvider: ProtocolError,
     XFixesBadRegion: ProtocolError,
     ShmBadSeg: ProtocolError,
+    InputDevice: ProtocolError,
+    InputEvent: ProtocolError,
+    InputMode: ProtocolError,
+    InputDeviceBusy: ProtocolError,
+    InputClass: ProtocolError,
     Unknown: ProtocolError,
     NonX11: anyerror,
 };
@@ -133,6 +138,22 @@ const shm_error_spec: ExtensionErrorSpec = .{
     .decode = decodeShmError,
 };
 
+fn decodeXinputError(code: u8, raw: ProtocolError) ?TaggedError {
+    return switch (code) {
+        0 => .{ .InputDevice = raw },
+        1 => .{ .InputEvent = raw },
+        2 => .{ .InputMode = raw },
+        3 => .{ .InputDeviceBusy = raw },
+        4 => .{ .InputClass = raw },
+        else => null,
+    };
+}
+
+const xinput_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 4,
+    .decode = decodeXinputError,
+};
+
 pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
         .CORE => &xproto_error_spec,
@@ -140,5 +161,6 @@ pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
         .RANDR => &randr_error_spec,
         .XFIXES => &xfixes_error_spec,
         .MIT_SHM => &shm_error_spec,
+        .XINPUTEXTENSION => &xinput_error_spec,
     };
 }

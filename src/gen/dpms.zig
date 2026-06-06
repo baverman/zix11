@@ -6,6 +6,7 @@ const io = @import("../io.zig");
 const wire = @import("../_wire.zig");
 const DecodeError = @import("../_errors.zig").DecodeError;
 const global_events = @import("events.zig");
+const xproto = @import("xproto.zig");
 
 pub const DPMSMode = enum(u32) {
     On = 0,
@@ -210,7 +211,7 @@ pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     const event_type = std.mem.readInt(u16, header[8..10], .native);
     return switch (event_type) {
         0 => .{ .DPMSInfoNotify = try InfoNotifyEvent.decode(reader) },
-        else => .{ .GEUnknown = try GeGenericEvent.decode(reader) },
+        else => .{ .GEUnknown = try xproto.GeGenericEvent.decode(reader) },
     };
 }
 
