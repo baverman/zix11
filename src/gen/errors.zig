@@ -46,6 +46,7 @@ pub const TaggedError = union(enum) {
     InputMode: ProtocolError,
     InputDeviceBusy: ProtocolError,
     InputClass: ProtocolError,
+    xkbKeyboard: ProtocolError,
     Unknown: ProtocolError,
     NonX11: anyerror,
 };
@@ -154,6 +155,18 @@ const xinput_error_spec: ExtensionErrorSpec = .{
     .decode = decodeXinputError,
 };
 
+fn decodeXkbError(code: u8, raw: ProtocolError) ?TaggedError {
+    return switch (code) {
+        0 => .{ .xkbKeyboard = raw },
+        else => null,
+    };
+}
+
+const xkb_error_spec: ExtensionErrorSpec = .{
+    .max_error_num = 0,
+    .decode = decodeXkbError,
+};
+
 pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
     return switch (extension) {
         .CORE => &xproto_error_spec,
@@ -162,5 +175,6 @@ pub fn errorSpec(extension: extensions.Extension) ?*const ExtensionErrorSpec {
         .XFIXES => &xfixes_error_spec,
         .MIT_SHM => &shm_error_spec,
         .XINPUTEXTENSION => &xinput_error_spec,
+        .XKEYBOARD => &xkb_error_spec,
     };
 }

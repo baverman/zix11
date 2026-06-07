@@ -9,6 +9,7 @@ EXTENSIONS = [
     'dpms.xml',
     'shm.xml',
     'xinput.xml',
+    'xkb.xml',
 ]
 
 if __name__ == '__main__':

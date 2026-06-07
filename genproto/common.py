@@ -152,6 +152,8 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = Non
         return expr.ref
     if isinstance(expr, xcbxml.Op):
         return f'({emit_expr(expr.left, prefix, element_expr)} {expr.op} {emit_expr(expr.right, prefix, element_expr)})'
+    if isinstance(expr, xcbxml.Unop):
+        return f'({expr.op}{emit_expr(expr.expr, prefix, element_expr)})'
     if isinstance(expr, xcbxml.PopCount):
         return f'@popCount({emit_expr(expr.expr, prefix, element_expr)})'
     if isinstance(expr, xcbxml.SumOf):
@@ -265,6 +267,8 @@ def expr_refs(expr: xcbxml.ListExpr) -> list[str]:
         return [expr.ref]
     if isinstance(expr, xcbxml.Op):
         return expr_refs(expr.left) + expr_refs(expr.right)
+    if isinstance(expr, xcbxml.Unop):
+        return expr_refs(expr.expr)
     if isinstance(expr, xcbxml.PopCount):
         return expr_refs(expr.expr)
     if isinstance(expr, xcbxml.SumOf):

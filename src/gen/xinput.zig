@@ -547,17 +547,17 @@ pub const InputInfo = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .key => |*it| {
-                    _ = it;
+                .key => |*payload| {
+                    _ = payload;
                 },
-                .button => |*it| {
-                    _ = it;
+                .button => |*payload| {
+                    _ = payload;
                 },
-                .valuator => |*it| {
-                    if (it.decoded_axes_buf) |buf| {
+                .valuator => |*payload| {
+                    if (payload.decoded_axes_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_axes_buf = null;
-                        it.axes = &.{};
+                        payload.decoded_axes_buf = null;
+                        payload.axes = &.{};
                     }
                 },
             }
@@ -574,7 +574,7 @@ pub const InputInfo = struct {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
-        result.info = try Info.decode(allocator, reader, @intFromEnum(class_id));
+        result.info = try @TypeOf(result).Info.decode(allocator, reader, @intFromEnum(class_id));
         return result;
     }
 
@@ -1029,27 +1029,27 @@ pub const FeedbackState = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .keyboard => |*it| {
-                    _ = it;
+                .keyboard => |*payload| {
+                    _ = payload;
                 },
-                .pointer => |*it| {
-                    _ = it;
+                .pointer => |*payload| {
+                    _ = payload;
                 },
-                .string => |*it| {
-                    if (it.decoded_keysyms_buf) |buf| {
+                .string => |*payload| {
+                    if (payload.decoded_keysyms_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_keysyms_buf = null;
-                        it.keysyms = &.{};
+                        payload.decoded_keysyms_buf = null;
+                        payload.keysyms = &.{};
                     }
                 },
-                .integer => |*it| {
-                    _ = it;
+                .integer => |*payload| {
+                    _ = payload;
                 },
-                .led => |*it| {
-                    _ = it;
+                .led => |*payload| {
+                    _ = payload;
                 },
-                .bell => |*it| {
-                    _ = it;
+                .bell => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -1067,7 +1067,7 @@ pub const FeedbackState = struct {
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
         result.len = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
         return result;
     }
 
@@ -1423,27 +1423,27 @@ pub const FeedbackCtl = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .keyboard => |*it| {
-                    _ = it;
+                .keyboard => |*payload| {
+                    _ = payload;
                 },
-                .pointer => |*it| {
-                    _ = it;
+                .pointer => |*payload| {
+                    _ = payload;
                 },
-                .string => |*it| {
-                    if (it.decoded_keysyms_buf) |buf| {
+                .string => |*payload| {
+                    if (payload.decoded_keysyms_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_keysyms_buf = null;
-                        it.keysyms = &.{};
+                        payload.decoded_keysyms_buf = null;
+                        payload.keysyms = &.{};
                     }
                 },
-                .integer => |*it| {
-                    _ = it;
+                .integer => |*payload| {
+                    _ = payload;
                 },
-                .led => |*it| {
-                    _ = it;
+                .led => |*payload| {
+                    _ = payload;
                 },
-                .bell => |*it| {
-                    _ = it;
+                .bell => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -1461,7 +1461,7 @@ pub const FeedbackCtl = struct {
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
         result.len = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
         return result;
     }
 
@@ -1656,17 +1656,17 @@ pub const InputState = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .key => |*it| {
-                    _ = it;
+                .key => |*payload| {
+                    _ = payload;
                 },
-                .button => |*it| {
-                    _ = it;
+                .button => |*payload| {
+                    _ = payload;
                 },
-                .valuator => |*it| {
-                    if (it.decoded_valuators_buf) |buf| {
+                .valuator => |*payload| {
+                    if (payload.decoded_valuators_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_valuators_buf = null;
-                        it.valuators = &.{};
+                        payload.decoded_valuators_buf = null;
+                        payload.valuators = &.{};
                     }
                 },
             }
@@ -1683,7 +1683,7 @@ pub const InputState = struct {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
-        result.data = try Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
         return result;
     }
 
@@ -2044,34 +2044,34 @@ pub const DeviceState = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .resolution => |*it| {
-                    if (it.decoded_resolution_values_buf) |buf| {
+                .resolution => |*payload| {
+                    if (payload.decoded_resolution_values_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_resolution_values_buf = null;
-                        it.resolution_values = &.{};
+                        payload.decoded_resolution_values_buf = null;
+                        payload.resolution_values = &.{};
                     }
-                    if (it.decoded_resolution_min_buf) |buf| {
+                    if (payload.decoded_resolution_min_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_resolution_min_buf = null;
-                        it.resolution_min = &.{};
+                        payload.decoded_resolution_min_buf = null;
+                        payload.resolution_min = &.{};
                     }
-                    if (it.decoded_resolution_max_buf) |buf| {
+                    if (payload.decoded_resolution_max_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_resolution_max_buf = null;
-                        it.resolution_max = &.{};
+                        payload.decoded_resolution_max_buf = null;
+                        payload.resolution_max = &.{};
                     }
                 },
-                .abs_calib => |*it| {
-                    _ = it;
+                .abs_calib => |*payload| {
+                    _ = payload;
                 },
-                .core => |*it| {
-                    _ = it;
+                .core => |*payload| {
+                    _ = payload;
                 },
-                .enable => |*it| {
-                    _ = it;
+                .enable => |*payload| {
+                    _ = payload;
                 },
-                .abs_area => |*it| {
-                    _ = it;
+                .abs_area => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -2087,7 +2087,7 @@ pub const DeviceState = struct {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(control_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(control_id));
         return result;
     }
 
@@ -2398,24 +2398,24 @@ pub const DeviceCtl = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .resolution => |*it| {
-                    if (it.decoded_resolution_values_buf) |buf| {
+                .resolution => |*payload| {
+                    if (payload.decoded_resolution_values_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_resolution_values_buf = null;
-                        it.resolution_values = &.{};
+                        payload.decoded_resolution_values_buf = null;
+                        payload.resolution_values = &.{};
                     }
                 },
-                .abs_calib => |*it| {
-                    _ = it;
+                .abs_calib => |*payload| {
+                    _ = payload;
                 },
-                .core => |*it| {
-                    _ = it;
+                .core => |*payload| {
+                    _ = payload;
                 },
-                .enable => |*it| {
-                    _ = it;
+                .enable => |*payload| {
+                    _ = payload;
                 },
-                .abs_area => |*it| {
-                    _ = it;
+                .abs_area => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -2431,7 +2431,7 @@ pub const DeviceCtl = struct {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(control_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(control_id));
         return result;
     }
 
@@ -2704,21 +2704,21 @@ pub const HierarchyChange = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .add_master => |*it| {
-                    if (it.decoded_name_buf) |buf| {
+                .add_master => |*payload| {
+                    if (payload.decoded_name_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_name_buf = null;
-                        it.name = &.{};
+                        payload.decoded_name_buf = null;
+                        payload.name = &.{};
                     }
                 },
-                .remove_master => |*it| {
-                    _ = it;
+                .remove_master => |*payload| {
+                    _ = payload;
                 },
-                .attach_slave => |*it| {
-                    _ = it;
+                .attach_slave => |*payload| {
+                    _ = payload;
                 },
-                .detach_slave => |*it| {
-                    _ = it;
+                .detach_slave => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -2734,7 +2734,7 @@ pub const HierarchyChange = struct {
         var result: @This() = undefined;
         const @"type" = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(@"type"));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(@"type"));
         return result;
     }
 
@@ -3176,36 +3176,36 @@ pub const DeviceClass = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .key => |*it| {
-                    if (it.decoded_keys_buf) |buf| {
+                .key => |*payload| {
+                    if (payload.decoded_keys_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_keys_buf = null;
-                        it.keys = &.{};
+                        payload.decoded_keys_buf = null;
+                        payload.keys = &.{};
                     }
                 },
-                .button => |*it| {
-                    if (it.decoded_state_buf) |buf| {
+                .button => |*payload| {
+                    if (payload.decoded_state_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_state_buf = null;
-                        it.state = &.{};
+                        payload.decoded_state_buf = null;
+                        payload.state = &.{};
                     }
-                    if (it.decoded_labels_buf) |buf| {
+                    if (payload.decoded_labels_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_labels_buf = null;
-                        it.labels = &.{};
+                        payload.decoded_labels_buf = null;
+                        payload.labels = &.{};
                     }
                 },
-                .valuator => |*it| {
-                    _ = it;
+                .valuator => |*payload| {
+                    _ = payload;
                 },
-                .scroll => |*it| {
-                    _ = it;
+                .scroll => |*payload| {
+                    _ = payload;
                 },
-                .touch => |*it| {
-                    _ = it;
+                .touch => |*payload| {
+                    _ = payload;
                 },
-                .gesture => |*it| {
-                    _ = it;
+                .gesture => |*payload| {
+                    _ = payload;
                 },
             }
         }
@@ -3223,7 +3223,7 @@ pub const DeviceClass = struct {
         const @"type" = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
         result.sourceid = try reader.takeInt(u16, .native);
-        result.data = try Data.decode(allocator, reader, @intFromEnum(@"type"));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(@"type"));
         return result;
     }
 
@@ -4581,25 +4581,25 @@ pub const ChangeDeviceProperty = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .@"8Bits" => |*it| {
-                    if (it.decoded_data8_buf) |buf| {
+                .@"8Bits" => |*payload| {
+                    if (payload.decoded_data8_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data8_buf = null;
-                        it.data8 = &.{};
+                        payload.decoded_data8_buf = null;
+                        payload.data8 = &.{};
                     }
                 },
-                .@"16Bits" => |*it| {
-                    if (it.decoded_data16_buf) |buf| {
+                .@"16Bits" => |*payload| {
+                    if (payload.decoded_data16_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data16_buf = null;
-                        it.data16 = &.{};
+                        payload.decoded_data16_buf = null;
+                        payload.data16 = &.{};
                     }
                 },
-                .@"32Bits" => |*it| {
-                    if (it.decoded_data32_buf) |buf| {
+                .@"32Bits" => |*payload| {
+                    if (payload.decoded_data32_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data32_buf = null;
-                        it.data32 = &.{};
+                        payload.decoded_data32_buf = null;
+                        payload.data32 = &.{};
                     }
                 },
             }
@@ -4728,25 +4728,25 @@ pub const GetDeviceProperty = struct {
 
             pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
                 switch (self.*) {
-                    .@"8Bits" => |*it| {
-                        if (it.decoded_data8_buf) |buf| {
+                    .@"8Bits" => |*payload| {
+                        if (payload.decoded_data8_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data8_buf = null;
-                            it.data8 = &.{};
+                            payload.decoded_data8_buf = null;
+                            payload.data8 = &.{};
                         }
                     },
-                    .@"16Bits" => |*it| {
-                        if (it.decoded_data16_buf) |buf| {
+                    .@"16Bits" => |*payload| {
+                        if (payload.decoded_data16_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data16_buf = null;
-                            it.data16 = &.{};
+                            payload.decoded_data16_buf = null;
+                            payload.data16 = &.{};
                         }
                     },
-                    .@"32Bits" => |*it| {
-                        if (it.decoded_data32_buf) |buf| {
+                    .@"32Bits" => |*payload| {
+                        if (payload.decoded_data32_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data32_buf = null;
-                            it.data32 = &.{};
+                            payload.decoded_data32_buf = null;
+                            payload.data32 = &.{};
                         }
                     },
                 }
@@ -4763,7 +4763,7 @@ pub const GetDeviceProperty = struct {
             const format = @as(PropertyFormat, @enumFromInt(try reader.takeByte()));
             result.device_id = try reader.takeByte();
             _ = try reader.take(10);
-            result.items = try Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
+            result.items = try @TypeOf(result).Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
             return result;
         }
 
@@ -5364,25 +5364,25 @@ pub const XIChangeProperty = struct {
 
         pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
             switch (self.*) {
-                .@"8Bits" => |*it| {
-                    if (it.decoded_data8_buf) |buf| {
+                .@"8Bits" => |*payload| {
+                    if (payload.decoded_data8_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data8_buf = null;
-                        it.data8 = &.{};
+                        payload.decoded_data8_buf = null;
+                        payload.data8 = &.{};
                     }
                 },
-                .@"16Bits" => |*it| {
-                    if (it.decoded_data16_buf) |buf| {
+                .@"16Bits" => |*payload| {
+                    if (payload.decoded_data16_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data16_buf = null;
-                        it.data16 = &.{};
+                        payload.decoded_data16_buf = null;
+                        payload.data16 = &.{};
                     }
                 },
-                .@"32Bits" => |*it| {
-                    if (it.decoded_data32_buf) |buf| {
+                .@"32Bits" => |*payload| {
+                    if (payload.decoded_data32_buf) |buf| {
                         allocator.free(buf);
-                        it.decoded_data32_buf = null;
-                        it.data32 = &.{};
+                        payload.decoded_data32_buf = null;
+                        payload.data32 = &.{};
                     }
                 },
             }
@@ -5508,25 +5508,25 @@ pub const XIGetProperty = struct {
 
             pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
                 switch (self.*) {
-                    .@"8Bits" => |*it| {
-                        if (it.decoded_data8_buf) |buf| {
+                    .@"8Bits" => |*payload| {
+                        if (payload.decoded_data8_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data8_buf = null;
-                            it.data8 = &.{};
+                            payload.decoded_data8_buf = null;
+                            payload.data8 = &.{};
                         }
                     },
-                    .@"16Bits" => |*it| {
-                        if (it.decoded_data16_buf) |buf| {
+                    .@"16Bits" => |*payload| {
+                        if (payload.decoded_data16_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data16_buf = null;
-                            it.data16 = &.{};
+                            payload.decoded_data16_buf = null;
+                            payload.data16 = &.{};
                         }
                     },
-                    .@"32Bits" => |*it| {
-                        if (it.decoded_data32_buf) |buf| {
+                    .@"32Bits" => |*payload| {
+                        if (payload.decoded_data32_buf) |buf| {
                             allocator.free(buf);
-                            it.decoded_data32_buf = null;
-                            it.data32 = &.{};
+                            payload.decoded_data32_buf = null;
+                            payload.data32 = &.{};
                         }
                     },
                 }
@@ -5542,7 +5542,7 @@ pub const XIGetProperty = struct {
             result.num_items = try reader.takeInt(u32, .native);
             const format = @as(PropertyFormat, @enumFromInt(try reader.takeByte()));
             _ = try reader.take(11);
-            result.items = try Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
+            result.items = try @TypeOf(result).Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
             return result;
         }
 

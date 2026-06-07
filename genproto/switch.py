@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 from . import xcbxml
-from .common import Emit, Field, InnerType, Size, emit_decl_items, items_size, Parent, zig_tag_name, zig_local_name
+from .common import Emit, Field, InnerType, Size, emit_decl_items, emit_expr, items_size, Parent, zig_tag_name, zig_local_name
 from .resolver import Resolver
 from .fields import build_items
 from .list_type import ListType
@@ -60,14 +60,14 @@ class CaseArm:
         for item in self.items:
             item.type.emit_encode(emit, item.encode_value_expr('it'))
 
-    def emit_deinit_body(self, emit: Emit) -> None:
+    def emit_deinit_body(self, emit: Emit, owner: str = 'it') -> None:
         emitted = False
         for item in self.items:
             if item.type.size == 'dyn':
                 emitted = True
-                item.type.emit_deinit(emit, f'it.{item.name}')
+                item.type.emit_deinit(emit, f'{owner}.{item.name}')
         if not emitted:
-            emit('_ = it;')
+            emit(f'_ = {owner};')
 
 
 @dataclass(frozen=True)
@@ -117,7 +117,7 @@ class BitcaseArm:
 
     @property
     def is_direct(self) -> bool:
-        return len(self.items) == 1
+        return len(self.items) == 1 and not isinstance(self.items[0].type, ListType)
 
     def emit_decl(self, emit: Emit) -> None:
         if self.is_direct:
@@ -140,14 +140,14 @@ class BitcaseArm:
         for item in self.items:
             item.type.emit_encode(emit, item.encode_value_expr('it'))
 
-    def emit_deinit_body(self, emit: Emit) -> None:
+    def emit_deinit_body(self, emit: Emit, owner: str = 'it') -> None:
         emitted = False
         for item in self.items:
             if item.type.size == 'dyn':
                 emitted = True
-                item.type.emit_deinit(emit, f'it.{item.name}')
+                item.type.emit_deinit(emit, f'{owner}.{item.name}')
         if not emitted:
-            emit('_ = it;')
+            emit(f'_ = {owner};')
 
 
 @dataclass(frozen=True)
@@ -189,10 +189,11 @@ class CaseType(InnerType):
         switch_value = f'@intFromEnum({zig_local_name(self.field_name)})'
         owner_expr = value_expr.rpartition('.')[0]
         extra = ''.join(f', {owner_expr}.{name}' for name, _ in self.decode_params)
+        type_ref = f'@TypeOf({owner_expr}).{self.name}'
         if self.size == 'dyn':
-            emit(f'{value_expr} = try {self.name}.decode(allocator, reader, {switch_value}{extra});')
+            emit(f'{value_expr} = try {type_ref}.decode(allocator, reader, {switch_value}{extra});')
         else:
-            emit(f'{value_expr} = try {self.name}.decode(reader, {switch_value}{extra});')
+            emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
 
     def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
         discrim_field = fields_by_name[self.field_name]
@@ -270,9 +271,9 @@ class CaseType(InnerType):
                     emit('switch (self.*) {')
                     with emit.block():
                         for arm in self.arms:
-                            emit(f'.{arm.name} => |*it| {{')
+                            emit(f'.{arm.name} => |*payload| {{')
                             with emit.block():
-                                arm.emit_deinit_body(emit)
+                                arm.emit_deinit_body(emit, 'payload')
                             emit('},')
                     emit('}')
                 emit('}')
@@ -282,12 +283,17 @@ class CaseType(InnerType):
 @dataclass(frozen=True)
 class BitcaseType(InnerType):
     name: str
-    field_name: str
+    expr: xcbxml.ListExpr
     arms: list[BitcaseArm]
+    decode_params: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def decl_name(self) -> str:
         return self.name
+
+    @property
+    def field_name(self) -> str | None:
+        return self.expr.ref if isinstance(self.expr, xcbxml.FieldRef) else None
 
     @cached_property
     def size(self) -> Size:
@@ -300,15 +306,13 @@ class BitcaseType(InnerType):
         parents: tuple[Parent, ...],
         owner_name: str,
     ) -> BitcaseType:
-        if not isinstance(switch.expr, xcbxml.FieldRef):
-            raise NotImplementedError('switch/bitcase only supports fieldref discriminators')
         arms = []
         for switch_item in switch.items:
             arms.append(BitcaseArm.from_schema(switch_item, resolver, (switch,), owner_name))
 
         return BitcaseType(
             name=switch.name[:1].upper() + switch.name[1:],
-            field_name=switch.expr.ref,
+            expr=switch.expr,
             arms=arms,
         )
 
@@ -316,16 +320,31 @@ class BitcaseType(InnerType):
         emit(f'try {value_expr}.encode(writer);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
-        switch_value = zig_local_name(self.field_name)
-        if self.size == 'dyn':
-            emit(f'{value_expr} = try {self.name}.decode(allocator, reader, {switch_value});')
+        owner_expr = value_expr.rpartition('.')[0]
+        if self.field_name is not None:
+            switch_value = zig_local_name(self.field_name)
         else:
-            emit(f'{value_expr} = try {self.name}.decode(reader, {switch_value});')
+            switch_value = emit_expr(self.expr, f'{owner_expr}.')
+        extra = ''.join(f', {owner_expr}.{name}' for name, _ in self.decode_params)
+        type_ref = f'@TypeOf({owner_expr}).{self.name}'
+        if self.size == 'dyn':
+            emit(f'{value_expr} = try {type_ref}.decode(allocator, reader, {switch_value}{extra});')
+        else:
+            emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
 
     def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
-        mask_field = fields_by_name[self.field_name]
-        mask_field.public = False
-        mask_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.switchValue())'
+        if self.field_name is not None:
+            mask_field = fields_by_name[self.field_name]
+            mask_field.public = False
+            mask_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.switchValue())'
+        seen = {self.field_name} if self.field_name else set()
+        for arm in self.arms:
+            for it in arm.items:
+                if isinstance(it.type, ListType) and isinstance(it.type.len, xcbxml.FieldRef):
+                    ref = it.type.len.ref
+                    if ref in fields_by_name and ref not in seen:
+                        seen.add(ref)
+                        self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -361,12 +380,13 @@ class BitcaseType(InnerType):
 
             # TODO: there should be a helper
             emit()
+            params_sig = ''.join(f', {name}: {ztype}' for name, ztype in self.decode_params)
             if self.size == 'dyn':
                 emit(
-                    'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {'
+                    f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
                 )
             else:
-                emit('pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {')
+                emit(f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{')
             with emit.block():
                 emit('var result: @This() = .{};')
                 for i, arm in enumerate(self.arms):
@@ -395,12 +415,14 @@ class BitcaseType(InnerType):
                 emit('pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {')
                 with emit.block():
                     for arm in self.arms:
-                        emit(f'if (self.{arm.name}) |*it| {{')
+                        if arm.size != 'dyn':
+                            continue
+                        emit(f'if (self.{arm.name}) |*payload| {{')
                         with emit.block():
                             if arm.is_direct:
-                                arm.items[0].type.emit_deinit(emit, 'it')
+                                arm.items[0].type.emit_deinit(emit, 'payload')
                             else:
-                                arm.emit_deinit_body(emit)
+                                arm.emit_deinit_body(emit, 'payload')
                         emit('}')
                 emit('}')
         emit('};')
