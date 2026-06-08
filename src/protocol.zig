@@ -246,12 +246,12 @@ pub const Protocol = struct {
             .authorization_protocol_data = cookie,
         };
         var counting_writer = zio.CountingWriter.init();
-        request.encode(&counting_writer);
+        try request.encode(&counting_writer);
         const packet = try self.allocator.alloc(u8, counting_writer.seek);
         defer self.allocator.free(packet);
 
         var packet_writer = zio.FixedBufferWriter.init(packet);
-        request.encode(&packet_writer);
+        try request.encode(&packet_writer);
         try writer.writeAll(packet);
         try writer.flush();
     }

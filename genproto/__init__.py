@@ -41,14 +41,16 @@ class Module:
         if self.is_core:
             return 'CORE'
         name = self.extension_xname or self.extension_name or self.header
-        return name.replace('-', '_').upper()
+        name = name.replace('-', '_').upper()
+        overrides = {'XINPUTEXTENSION': 'XINPUT'}
+        return overrides.get(name, name)
 
     def global_tagged_prefix(self) -> str:
         if self.is_core:
             return ''
-        if self.extension_name is None:
-            raise NotImplementedError('extension module requires extension-name')
-        return self.extension_name
+        assert self.extension_name
+        overrides = {'xkb': 'Xkb'}
+        return overrides.get(self.extension_name, self.extension_name)
 
     @staticmethod
     def from_schema(

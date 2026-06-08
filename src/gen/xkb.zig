@@ -6210,18 +6210,18 @@ pub const ExtensionDeviceNotifyEvent = struct {
 pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
-        0 => .{ .xkbNewKeyboardNotify = try NewKeyboardNotifyEvent.decode(reader) },
-        1 => .{ .xkbMapNotify = try MapNotifyEvent.decode(reader) },
-        2 => .{ .xkbStateNotify = try StateNotifyEvent.decode(reader) },
-        3 => .{ .xkbControlsNotify = try ControlsNotifyEvent.decode(reader) },
-        4 => .{ .xkbIndicatorStateNotify = try IndicatorStateNotifyEvent.decode(reader) },
-        5 => .{ .xkbIndicatorMapNotify = try IndicatorMapNotifyEvent.decode(reader) },
-        6 => .{ .xkbNamesNotify = try NamesNotifyEvent.decode(reader) },
-        7 => .{ .xkbCompatMapNotify = try CompatMapNotifyEvent.decode(reader) },
-        8 => .{ .xkbBellNotify = try BellNotifyEvent.decode(reader) },
-        9 => .{ .xkbActionMessage = try ActionMessageEvent.decode(reader) },
-        10 => .{ .xkbAccessXNotify = try AccessXNotifyEvent.decode(reader) },
-        11 => .{ .xkbExtensionDeviceNotify = try ExtensionDeviceNotifyEvent.decode(reader) },
+        0 => .{ .XkbNewKeyboardNotify = try NewKeyboardNotifyEvent.decode(reader) },
+        1 => .{ .XkbMapNotify = try MapNotifyEvent.decode(reader) },
+        2 => .{ .XkbStateNotify = try StateNotifyEvent.decode(reader) },
+        3 => .{ .XkbControlsNotify = try ControlsNotifyEvent.decode(reader) },
+        4 => .{ .XkbIndicatorStateNotify = try IndicatorStateNotifyEvent.decode(reader) },
+        5 => .{ .XkbIndicatorMapNotify = try IndicatorMapNotifyEvent.decode(reader) },
+        6 => .{ .XkbNamesNotify = try NamesNotifyEvent.decode(reader) },
+        7 => .{ .XkbCompatMapNotify = try CompatMapNotifyEvent.decode(reader) },
+        8 => .{ .XkbBellNotify = try BellNotifyEvent.decode(reader) },
+        9 => .{ .XkbActionMessage = try ActionMessageEvent.decode(reader) },
+        10 => .{ .XkbAccessXNotify = try AccessXNotifyEvent.decode(reader) },
+        11 => .{ .XkbExtensionDeviceNotify = try ExtensionDeviceNotifyEvent.decode(reader) },
         else => blk: {
             const packet = try reader.take(32);
             var raw: [32]u8 = undefined;
