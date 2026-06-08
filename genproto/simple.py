@@ -20,6 +20,18 @@ class ScalarType(BaseType):
     def decl_name(self) -> str:
         return self.name
 
+    def coerce_to_raw(self, value_expr: str) -> str:
+        if self.name == 'bool':
+            return f'@intFromBool({value_expr})'
+        else:
+            return value_expr
+
+    def coerce_from_raw(self, value_expr: str) -> str:
+        if self.name == 'bool':
+            return f'({value_expr} != 0)'
+        else:
+            return value_expr
+
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         if self.name == 'bool':
             emit(f'writer.writeByte(@intFromBool({value_expr}));')
@@ -122,6 +134,7 @@ class EnumType(BaseType):
     items: list[xcbxml.EnumItem]
     exhaustive: bool = True
     module_prefix: str = ''
+    is_mask: bool = False
 
     @property
     def decl_name(self) -> str:
@@ -173,14 +186,22 @@ class EnumType(BaseType):
                     continue
                 values[value] = name
                 emit(f'{name} = {item.value},')
+
             if not self.exhaustive:
                 emit('_,')
+
             if aliases:
                 emit()
                 for name, value in aliases:
                     emit(f'pub const {name}: @This() = @enumFromInt({value});')
+
+            if self.is_mask:
+                emit()
+                emit('pub fn of(values: []const @This()) u32 {')
+                with emit.block():
+                    emit('return wire.maskOf(@This(), values);')
+                emit('}')
         emit('};')
-        emit()
 
 
 @dataclass(frozen=True)

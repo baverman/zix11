@@ -112,18 +112,18 @@ pub const Event = union(enum) {
     InputGestureSwipeBegin: xinput.GestureSwipeBeginEvent,
     InputGestureSwipeUpdate: xinput.GestureSwipeBeginEvent,
     InputGestureSwipeEnd: xinput.GestureSwipeBeginEvent,
-    xkbNewKeyboardNotify: xkb.NewKeyboardNotifyEvent,
-    xkbMapNotify: xkb.MapNotifyEvent,
-    xkbStateNotify: xkb.StateNotifyEvent,
-    xkbControlsNotify: xkb.ControlsNotifyEvent,
-    xkbIndicatorStateNotify: xkb.IndicatorStateNotifyEvent,
-    xkbIndicatorMapNotify: xkb.IndicatorMapNotifyEvent,
-    xkbNamesNotify: xkb.NamesNotifyEvent,
-    xkbCompatMapNotify: xkb.CompatMapNotifyEvent,
-    xkbBellNotify: xkb.BellNotifyEvent,
-    xkbActionMessage: xkb.ActionMessageEvent,
-    xkbAccessXNotify: xkb.AccessXNotifyEvent,
-    xkbExtensionDeviceNotify: xkb.ExtensionDeviceNotifyEvent,
+    XkbNewKeyboardNotify: xkb.NewKeyboardNotifyEvent,
+    XkbMapNotify: xkb.MapNotifyEvent,
+    XkbStateNotify: xkb.StateNotifyEvent,
+    XkbControlsNotify: xkb.ControlsNotifyEvent,
+    XkbIndicatorStateNotify: xkb.IndicatorStateNotifyEvent,
+    XkbIndicatorMapNotify: xkb.IndicatorMapNotifyEvent,
+    XkbNamesNotify: xkb.NamesNotifyEvent,
+    XkbCompatMapNotify: xkb.CompatMapNotifyEvent,
+    XkbBellNotify: xkb.BellNotifyEvent,
+    XkbActionMessage: xkb.ActionMessageEvent,
+    XkbAccessXNotify: xkb.AccessXNotifyEvent,
+    XkbExtensionDeviceNotify: xkb.ExtensionDeviceNotifyEvent,
 };
 
 pub const ExtensionEventSpec = struct {
@@ -192,12 +192,13 @@ const xkb_event_spec: ExtensionEventSpec = .{
 pub fn eventSpec(extension: extensions.Extension) ?*const ExtensionEventSpec {
     return switch (extension) {
         .CORE => &xproto_event_spec,
+        .RENDER => null,
         .RANDR => &randr_event_spec,
         .SHAPE => &shape_event_spec,
         .XFIXES => &xfixes_event_spec,
         .DPMS => &dpms_event_spec,
         .MIT_SHM => &shm_event_spec,
-        .XINPUTEXTENSION => &xinput_event_spec,
+        .XINPUT => &xinput_event_spec,
         .XKEYBOARD => &xkb_event_spec,
     };
 }

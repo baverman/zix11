@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zix11 = @import("root.zig");
 const x = zix11.x;
+const wire = @import("_wire.zig");
 
 test {
     _ = zix11.ewmh;
@@ -18,7 +19,7 @@ test "InternAtom request encoding" {
         .only_if_exists = true,
         .name = "WM_NAME",
     };
-    req.encode(&writer);
+    try req.encode(&writer);
     const body = buf[0..writer.seek];
 
     try std.testing.expect(x.InternAtom.extension == null);
@@ -31,7 +32,7 @@ test "InternAtom request encoding" {
 test "SetupRequest encoding" {
     var buf: [64]u8 = undefined;
     var writer = zix11.io.FixedBufferWriter.init(&buf);
-    (x.SetupRequest{
+    try (x.SetupRequest{
         .byte_order = switch (builtin.cpu.arch.endian()) {
             .little => 'l',
             .big => 'B',
@@ -64,8 +65,9 @@ test "GetProperty reply decode copies into caller scratch" {
     const value = [_]u8{ 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44 };
     @memcpy(packet[32..40], value[0..]);
     var scratch: [8]u8 = undefined;
-    var reader: std.Io.Reader = .fixed(&packet);
-    const reply = try x.GetPropertyReply.decode(&scratch, &reader);
+    const header = wire.ReplyHeader.decode(&packet);
+    var reader: std.Io.Reader = .fixed(packet[8..]);
+    const reply = try x.GetProperty.Reply.decode(&reader, &scratch, header);
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
     try std.testing.expectEqual(@as(x.Atom, @enumFromInt(57)), reply.type);
@@ -93,7 +95,7 @@ test "ConfigureWindow" {
     var buf: [64]u8 = undefined;
     var writer = zix11.io.FixedBufferWriter.init(&buf);
     const cw: x.ConfigureWindow = .{ .window = x.Window.None, .value_list = .{} };
-    cw.encode(&writer);
+    try cw.encode(&writer);
 }
 
 // const T1 = enum(u32) { Window = 0 };

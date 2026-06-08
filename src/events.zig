@@ -9,6 +9,7 @@ pub const ExtensionEventSpec = generated.ExtensionEventSpec;
 pub const eventSpec = generated.eventSpec;
 pub const DecodeError = @import("_errors.zig").DecodeError;
 
+// TODO: raw? packet? what a mess.
 pub fn decodeEvent(
     registered_extensions: *std.enums.EnumMap(ext.Extension, ext.ExtensionInfo),
     packet: []const u8,
@@ -30,6 +31,9 @@ pub fn decodeEvent(
                 return try decode_xge(&reader);
             }
         }
+        const event_spec = registered_extensions.get(.CORE).?.event_spec.?;
+        var reader: std.Io.Reader = .fixed(packet);
+        return try event_spec.decode_xge.?(&reader);
     }
 
     var it = registered_extensions.iterator();

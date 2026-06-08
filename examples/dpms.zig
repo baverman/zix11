@@ -9,7 +9,6 @@ fn modeName(mode: dpms.DPMSMode) []const u8 {
         .Standby => "standby",
         .Suspend => "suspend",
         .Off => "off",
-        _ => "unknown",
     };
 }
 

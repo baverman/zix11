@@ -5,8 +5,8 @@ from functools import cached_property
 
 from . import xcbxml
 from .common import BaseType, Emit, Field, Size
-from .resolver import Resolver
 from .fields import build_items
+from .resolver import Resolver
 
 
 @dataclass(frozen=True)
@@ -41,27 +41,32 @@ class UnionType(BaseType):
         with emit.block():
             emit(f'raw: [{self.size}]u8,')
             emit()
+
             emit(f'pub fn fromRaw(raw: [{self.size}]u8) @This() {{')
             with emit.block():
                 emit('return .{ .raw = raw };')
             emit('}')
             emit()
+
             emit(f'pub fn asRaw(self: @This()) [{self.size}]u8 {{')
             with emit.block():
                 emit('return self.raw;')
             emit('}')
             emit()
+
             emit('pub fn encode(self: @This(), writer: anytype) !void {')
             with emit.block():
                 emit('writer.write(self.raw[0..]);')
             emit('}')
             emit()
+
             emit('pub fn decode(reader: *std.Io.Reader) !@This() {')
             with emit.block():
                 emit(f'var raw: [{self.size}]u8 = undefined;')
                 emit(f'@memcpy(raw[0..], try reader.take({self.size}));')
                 emit('return .{ .raw = raw };')
             emit('}')
+
             for item in self.items:
                 suffix = item.name[:1].upper() + item.name[1:]
                 emit()
@@ -74,6 +79,7 @@ class UnionType(BaseType):
                     emit('return .{ .raw = raw };')
                 emit('}')
                 emit()
+
                 emit(f'pub fn as{suffix}(self: @This()) !{item.type.decl_name} {{')
                 with emit.block():
                     emit('var reader_impl: std.Io.Reader = .fixed(&self.raw);')
@@ -83,7 +89,6 @@ class UnionType(BaseType):
                     emit('return value;')
                 emit('}')
         emit('};')
-        emit()
 
     @staticmethod
     def from_schema(union: xcbxml.Union, resolver: Resolver) -> UnionType:

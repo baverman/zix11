@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from . import xcbxml
 from .common import BaseType, Emit, Size
 from .resolver import Resolver
-from .simple import EnumType, EnumWireType, SCALAR_TYPES
+from .simple import SCALAR_TYPES, EnumType, EnumWireType
 
 
 def make_xid_type(name: str, enums: list[EnumType]) -> BaseType:
@@ -53,6 +53,8 @@ class XidUnionType(BaseType):
             for member in self.members:
                 emit(f'{member.enum_type.name.lower()}: {member.enum_type.name},')
             emit('raw: u32,')
+            emit()
+
             emit('pub fn toInt(self: @This()) u32 {')
             with emit.block():
                 emit('return switch (self) {')
@@ -63,17 +65,18 @@ class XidUnionType(BaseType):
                 emit('};')
             emit('}')
             emit()
+
             emit('pub fn encode(self: @This(), writer: anytype) void {')
             with emit.block():
                 emit('writer.writeInt(u32, self.toInt());')
             emit('}')
             emit()
+
             emit('pub fn decode(reader: *std.Io.Reader) !@This() {')
             with emit.block():
                 emit('return .{ .raw = try reader.takeInt(u32, .native) };')
             emit('}')
         emit('};')
-        emit()
 
     @staticmethod
     def from_schema(xidunion: xcbxml.XidUnion, resolver: Resolver) -> XidUnionType:

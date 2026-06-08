@@ -122,7 +122,7 @@ pub const Protocol = struct {
         } else Request.opcode;
 
         var counting_writer = zio.CountingWriter.init();
-        request_value.encode(&counting_writer);
+        try request_value.encode(&counting_writer);
         const len = 4 + counting_writer.seek;
         const pad = wire.pad4(len);
         const packet = try self.allocator.alloc(u8, len + pad);
@@ -136,7 +136,7 @@ pub const Protocol = struct {
             packet_writer.writeByte(Request.opcode);
         }
         packet_writer.writeInt(u16, @intCast((len + pad) / 4));
-        request_value.encode(&packet_writer);
+        try request_value.encode(&packet_writer);
         packet_writer.splatByte(0, pad);
 
         try writer.writeAll(packet);
@@ -167,11 +167,12 @@ pub const Protocol = struct {
                     return error.X11ProtocolError;
                 },
                 1 => {
-                    var packet_reader: std.Io.Reader = .fixed(packet);
+                    const header = wire.ReplyHeader.decode(packet);
+                    var packet_reader: std.Io.Reader = .fixed(packet[8..]);
                     return switch (reply_mode) {
-                        .fixed => try Reply.decode(&packet_reader),
-                        .alloc => try Reply.decode(storage, &packet_reader),
-                        .buffer => try Reply.decode(storage, &packet_reader),
+                        .fixed => try Reply.decode(&packet_reader, header),
+                        .alloc => try Reply.decode(storage, &packet_reader, header),
+                        .buffer => try Reply.decode(&packet_reader, storage, header),
                     };
                 },
                 else => try self.queueEventPacket(packet),
@@ -209,11 +210,11 @@ pub const Protocol = struct {
                     return error.UnexpectedProtocolError;
                 },
                 1 => {
-                    const reply_sequence = std.mem.readInt(u16, packet[2..4], .native);
-                    var packet_reader: std.Io.Reader = .fixed(packet);
-                    const reply = try x.GetInputFocusReply.decode(&packet_reader);
+                    const header = wire.ReplyHeader.decode(packet);
+                    var packet_reader: std.Io.Reader = .fixed(packet[8..]);
+                    const reply = try x.GetInputFocus.Reply.decode(&packet_reader, header);
                     _ = reply;
-                    if (reply_sequence != sync_sequence) {
+                    if (header.seq_num != sync_sequence) {
                         return error.UnexpectedReply;
                     }
                     if (request_failed) {
@@ -246,12 +247,12 @@ pub const Protocol = struct {
             .authorization_protocol_data = cookie,
         };
         var counting_writer = zio.CountingWriter.init();
-        request.encode(&counting_writer);
+        try request.encode(&counting_writer);
         const packet = try self.allocator.alloc(u8, counting_writer.seek);
         defer self.allocator.free(packet);
 
         var packet_writer = zio.FixedBufferWriter.init(packet);
-        request.encode(&packet_writer);
+        try request.encode(&packet_writer);
         try writer.writeAll(packet);
         try writer.flush();
     }

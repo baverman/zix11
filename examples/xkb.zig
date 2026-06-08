@@ -34,8 +34,8 @@ const selected_new_keyboard_details: u16 = @intCast(xkb.NKNDetail.of(&.{
     .DeviceID,
 }));
 
-fn atomName(conn: *zix11.Connection, atom: x.Atom, buffer: []u8) ![]const u8 {
-    const reply = try conn.requestBuf(buffer, x.GetAtomName, .{ .atom = atom });
+fn atomName(conn: *zix11.Connection, atom: x.Atom, allocator: std.mem.Allocator) ![]const u8 {
+    const reply = try conn.requestAlloc(allocator, x.GetAtomName, .{ .atom = atom });
     return reply.name;
 }
 
@@ -43,8 +43,8 @@ fn groupIndex(group: xkb.Group) usize {
     return @intFromEnum(group);
 }
 
-fn groupAtom(reply: *const xkb.GetNamesReply, group: xkb.Group) ?x.Atom {
-    const groups = reply.valueList.GroupNames orelse return null;
+fn groupAtom(reply: *const xkb.GetNames.Reply, group: xkb.Group) ?x.Atom {
+    const groups = reply.valueList.groups orelse return null;
     const idx = groupIndex(group);
     const bit: u8 = @as(u8, 1) << @intCast(idx);
     if ((reply.groupNames & bit) == 0) return null;
@@ -72,8 +72,7 @@ fn printCurrentLayout(conn: *zix11.Connection, allocator: std.mem.Allocator, rea
     const idx = groupIndex(state.group);
 
     if (groupAtom(&names, state.group)) |atom| {
-        var name_buf: [256]u8 = undefined;
-        const name = atomName(conn, atom, name_buf[0..]) catch |err| {
+        const name = atomName(conn, atom, allocator) catch |err| {
             std.debug.print("{s}: group={} atom=0x{x} name lookup failed: {any}\n", .{
                 reason,
                 idx + 1,
@@ -133,28 +132,28 @@ pub fn main(init: std.process.Init) !void {
 
     while (true) {
         switch (try conn.nextEvent()) {
-            .XKbStateNotify => |ev| {
+            .XkbStateNotify => |ev| {
                 std.debug.print("XKB StateNotify: group={} changed=0x{x}\n", .{
                     groupIndex(ev.group) + 1,
                     ev.changed,
                 });
                 try printCurrentLayout(&conn, init.gpa, "state");
             },
-            .XKbNamesNotify => |ev| {
+            .XkbNamesNotify => |ev| {
                 std.debug.print("XKB NamesNotify: changed=0x{x} changed_group_names=0x{x}\n", .{
                     ev.changed,
                     ev.changedGroupNames,
                 });
                 try printCurrentLayout(&conn, init.gpa, "names");
             },
-            .XKbMapNotify => |ev| {
+            .XkbMapNotify => |ev| {
                 std.debug.print("XKB MapNotify: changed=0x{x} virtual_mods=0x{x}\n", .{
                     ev.changed,
                     ev.virtualMods,
                 });
                 try printCurrentLayout(&conn, init.gpa, "map");
             },
-            .XKbNewKeyboardNotify => |ev| {
+            .XkbNewKeyboardNotify => |ev| {
                 std.debug.print("XKB NewKeyboardNotify: device={} changed=0x{x}\n", .{
                     ev.deviceID,
                     ev.changed,

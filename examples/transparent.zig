@@ -131,7 +131,7 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-fn findArgbVisual(reply: render.QueryPictFormatsReply) ?ArgbVisual {
+fn findArgbVisual(reply: render.QueryPictFormats.Reply) ?ArgbVisual {
     for (reply.formats) |format| {
         if (format.type != .Direct) continue;
         if (format.depth != 32) continue;

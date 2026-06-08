@@ -65,13 +65,19 @@ class StructType(BaseType):
         emit(f'pub const {self.name} = struct {{')
         with emit.block():
             emit_decl_items(emit, self.items)
+            emit()
+
             emit_encode_fn(emit, self.items)
+            emit()
+
             emit_decode_fn(
                 emit,
                 self.size == 'dyn',
                 self.items,
                 args=tuple(f'{name}: {ztype}' for name, ztype in self.decode_params),
             )
-            emit_deinit_fn(emit, self.size == 'dyn', self.items)
+
+            if self.size == 'dyn':
+                emit()
+                emit_deinit_fn(emit, self.items)
         emit('};')
-        emit()

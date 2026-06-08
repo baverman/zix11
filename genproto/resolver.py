@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .common import TypeProtocol, TypeProtocolT
+
+
 @dataclass
 class Resolver:
     module_name: str

@@ -8,7 +8,6 @@ fn connectionName(conn: randr.Connection) []const u8 {
         .Connected => "connected",
         .Disconnected => "disconnected",
         .Unknown => "unknown",
-        _ => "unknown",
     };
 }
 
@@ -29,7 +28,7 @@ fn modeRefreshHz(mode: randr.ModeInfo) f64 {
     return refresh;
 }
 
-fn modeNameAt(resources: randr.GetScreenResourcesCurrentReply, mode_index: usize) []const u8 {
+fn modeNameAt(resources: randr.GetScreenResourcesCurrent.Reply, mode_index: usize) []const u8 {
     var offset: usize = 0;
     for (resources.modes[0..mode_index]) |mode| {
         offset += mode.name_len;
@@ -37,7 +36,7 @@ fn modeNameAt(resources: randr.GetScreenResourcesCurrentReply, mode_index: usize
     return resources.names[offset .. offset + resources.modes[mode_index].name_len];
 }
 
-fn findModeIndex(resources: randr.GetScreenResourcesCurrentReply, mode: randr.Mode) ?usize {
+fn findModeIndex(resources: randr.GetScreenResourcesCurrent.Reply, mode: randr.Mode) ?usize {
     const mode_id = @intFromEnum(mode);
     for (resources.modes, 0..) |info, idx| {
         if (info.id == mode_id) return idx;
@@ -45,7 +44,7 @@ fn findModeIndex(resources: randr.GetScreenResourcesCurrentReply, mode: randr.Mo
     return null;
 }
 
-fn printCurrentMode(resources: randr.GetScreenResourcesCurrentReply, crtc_info: ?randr.GetCrtcInfoReply) void {
+fn printCurrentMode(resources: randr.GetScreenResourcesCurrent.Reply, crtc_info: ?randr.GetCrtcInfo.Reply) void {
     const info = crtc_info orelse {
         std.debug.print("\n", .{});
         return;
@@ -66,9 +65,9 @@ fn printCurrentMode(resources: randr.GetScreenResourcesCurrentReply, crtc_info: 
 }
 
 fn printModes(
-    resources: randr.GetScreenResourcesCurrentReply,
-    output_info: randr.GetOutputInfoReply,
-    crtc_info: ?randr.GetCrtcInfoReply,
+    resources: randr.GetScreenResourcesCurrent.Reply,
+    output_info: randr.GetOutputInfo.Reply,
+    crtc_info: ?randr.GetCrtcInfo.Reply,
 ) void {
     const active_mode = if (crtc_info) |info| @intFromEnum(info.mode) else 0;
 
@@ -94,7 +93,7 @@ fn loadCrtcInfo(
     allocator: std.mem.Allocator,
     config_timestamp: u32,
     crtc: randr.Crtc,
-) !?randr.GetCrtcInfoReply {
+) !?randr.GetCrtcInfo.Reply {
     if (@intFromEnum(crtc) == 0) return null;
     return try conn.requestAlloc(allocator, randr.GetCrtcInfo, .{
         .crtc = crtc,

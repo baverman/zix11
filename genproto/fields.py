@@ -4,7 +4,10 @@ from . import xcbxml
 from .common import Field, Parent
 from .resolver import Resolver
 
-def collect_decode_params(items: Sequence[Field], resolver: Resolver) -> tuple[tuple[str, str], ...]:
+
+def collect_decode_params(
+    items: Sequence[Field], resolver: Resolver
+) -> tuple[tuple[str, str], ...]:
     field_names = {it.name for it in items}
     seen: set[str] = set()
     params: list[tuple[str, str]] = []
@@ -52,6 +55,7 @@ def item_from_schema(
             enum_type = resolver.get(item.mask)
             if not isinstance(enum_type, EnumType):
                 raise NotImplementedError(f'field references non-enum as mask: {item.mask}')
+            enum_type.is_mask = True
             return Field(name=item.name, type=resolver.get(item.type))
         return Field(name=item.name, type=resolver.get(item.type))
     if isinstance(item, xcbxml.Pad):
@@ -71,7 +75,9 @@ def item_from_schema(
             type=ListType.from_schema(item, resolver),
         )
     if isinstance(item, xcbxml.SwitchField):
-        return Field(name=item.name, type=BitcaseType.from_schema(item, resolver, parents, owner_name))
+        return Field(
+            name=item.name, type=BitcaseType.from_schema(item, resolver, parents, owner_name)
+        )
     if isinstance(item, xcbxml.CaseSwitchField):
         return Field(name=item.name, type=CaseType.from_schema(item, resolver, parents, owner_name))
     raise NotImplementedError(f'unsupported struct item: {type(item).__name__}')
@@ -108,5 +114,13 @@ def build_items(
 
 
 from .list_type import ListType  # noqa
-from .simple import SCALAR_TYPES, AlignPadType, EnumType, EnumWireType, PadType, RequiredStartAlignType, ScalarType  # noqa
+from .simple import (  # noqa
+    SCALAR_TYPES,
+    AlignPadType,
+    EnumType,
+    EnumWireType,
+    PadType,
+    RequiredStartAlignType,
+    ScalarType,
+)
 from .switch import BitcaseType, CaseType  # noqa

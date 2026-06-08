@@ -118,7 +118,7 @@ fn getSliceImpl(
     });
 
     if (reply.format == 0) return buffer[0..0];
-    if (property_type != x.Atom_.Any and reply.type != property_type) return error.UnexpectedType;
+    if (property_type != x.Atom.Any and reply.type != property_type) return error.UnexpectedType;
     if (reply.format != propertyFormat(T)) return error.UnexpectedFormat;
     if (reply.bytes_after != 0) return error.PropertyTruncated;
 

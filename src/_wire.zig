@@ -2,7 +2,16 @@ const std = @import("std");
 
 pub const ReplyHeader = struct {
     byte_slot: u8,
+    seq_num: u16 = 0,
     length: u32,
+
+    pub fn decode(packet: []const u8) ReplyHeader {
+        return .{
+            .byte_slot = packet[1],
+            .seq_num = std.mem.readInt(u16, packet[2..4], .native),
+            .length = std.mem.readInt(u32, packet[4..8], .native),
+        };
+    }
 };
 
 pub fn pad(len: usize, alignment: comptime_int) usize {

@@ -1,4 +1,20 @@
 # API
 - batch requests
-
 - CreateWindow background pixmap refers to Pixmap without additional enum values like relative.
+- Separate type for masks
+
+## Fixed array should use just copy
+
+```
+pub const KeymapNotifyEvent = struct {
+    keys: [31]u8,
+
+    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+        var result: @This() = undefined;
+        for (&result.keys) |*elem| {
+            elem.* = try reader.takeByte();
+        }
+        return result;
+    }
+};
+```

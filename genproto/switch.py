@@ -4,11 +4,40 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 from . import xcbxml
-from .common import Emit, Field, InnerType, Size, emit_decl_items, emit_expr, items_size, Parent, zig_tag_name, zig_local_name
-from .resolver import Resolver
+from .common import (
+    Emit,
+    Field,
+    InnerType,
+    Parent,
+    Size,
+    emit_decl_items,
+    emit_expr,
+    expr_refs,
+    items_size,
+    zig_local_name,
+    zig_tag_name,
+)
 from .fields import build_items
 from .list_type import ListType
+from .resolver import Resolver
 from .simple import EnumType
+
+
+def _replace_field_ref_in_expr(expr: xcbxml.ListExpr, ref: str) -> None:
+    if isinstance(expr, xcbxml.FieldRef) and expr.ref == ref:
+        return
+    if isinstance(expr, xcbxml.PopCount):
+        if isinstance(expr.expr, xcbxml.FieldRef) and expr.expr.ref == ref:
+            expr.expr = xcbxml.ParamRef(ref=ref, type='u32')
+        else:
+            _replace_field_ref_in_expr(expr.expr, ref)
+    elif isinstance(expr, xcbxml.SumOf):
+        _replace_field_ref_in_expr(expr.expr, ref)
+    elif isinstance(expr, xcbxml.Op):
+        _replace_field_ref_in_expr(expr.left, ref)
+        _replace_field_ref_in_expr(expr.right, ref)
+    elif isinstance(expr, xcbxml.Unop):
+        _replace_field_ref_in_expr(expr.expr, ref)
 
 
 @dataclass(frozen=True)
@@ -195,7 +224,9 @@ class CaseType(InnerType):
         else:
             emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
 
-    def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
+    def update_fieldref(
+        self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
+    ) -> None:
         discrim_field = fields_by_name[self.field_name]
         discrim_field.public = False
         discrim_field.encode_value_expr_ = (
@@ -205,11 +236,12 @@ class CaseType(InnerType):
         seen = {self.field_name}
         for arm in self.arms:
             for it in arm.items:
-                if isinstance(it.type, ListType) and isinstance(it.type.len, xcbxml.FieldRef):
-                    ref = it.type.len.ref
-                    if ref in fields_by_name and ref not in seen:
-                        seen.add(ref)
-                        self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
+                if isinstance(it.type, ListType):
+                    for ref in expr_refs(it.type.len):
+                        if ref in fields_by_name and ref not in seen:
+                            seen.add(ref)
+                            self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
+                            _replace_field_ref_in_expr(it.type.len, ref)
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -248,7 +280,9 @@ class CaseType(InnerType):
                     f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
                 )
             else:
-                emit(f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{')
+                emit(
+                    f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
+                )
             with emit.block():
                 emit('return switch (switch_value) {')
                 with emit.block():
@@ -332,7 +366,9 @@ class BitcaseType(InnerType):
         else:
             emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
 
-    def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
+    def update_fieldref(
+        self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
+    ) -> None:
         if self.field_name is not None:
             mask_field = fields_by_name[self.field_name]
             mask_field.public = False
@@ -340,11 +376,12 @@ class BitcaseType(InnerType):
         seen = {self.field_name} if self.field_name else set()
         for arm in self.arms:
             for it in arm.items:
-                if isinstance(it.type, ListType) and isinstance(it.type.len, xcbxml.FieldRef):
-                    ref = it.type.len.ref
-                    if ref in fields_by_name and ref not in seen:
-                        seen.add(ref)
-                        self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
+                if isinstance(it.type, ListType):
+                    for ref in expr_refs(it.type.len):
+                        if ref in fields_by_name and ref not in seen:
+                            seen.add(ref)
+                            self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
+                            _replace_field_ref_in_expr(it.type.len, ref)
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -386,7 +423,9 @@ class BitcaseType(InnerType):
                     f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
                 )
             else:
-                emit(f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{')
+                emit(
+                    f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
+                )
             with emit.block():
                 emit('var result: @This() = .{};')
                 for i, arm in enumerate(self.arms):

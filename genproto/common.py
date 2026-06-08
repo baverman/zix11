@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Protocol, TypeVar
+from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Protocol, Sequence, TypeVar
 
 from . import xcbxml
 
@@ -10,7 +10,15 @@ if TYPE_CHECKING:
     from .resolver import Resolver
 
 Size = int | Literal['dyn'] | Literal['fixed']
-Parent = xcbxml.Request | xcbxml.Reply | xcbxml.Union | xcbxml.Struct | xcbxml.Event | xcbxml.SwitchField | xcbxml.CaseSwitchField
+Parent = (
+    xcbxml.Request
+    | xcbxml.Reply
+    | xcbxml.Union
+    | xcbxml.Struct
+    | xcbxml.Event
+    | xcbxml.SwitchField
+    | xcbxml.CaseSwitchField
+)
 
 
 def zig_tag_name(name: str) -> str:
@@ -19,26 +27,20 @@ def zig_tag_name(name: str) -> str:
     return f'@"{name}"'
 
 
-ZIG_RESERVED = frozenset({
-    # primitive types
-    'type', 'void', 'bool', 'noreturn', 'anytype', 'anyopaque', 'anyerror',
-    'isize', 'usize', 'comptime_int', 'comptime_float',
-    'c_char', 'c_short', 'c_ushort', 'c_int', 'c_uint', 'c_long', 'c_ulong',
-    'c_longlong', 'c_ulonglong', 'c_longdouble',
-    # keywords
-    'addrspace', 'align', 'allowzero', 'and', 'asm', 'async', 'await', 'break',
-    'callconv', 'catch', 'comptime', 'const', 'continue', 'defer', 'else',
-    'enum', 'errdefer', 'error', 'export', 'extern', 'fn', 'for', 'if', 'inline',
-    'linksection', 'noalias', 'nosuspend', 'opaque', 'or', 'orelse', 'packed',
-    'pub', 'resume', 'return', 'struct', 'suspend', 'switch', 'test', 'threadlocal',
-    'try', 'union', 'unreachable', 'usingnamespace', 'var', 'volatile', 'while',
-})
+ZIG_RESERVED = frozenset(
+    {
+        'type',
+        'and',
+        'or',
+    }
+)
 
 
 def zig_local_name(name: str) -> str:
     if not name.isidentifier() or name[0].isdigit() or name in ZIG_RESERVED:
         return f'@"{name}"'
     return name
+
 
 class Emit:
     def __init__(self) -> None:
@@ -82,7 +84,9 @@ class TypeProtocol(Protocol):
 
     def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]: ...
 
-    def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None: ...
+    def update_fieldref(
+        self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
+    ) -> None: ...
 
     def coerce_to_raw(self, value_expr: str) -> str: ...
 
@@ -111,7 +115,9 @@ class BaseType(TypeProtocol):
     def coerce_to_raw(self, value_expr: str) -> str:
         return value_expr
 
-    def update_fieldref(self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]) -> None:
+    def update_fieldref(
+        self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
+    ) -> None:
         _ = parents
         _ = field
         _ = fields_by_name
@@ -207,7 +213,6 @@ def emit_decl_items(emit: Emit, items: Iterable[Field]) -> None:
 
 
 def emit_encode_fn(emit: Emit, items: Iterable[Field]) -> None:
-    emit()
     emit('pub fn encode(self: *const @This(), writer: anytype) !void {')
     with emit.block():
         emitted = False
@@ -224,16 +229,15 @@ def emit_decode_fn(
     emit: Emit,
     is_dynamic: bool,
     items: Iterable[Field],
-    args: tuple[str, ...] = (),
+    args: Sequence[str] | None = None,
     unused_args: tuple[str, ...] = (),
 ) -> None:
     fargs = []
     if is_dynamic:
         fargs.append('allocator: std.mem.Allocator')
     fargs.append('reader: *std.Io.Reader')
-    fargs.extend(args)
+    fargs.extend(args or ())
 
-    emit()
     emit(f'pub fn decode({", ".join(fargs)}) !@This() {{')
     with emit.block():
         emit('var result: @This() = undefined;')
@@ -245,10 +249,7 @@ def emit_decode_fn(
     emit('}')
 
 
-def emit_deinit_fn(emit: Emit, is_dynamic: bool, items: Iterable[Field]) -> None:
-    if not is_dynamic:
-        return
-    emit()
+def emit_deinit_fn(emit: Emit, items: Iterable[Field]) -> None:
     emit('pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {')
     with emit.block():
         emit_deinit_items(emit, items)

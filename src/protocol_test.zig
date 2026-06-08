@@ -170,7 +170,7 @@ test "Protocol.pendingEvent preserves queued GE packet length" {
 
     const event = (try proto.pendingEvent()) orelse return error.TestUnexpectedResult;
     switch (event) {
-        .GeGeneric => |ev| {
+        .GEUnknown => |ev| {
             try std.testing.expectEqual(@as(u8, 42), ev.extension);
             try std.testing.expectEqual(@as(u32, 0), ev.length);
             try std.testing.expectEqual(@as(u16, 99), ev.event_type);
@@ -226,7 +226,7 @@ test "Protocol.readEvent decodes XInputMotion XGE packets" {
     const event = try proto.readEvent(&reader);
 
     switch (event) {
-        .XInputMotion => |ev| {
+        .InputMotion => |ev| {
             try std.testing.expectEqual(@as(u8, 131), ev.extension);
             try std.testing.expectEqual(@as(u32, 17), ev.length);
             try std.testing.expectEqual(@as(u16, 6), ev.event_type);

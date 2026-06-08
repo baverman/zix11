@@ -94,7 +94,7 @@ pub fn main(init: std.process.Init) !void {
                         std.debug.print("expose {}x{}\n", .{ ev.width, ev.height });
                     }
                 },
-                .XInputFocusIn => |ev| {
+                .InputFocusIn => |ev| {
                     std.debug.print("XI2 focus in: event=0x{x} child=0x{x} device={} source={}\n", .{
                         @intFromEnum(ev.event),
                         @intFromEnum(ev.child),
@@ -102,7 +102,7 @@ pub fn main(init: std.process.Init) !void {
                         ev.sourceid,
                     });
                 },
-                .XInputFocusOut => |ev| {
+                .InputFocusOut => |ev| {
                     std.debug.print("XI2 focus out: event=0x{x} child=0x{x} device={} source={}\n", .{
                         @intFromEnum(ev.event),
                         @intFromEnum(ev.child),
@@ -110,7 +110,7 @@ pub fn main(init: std.process.Init) !void {
                         ev.sourceid,
                     });
                 },
-                .XInputKeyPress => |ev| {
+                .InputKeyPress => |ev| {
                     std.debug.print("XI2 key press: event=0x{x} child=0x{x} keycode={} device={} source={} mods=0x{x}\n", .{
                         @intFromEnum(ev.event),
                         @intFromEnum(ev.child),
@@ -121,7 +121,7 @@ pub fn main(init: std.process.Init) !void {
                     });
                     if (ev.detail == 9) return;
                 },
-                .XInputKeyRelease => |ev| {
+                .InputKeyRelease => |ev| {
                     std.debug.print("XI2 key release: event=0x{x} child=0x{x} keycode={} device={} source={} mods=0x{x}\n", .{
                         @intFromEnum(ev.event),
                         @intFromEnum(ev.child),
@@ -131,7 +131,7 @@ pub fn main(init: std.process.Init) !void {
                         ev.mods.effective,
                     });
                 },
-                .XInputMotion => |ev| {
+                .InputMotion => |ev| {
                     var body = try ev.getBody(init.gpa);
                     defer body.deinit(init.gpa);
                     std.debug.print("XI2 motion: event=0x{x} child=0x{x} device={} source={} x={} y={} values={}\n", .{

@@ -17,9 +17,11 @@ from .common import (
     items_size,
 )
 from .fields import build_items, get_byte_slot
+from .list_type import ListType
 from .resolver import Resolver
 
 REPLY_BYTE_EXPR = 'header_.byte_slot'
+USE_BUFFER_REPLY = ('GetProperty',)
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,13 @@ class RequestType:
             items=items,
             reply=None
             if request.reply is None
-            else ReplyType.from_schema(request.name, request.reply, resolver, is_core=is_core),
+            else ReplyType.from_schema(
+                request.name,
+                request.reply,
+                resolver,
+                is_core=is_core,
+                use_buffer=request.name in USE_BUFFER_REPLY,
+            ),
         )
 
     def emit_header_byte1(self, emit: Emit) -> None:
@@ -62,41 +70,48 @@ class RequestType:
         encode_items = [it for it in self.items if it is not self.byte_slot]
         with emit.block():
             emit(f'pub const opcode: u8 = {self.opcode};')
-
+            emit('pub const extension = current_mod.extension;')
             emit()
-            emit_decl_items(emit, self.items)
 
-            if self.reply:
-                emit()
-                self.reply.emit_definition(emit)
+            emit_decl_items(emit, self.items)
+            emit()
 
             if self.is_core:
-                emit()
                 self.emit_header_byte1(emit)
+                emit()
 
             emit_encode_fn(emit, encode_items)
+            emit()
+
+            if self.reply:
+                self.reply.emit_definition(emit)
+            else:
+                emit('pub const Reply = void;')
+
         emit('};')
-        emit()
 
 
 @dataclass(frozen=True)
 class ReplyType(BaseType):
     byte_slot: Field | None
     items: list[Field]
-    uses_reply_length: bool
+    use_buffer: bool
 
     @staticmethod
     def from_schema(
-        request_name: str, reply: xcbxml.Reply, resolver: Resolver, is_core: bool
+        request_name: str,
+        reply: xcbxml.Reply,
+        resolver: Resolver,
+        is_core: bool,
+        use_buffer: bool,
     ) -> ReplyType:
-        items = build_items(
-            (reply,),
-            reply.fields,
-            resolver,
-            f'{request_name}Reply'
-        )
+        items = build_items((reply,), reply.fields, resolver, f'{request_name}Reply')
 
-        byte_slot = get_byte_slot(items) if is_core else None
+        if use_buffer:
+            assert isinstance(items[-1].type, ListType)
+            items[-1].type.use_buffer = True
+
+        byte_slot = get_byte_slot(items)
         if byte_slot:
             if byte_slot.name != '_pad_':
                 items = [
@@ -110,11 +125,7 @@ class ReplyType(BaseType):
             else:
                 items = items[1:]
 
-        return ReplyType(
-            byte_slot=byte_slot,
-            items=items,
-            uses_reply_length=False,
-        )
+        return ReplyType(byte_slot=byte_slot, items=items, use_buffer=use_buffer)
 
     @property
     def decl_name(self) -> str:
@@ -137,17 +148,26 @@ class ReplyType(BaseType):
         emit('pub const Reply = struct {')
         with emit.block():
             emit_decl_items(emit, self.items)
+            emit()
+
             used_args: set[str] = set()
             for item in self.items:
                 used_args |= item.type.decode_args()
             unused_args = tuple(a for a in ('reader', 'header_') if a not in used_args)
+
+            args = []
+            if self.use_buffer:
+                args.append('buffer_: []u8')
+
             emit_decode_fn(
                 emit,
                 self.size == 'dyn',
                 self.items,
-                args=('header_: wire.ReplyHeader',),
+                args=args + ['header_: wire.ReplyHeader'],
                 unused_args=unused_args,
             )
-            emit_deinit_fn(emit, self.size == 'dyn', self.items)
+
+            if self.size == 'dyn':
+                emit()
+                emit_deinit_fn(emit, self.items)
         emit('};')
-        emit()
