@@ -26,13 +26,13 @@ pub const TaggedError = errors.TaggedError;
 
 pub const StreamTransport = struct {
     io: std.Io,
-    stream: std.Io.net.Stream,
+    stream: ?std.Io.net.Stream,
     read_buffer: []u8,
     write_buffer: []u8,
     stream_reader: std.Io.net.Stream.Reader,
     stream_writer: std.Io.net.Stream.Writer,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, stream: std.Io.net.Stream) !StreamTransport {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !StreamTransport {
         const read_buffer = try allocator.alloc(u8, read_buffer_size);
         errdefer allocator.free(read_buffer);
         const write_buffer = try allocator.alloc(u8, write_buffer_size);
@@ -40,18 +40,29 @@ pub const StreamTransport = struct {
 
         return .{
             .io = io,
-            .stream = stream,
             .read_buffer = read_buffer,
             .write_buffer = write_buffer,
-            .stream_reader = stream.reader(io, read_buffer),
-            .stream_writer = stream.writer(io, write_buffer),
+            // filled after setStream call
+            .stream = null,
+            .stream_reader = undefined,
+            .stream_writer = undefined,
         };
     }
 
+    pub fn setStream(self: *@This(), stream: std.Io.net.Stream) void {
+        self.stream = stream;
+        self.stream_reader = stream.reader(self.io, self.read_buffer);
+        self.stream_writer = stream.writer(self.io, self.write_buffer);
+    }
+
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        self.stream.close(self.io);
+        if (self.stream) |*stream| {
+            stream.close(self.io);
+            self.stream = null;
+        }
         allocator.free(self.read_buffer);
         allocator.free(self.write_buffer);
+        self.* = undefined;
     }
 
     pub fn wait(self: *const @This(), timeout_ms: i32) !bool {
@@ -64,8 +75,8 @@ pub const StreamTransport = struct {
         return n != 0;
     }
 
-    pub fn fd(self: *const @This()) @TypeOf(self.stream.socket.handle) {
-        return self.stream.socket.handle;
+    pub fn fd(self: *const @This()) i32 {
+        return self.stream.?.socket.handle;
     }
 
     pub fn reader(self: *@This()) *std.Io.Reader {
@@ -85,16 +96,22 @@ pub const StreamTransport = struct {
 };
 
 pub const Connection = struct {
-    allocator: std.mem.Allocator,
-    proto: *protocol_mod.Protocol,
-    transport: *StreamTransport,
-    root_window: x.Window,
+    proto: protocol_mod.Protocol,
+    transport: StreamTransport,
+
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Connection {
+        return .{
+            .proto = .init(allocator),
+            .transport = try .init(allocator, io),
+        };
+    }
 
     pub fn connectFromEnv(
-        allocator: std.mem.Allocator,
-        io: std.Io,
+        self: *Connection,
         environ_map: *const std.process.Environ.Map,
-    ) !Connection {
+    ) !void {
+        const allocator = self.proto.allocator;
+        const io = self.transport.io;
         const display = environ_map.get("DISPLAY") orelse return error.MissingDisplay;
         const display_spec = try parseDisplay(allocator, display);
         defer display_spec.deinit(allocator);
@@ -102,52 +119,33 @@ pub const Connection = struct {
         const cookie = try readXAuthorityCookie(io, allocator, environ_map, display_spec);
         defer allocator.free(cookie);
 
-        return connect(allocator, io, cookie, display_spec);
+        try self.connect(cookie, display_spec);
     }
 
     pub fn connect(
-        allocator: std.mem.Allocator,
-        io: std.Io,
+        self: *Connection,
         cookie: []const u8,
         display: DisplaySpec,
-    ) !Connection {
+    ) !void {
         if (display.host.len != 0) return error.RemoteDisplayUnsupported;
+        const io = self.transport.io;
 
         const stream = try connectUnix(io, display.display_number);
-        errdefer {
-            var copy = stream;
-            copy.close(io);
-        }
+        self.transport.setStream(stream);
 
-        const proto = try allocator.create(protocol_mod.Protocol);
-        errdefer allocator.destroy(proto);
-        proto.* = .init(allocator);
-        errdefer proto.deinit();
-
-        const transport = try allocator.create(StreamTransport);
-        errdefer allocator.destroy(transport);
-        transport.* = try .init(allocator, io, stream);
-        errdefer transport.deinit(allocator);
-
-        try proto.sendSetup(transport.writer(), cookie);
-        try proto.readSetupReply(transport.reader());
-
-        return .{
-            .allocator = allocator,
-            .proto = proto,
-            .transport = transport,
-            .root_window = proto.root_window,
-        };
+        try self.proto.sendSetup(self.transport.writer(), cookie);
+        try self.proto.readSetupReply(self.transport.reader());
     }
 
-    pub fn deinit(self: *@This()) void {
+    pub fn deinit(self: *Connection) void {
+        const allocator = self.proto.allocator;
         self.proto.deinit();
-        self.allocator.destroy(self.proto);
-
-        self.transport.deinit(self.allocator);
-        self.allocator.destroy(self.transport);
-
+        self.transport.deinit(allocator);
         self.* = undefined;
+    }
+
+    pub fn rootWindow(self: *Connection) x.Window {
+        return self.proto.root_window;
     }
 
     pub fn nextEvent(self: *Connection) !events.Event {
@@ -195,7 +193,7 @@ pub const Connection = struct {
         return self.proto.last_protocol_error orelse unreachable;
     }
 
-    pub fn lastError(self: *const Connection, err: anyerror) TaggedError {
+    pub fn lastError(self: *Connection, err: anyerror) TaggedError {
         if (err != error.X11ProtocolError) return .{ .NonX11 = err };
         return errors.taggedError(&self.proto.extensions, err, self.lastRawError());
     }

@@ -18,8 +18,10 @@ const ArgbVisual = struct {
 };
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
+
     try conn.registerExtension(.RENDER);
 
     var formats = try conn.requestAlloc(init.gpa, render.QueryPictFormats, .{});
@@ -37,7 +39,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreateColormap, .{
         .alloc = .None,
         .mid = colormap,
-        .window = conn.root_window,
+        .window = conn.rootWindow(),
         .visual = argb.visual,
     });
     defer conn.request(x.FreeColormap, .{ .cmap = colormap }) catch {};
@@ -45,7 +47,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreateWindow, .{
         .depth = argb.depth,
         .wid = window,
-        .parent = conn.root_window,
+        .parent = conn.rootWindow(),
         .x = 180,
         .y = 120,
         .width = width,

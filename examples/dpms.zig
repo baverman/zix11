@@ -13,8 +13,9 @@ fn modeName(mode: dpms.DPMSMode) []const u8 {
 }
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
 
     try conn.registerExtension(.DPMS);
 

@@ -14,14 +14,15 @@ const height: u16 = 360;
 const bytes_per_pixel: usize = 4;
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
 
     try conn.registerExtension(.MIT_SHM);
     _ = try conn.request(shm.QueryVersion, .{});
 
     const root_geometry = try conn.request(x.GetGeometry, .{
-        .drawable = .{ .window = conn.root_window },
+        .drawable = .{ .window = conn.rootWindow() },
     });
     const depth = root_geometry.depth;
 
@@ -32,7 +33,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreateWindow, .{
         .depth = depth,
         .wid = window,
-        .parent = conn.root_window,
+        .parent = conn.rootWindow(),
         .x = 120,
         .y = 80,
         .width = width,

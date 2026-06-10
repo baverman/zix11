@@ -113,7 +113,7 @@ pub const Protocol = struct {
         return null;
     }
 
-    pub fn hasPendingEvents(self: *Protocol) bool {
+    pub fn hasPendingEvents(self: *const Protocol) bool {
         return self.pending_events.len != 0;
     }
 

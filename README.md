@@ -33,8 +33,9 @@ const zix11 = @import("zix11");
 const x = zix11.x;
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
 
     const window = try conn.allocId(x.Window);
 
@@ -45,7 +46,7 @@ pub fn main(init: std.process.Init) !void {
     try conn.request(x.CreateWindow, .{
         .depth = 0,
         .wid = window,
-        .parent = conn.root_window,
+        .parent = conn.rootWindow(),
         .x = 100,
         .y = 100,
         .width = 320,

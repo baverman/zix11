@@ -3,20 +3,13 @@ const connection = @import("connection.zig");
 const ext = @import("ext.zig");
 const errors = @import("errors.zig");
 const protocol = @import("protocol.zig");
+const makeConn = @import("test_helpers.zig").makeConn;
 
 test "Connection.taggedError decodes core protocol errors" {
-    var proto = protocol.Protocol.init(std.testing.allocator);
-    defer proto.deinit();
+    var conn = try makeConn(&.{}, &.{});
+    defer conn.deinit();
 
-    var dummy_transport: connection.StreamTransport = undefined;
-    const conn = connection.Connection{
-        .allocator = std.testing.allocator,
-        .proto = &proto,
-        .transport = &dummy_transport,
-        .root_window = @enumFromInt(0),
-    };
-
-    proto.last_protocol_error = .{
+    conn.proto.last_protocol_error = .{
         .code = 3,
         .sequence = 17,
         .bad_value = 0xdeadbeef,
@@ -35,24 +28,17 @@ test "Connection.taggedError decodes core protocol errors" {
 }
 
 test "Connection.taggedError decodes extension protocol errors" {
-    var proto = protocol.Protocol.init(std.testing.allocator);
-    defer proto.deinit();
-    proto.extensions.put(.RENDER, .{
+    var conn = try makeConn(&.{}, &.{});
+    defer conn.deinit();
+
+    conn.proto.extensions.put(.RENDER, .{
         .major_opcode = 138,
         .first_event = 96,
         .first_error = 160,
         .error_spec = errors.errorSpec(.RENDER),
     });
 
-    var dummy_transport: connection.StreamTransport = undefined;
-    const conn = connection.Connection{
-        .allocator = std.testing.allocator,
-        .proto = &proto,
-        .transport = &dummy_transport,
-        .root_window = @enumFromInt(0),
-    };
-
-    proto.last_protocol_error = .{
+    conn.proto.last_protocol_error = .{
         .code = 160,
         .sequence = 18,
         .bad_value = 0x1234,
@@ -71,16 +57,8 @@ test "Connection.taggedError decodes extension protocol errors" {
 }
 
 test "Connection.taggedError keeps non-X11 errors explicit" {
-    var proto = protocol.Protocol.init(std.testing.allocator);
-    defer proto.deinit();
-
-    var dummy_transport: connection.StreamTransport = undefined;
-    const conn = connection.Connection{
-        .allocator = std.testing.allocator,
-        .proto = &proto,
-        .transport = &dummy_transport,
-        .root_window = @enumFromInt(0),
-    };
+    var conn = try makeConn(&.{}, &.{});
+    defer conn.deinit();
 
     switch (conn.lastError(error.UnexpectedReply)) {
         .NonX11 => |err| try std.testing.expectEqual(error.UnexpectedReply, err),
@@ -89,23 +67,16 @@ test "Connection.taggedError keeps non-X11 errors explicit" {
 }
 
 test "Connection.taggedError preserves unknown X11 errors" {
-    var proto = protocol.Protocol.init(std.testing.allocator);
-    defer proto.deinit();
-    proto.extensions.put(.MIT_SHM, .{
+    var conn = try makeConn(&.{}, &.{});
+    defer conn.deinit();
+
+    conn.proto.extensions.put(.MIT_SHM, .{
         .major_opcode = 137,
         .first_event = 64,
         .first_error = 128,
     });
 
-    var dummy_transport: connection.StreamTransport = undefined;
-    const conn = connection.Connection{
-        .allocator = std.testing.allocator,
-        .proto = &proto,
-        .transport = &dummy_transport,
-        .root_window = @enumFromInt(0),
-    };
-
-    proto.last_protocol_error = .{
+    conn.proto.last_protocol_error = .{
         .code = 200,
         .sequence = 19,
         .bad_value = 0xbeef,
@@ -121,24 +92,17 @@ test "Connection.taggedError preserves unknown X11 errors" {
 }
 
 test "Connection.taggedError decodes XFIXES protocol errors" {
-    var proto = protocol.Protocol.init(std.testing.allocator);
-    defer proto.deinit();
-    proto.extensions.put(.XFIXES, .{
+    var conn = try makeConn(&.{}, &.{});
+    defer conn.deinit();
+
+    conn.proto.extensions.put(.XFIXES, .{
         .major_opcode = 139,
         .first_event = 110,
         .first_error = 170,
         .error_spec = errors.errorSpec(.XFIXES),
     });
 
-    var dummy_transport: connection.StreamTransport = undefined;
-    const conn = connection.Connection{
-        .allocator = std.testing.allocator,
-        .proto = &proto,
-        .transport = &dummy_transport,
-        .root_window = @enumFromInt(0),
-    };
-
-    proto.last_protocol_error = .{
+    conn.proto.last_protocol_error = .{
         .code = 170,
         .sequence = 20,
         .bad_value = 0xcafe,

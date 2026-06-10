@@ -102,8 +102,9 @@ fn loadCrtcInfo(
 }
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
 
     try conn.registerExtension(.RANDR);
 
@@ -115,7 +116,7 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Screen 0: RANDR {}.{}\n", .{ version.major_version, version.minor_version });
 
     var resources = try conn.requestAlloc(init.gpa, randr.GetScreenResourcesCurrent, .{
-        .window = conn.root_window,
+        .window = conn.rootWindow(),
     });
     defer resources.deinit(init.gpa);
 

@@ -9,15 +9,16 @@ const Atoms = zix11.atoms.AtomStruct(enum {
 });
 
 pub fn main(init: std.process.Init) !void {
-    var conn = try zix11.Connection.connectFromEnv(init.gpa, init.io, init.environ_map);
+    var conn = try zix11.Connection.init(init.gpa, init.io);
     defer conn.deinit();
+    try conn.connectFromEnv(init.environ_map);
 
-    std.debug.print("root window: 0x{x}\n", .{@intFromEnum(conn.root_window)});
+    std.debug.print("root window: 0x{x}\n", .{@intFromEnum(conn.rootWindow())});
 
     // Fill atom values
     const atom = try zix11.atoms.getAll(Atoms, &conn);
 
-    const active_window = try zix11.properties.get(&conn, conn.root_window, atom._NET_ACTIVE_WINDOW, x.Window);
+    const active_window = try zix11.properties.get(&conn, conn.rootWindow(), atom._NET_ACTIVE_WINDOW, x.Window);
     if (active_window) |aw| {
         std.debug.print("_NET_ACTIVE_WINDOW: 0x{x}\n", .{@intFromEnum(aw)});
     } else {
@@ -25,7 +26,7 @@ pub fn main(init: std.process.Init) !void {
     }
 
     var window_buf: [128]x.Window = undefined;
-    const client_windows = try zix11.properties.get(&conn, conn.root_window, atom._NET_CLIENT_LIST, &window_buf);
+    const client_windows = try zix11.properties.get(&conn, conn.rootWindow(), atom._NET_CLIENT_LIST, &window_buf);
     std.debug.print("_NET_CLIENT_LIST count: {}\n", .{client_windows.len});
     for (client_windows) |window| {
         std.debug.print("  0x{x}\n", .{@intFromEnum(window)});
