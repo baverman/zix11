@@ -32,6 +32,7 @@ const QueuedEvent = union(enum) {
 pub const Protocol = struct {
     allocator: std.mem.Allocator,
     write_buf: std.Io.Writer.Allocating,
+    packet_buf: std.ArrayList(u8),
     root_window: x.Window,
     resource_id_base: u32,
     resource_id_mask: u32,
@@ -47,6 +48,7 @@ pub const Protocol = struct {
         var result: Protocol = .{
             .allocator = allocator,
             .write_buf = .init(allocator),
+            .packet_buf = .empty,
             .root_window = @enumFromInt(0),
             .resource_id_base = 0,
             .resource_id_mask = 0,
@@ -77,10 +79,10 @@ pub const Protocol = struct {
         }
         self.pending_events.deinit(self.allocator);
         if (self.event_packet_scratch.len != 0) self.allocator.free(self.event_packet_scratch);
+        self.packet_buf.deinit(self.allocator);
     }
 
     pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) ![]const u8 {
-        _ = self;
         const header = try reader.peek(32);
         const packet_kind = header[0];
         const extra_len = if (packet_kind == 1 or (packet_kind & 0x7f) == 35)
@@ -88,8 +90,9 @@ pub const Protocol = struct {
         else
             0;
         const packet_len = 32 + extra_len;
-        // TODO: packet_len could be bigger than reader buffer size
-        return try reader.take(packet_len);
+        self.packet_buf.clearRetainingCapacity();
+        try reader.appendExact(self.allocator, &self.packet_buf, packet_len);
+        return self.packet_buf.items[0..packet_len];
     }
 
     pub fn readEvent(self: *Protocol, reader: *std.Io.Reader) !events.Event {
