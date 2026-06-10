@@ -6,7 +6,6 @@ const wire = @import("_wire.zig");
 
 test {
     _ = zix11.ewmh;
-    _ = @import("io.zig");
     _ = @import("protocol_test.zig");
     _ = @import("connection_test.zig");
     _ = @import("properties_test.zig");
@@ -14,13 +13,13 @@ test {
 
 test "InternAtom request encoding" {
     var buf: [32]u8 = undefined;
-    var writer = zix11.io.FixedBufferWriter.init(&buf);
+    var writer: std.Io.Writer = .fixed(&buf);
     const req = x.InternAtom{
         .only_if_exists = true,
         .name = "WM_NAME",
     };
     try req.encode(&writer);
-    const body = buf[0..writer.seek];
+    const body = buf[0..writer.end];
 
     try std.testing.expect(x.InternAtom.extension == null);
     try std.testing.expectEqual(@as(u8, 16), x.InternAtom.opcode);
@@ -31,7 +30,7 @@ test "InternAtom request encoding" {
 
 test "SetupRequest encoding" {
     var buf: [64]u8 = undefined;
-    var writer = zix11.io.FixedBufferWriter.init(&buf);
+    var writer: std.Io.Writer = .fixed(&buf);
     try (x.SetupRequest{
         .byte_order = switch (builtin.cpu.arch.endian()) {
             .little => 'l',
@@ -42,7 +41,7 @@ test "SetupRequest encoding" {
         .authorization_protocol_name = "MIT-MAGIC-COOKIE-1",
         .authorization_protocol_data = &.{ 0xaa, 0xbb, 0xcc, 0xdd },
     }).encode(&writer);
-    const packet = buf[0..writer.seek];
+    const packet = buf[0..writer.end];
 
     try std.testing.expectEqual(switch (builtin.cpu.arch.endian()) {
         .little => @as(u8, 'l'),
@@ -82,7 +81,7 @@ test "Event.toBytes" {
         .format = 32,
         .data = zix11.events.clientMessageData(u32, &.{ 10, 20 }),
     };
-    const bytes = event.toBytes();
+    const bytes = try event.toBytes();
     _ = bytes;
     var expected: [8]u8 = undefined;
     std.mem.writeInt(u32, expected[0..4], 10, .native);
@@ -93,7 +92,7 @@ test "Event.toBytes" {
 
 test "ConfigureWindow" {
     var buf: [64]u8 = undefined;
-    var writer = zix11.io.FixedBufferWriter.init(&buf);
+    var writer: std.Io.Writer = .fixed(&buf);
     const cw: x.ConfigureWindow = .{ .window = x.Window.None, .value_list = .{} };
     try cw.encode(&writer);
 }

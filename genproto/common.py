@@ -213,7 +213,7 @@ def emit_decl_items(emit: Emit, items: Iterable[Field]) -> None:
 
 
 def emit_encode_fn(emit: Emit, items: Iterable[Field]) -> None:
-    emit('pub fn encode(self: *const @This(), writer: anytype) !void {')
+    emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
     with emit.block():
         emitted = False
         for item in items:

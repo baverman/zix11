@@ -39,7 +39,7 @@ class EventStructType(BaseType):
         return EventStructType(name=eventstruct.name)
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f'writer.write({value_expr}.raw[0..]);')
+        emit(f'try writer.writeAll({value_expr}.raw[0..]);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
         emit(f'{value_expr} = try {self.name}.decode(reader);')
@@ -66,9 +66,9 @@ class EventStructType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: anytype) void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) void {')
             with emit.block():
-                emit('writer.write(self.raw[0..]);')
+                emit('try writer.writeAll(self.raw[0..]);')
             emit('}')
             emit()
 
@@ -239,13 +239,13 @@ class EventType(BaseType):
         emit()
 
     def emit_to_bytes(self, emit: Emit) -> None:
-        emit('pub fn toBytes(self: @This()) [32]u8 {')
+        emit('pub fn toBytes(self: @This()) ![32]u8 {')
         with emit.block():
             emit('var packet: [32]u8 = std.mem.zeroes([32]u8);')
-            emit('var writer_impl = io.FixedBufferWriter.init(&packet);')
+            emit('var writer_impl: std.Io.Writer = .fixed(&packet);')
             emit('const writer = &writer_impl;')
             # Client is expected to rebase event code to actual first_event number
-            emit(f'writer.writeByte({self.number});')
+            emit(f'try writer.writeByte({self.number});')
             if self.no_sequence_number:
                 for item in self.items:
                     item.type.emit_encode(emit, item.encode_value_expr('self'))
@@ -255,9 +255,9 @@ class EventType(BaseType):
                     byte_slot.type.emit_encode(emit, byte_slot.encode_value_expr('self'))
                     encode_items = self.items[1:]
                 else:
-                    emit('writer.writeByte(0);')
+                    emit('try writer.writeByte(0);')
                     encode_items = self.items
-                emit('writer.writeInt(u16, 0);')
+                emit('try writer.writeInt(u16, 0, .native);')
                 for item in encode_items:
                     item.type.emit_encode(emit, item.encode_value_expr('self'))
             emit('return packet;')

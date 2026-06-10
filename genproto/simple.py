@@ -34,11 +34,11 @@ class ScalarType(BaseType):
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         if self.name == 'bool':
-            emit(f'writer.writeByte(@intFromBool({value_expr}));')
+            emit(f'try writer.writeByte(@intFromBool({value_expr}));')
         elif self.name == 'u8':
-            emit(f'writer.writeByte({value_expr});')
+            emit(f'try writer.writeByte({value_expr});')
         else:
-            emit(f'writer.writeInt({self.name}, {value_expr});')
+            emit(f'try writer.writeInt({self.name}, {value_expr}, .native);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
         if self.name == 'bool':
@@ -63,7 +63,7 @@ class PadType(BaseType):
         return self.byte_count
 
     def emit_encode(self, emit: Emit, _expr: str) -> None:
-        emit(f'writer.splatByte(0, {self.byte_count});')
+        emit(f'try writer.splatByteAll(0, {self.byte_count});')
 
     def emit_decode(self, emit: Emit, _expr: str) -> None:
         emit(f'_ = try reader.take({self.byte_count});')
@@ -83,7 +83,7 @@ class AlignPadType(BaseType):
         return 'fixed'
 
     def emit_encode(self, emit: Emit, _expr: str) -> None:
-        emit(f'writer.splatByte(0, wire.pad(writer.seek, {self.alignment}));')
+        emit(f'try writer.splatByteAll(0, wire.pad(writer.end, {self.alignment}));')
 
     def emit_decode(self, emit: Emit, _expr: str) -> None:
         emit(f'_ = try reader.take(wire.pad(reader.seek, {self.alignment}));')
@@ -104,7 +104,7 @@ class RequiredStartAlignType(BaseType):
         return 'fixed'
 
     def emit_encode(self, emit: Emit, _expr: str) -> None:
-        emit(f'writer.splatByte(0, wire.pad(writer.seek + {self.offset}, {self.alignment}));')
+        emit(f'try writer.splatByteAll(0, wire.pad(writer.end + {self.offset}, {self.alignment}));')
 
     def emit_decode(self, emit: Emit, _expr: str) -> None:
         emit(f'_ = try reader.take(wire.pad(reader.seek + {self.offset}, {self.alignment}));')

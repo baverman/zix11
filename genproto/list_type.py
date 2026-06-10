@@ -41,9 +41,9 @@ class ListType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         if self.item_type.decl_name == 'u8':
             if self.size == 'dyn':
-                emit(f'writer.write({value_expr});')
+                emit(f'try writer.writeAll({value_expr});')
             else:
-                emit(f'writer.write({value_expr}[0..]);')
+                emit(f'try writer.writeAll({value_expr}[0..]);')
         else:
             emit(f'for ({value_expr}) |elem| {{')
             with emit.block():

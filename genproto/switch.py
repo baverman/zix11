@@ -253,7 +253,7 @@ class CaseType(InnerType):
             for arm in self.arms:
                 arm.emit_decl(emit)
             emit()
-            emit('pub fn encode(self: *const @This(), writer: anytype) !void {')
+            emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
             with emit.block():
                 emit('switch (self.*) {')
                 with emit.block():
@@ -394,7 +394,7 @@ class BitcaseType(InnerType):
                 arm.emit_decl(emit)
 
             emit()
-            emit('pub fn encode(self: *const @This(), writer: anytype) !void {')
+            emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
             with emit.block():
                 for arm in self.arms:
                     emit(f'if (self.{arm.name}) |it| {{')

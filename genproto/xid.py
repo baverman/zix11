@@ -38,7 +38,7 @@ class XidUnionType(BaseType):
         return f'.{{ .raw = {value_expr} }}'
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
-        emit(f'writer.writeInt(u32, {self.coerce_to_raw(value_expr)});')
+        emit(f'try writer.writeInt(u32, {self.coerce_to_raw(value_expr)}, .native);')
 
     def emit_decode(self, emit: Emit, value_expr: str) -> None:
         emit(f'{value_expr} = {self.coerce_from_raw("try reader.takeInt(u32, .native)")};')
@@ -66,9 +66,9 @@ class XidUnionType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: anytype) void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) void {')
             with emit.block():
-                emit('writer.writeInt(u32, self.toInt());')
+                emit('try writer.writeInt(u32, self.toInt(), .native);')
             emit('}')
             emit()
 

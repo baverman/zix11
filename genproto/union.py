@@ -54,9 +54,9 @@ class UnionType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: anytype) !void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) !void {')
             with emit.block():
-                emit('writer.write(self.raw[0..]);')
+                emit('try writer.writeAll(self.raw[0..]);')
             emit('}')
             emit()
 
@@ -70,10 +70,10 @@ class UnionType(BaseType):
             for item in self.items:
                 suffix = item.name[:1].upper() + item.name[1:]
                 emit()
-                emit(f'pub fn from{suffix}(value: {item.type.decl_name}) @This() {{')
+                emit(f'pub fn from{suffix}(value: {item.type.decl_name}) !@This() {{')
                 with emit.block():
                     emit(f'var raw = std.mem.zeroes([{self.size}]u8);')
-                    emit('var writer_impl = io.FixedBufferWriter.init(&raw);')
+                    emit('var writer_impl: std.Io.Writer = .fixed(&raw);')
                     emit('const writer = &writer_impl;')
                     item.type.emit_encode(emit, 'value')
                     emit('return .{ .raw = raw };')
