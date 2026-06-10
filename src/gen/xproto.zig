@@ -2392,7 +2392,7 @@ pub const GetProperty = struct {
         value_len: u32,
         value: []const u8,
 
-        pub fn decode(reader: *std.Io.Reader, buffer_: []u8, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(buffer_: []u8, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
             var result: @This() = undefined;
             result.format = header_.byte_slot;
             result.type = @as(Atom, @enumFromInt(try reader.takeInt(u32, .native)));

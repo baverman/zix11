@@ -237,11 +237,11 @@ class CaseType(InnerType):
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
-                    for ref in expr_refs(it.type.len):
+                    for ref in expr_refs(it.type.len):  # type: ignore[arg-type]
                         if ref in fields_by_name and ref not in seen:
                             seen.add(ref)
                             self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
-                            _replace_field_ref_in_expr(it.type.len, ref)
+                            _replace_field_ref_in_expr(it.type.len, ref)  # type: ignore[arg-type]
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -377,11 +377,11 @@ class BitcaseType(InnerType):
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
-                    for ref in expr_refs(it.type.len):
+                    for ref in expr_refs(it.type.len):  # type: ignore[arg-type]
                         if ref in fields_by_name and ref not in seen:
                             seen.add(ref)
                             self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
-                            _replace_field_ref_in_expr(it.type.len, ref)
+                            _replace_field_ref_in_expr(it.type.len, ref)  # type: ignore[arg-type]
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':

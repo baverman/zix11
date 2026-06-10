@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Mapping, cast
 
 from . import xcbxml
 from .common import BaseType, Emit, Field, Parent, Size, TypeProtocol, emit_expr
@@ -127,12 +127,12 @@ class ListType(BaseType):
         else:
             self.item_type.emit_decode(emit, target)
 
-    def decode_args(self) -> set[str]:
-        args = {'reader'}
+    def decode_args(self) -> Mapping[str, str]:
+        args = dict(super().decode_args())
         if isinstance(self.len, xcbxml.FieldRef) and self.len.ref.split('.', 1)[0] == 'header_':
-            args.add('header_')
+            args['header_'] = 'wire.ReplyHeader'
         if self.use_buffer:
-            args.add('buffer_')
+            args['buffer_'] = '[]u8'
         return args
 
     def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:

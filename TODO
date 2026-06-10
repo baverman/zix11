@@ -2,6 +2,7 @@
 - batch requests
 - CreateWindow background pixmap refers to Pixmap without additional enum values like relative.
 - Separate type for masks
+- If decoding allocates one dynamic field and then a later field fails, generated decode functions do not appear to have errdefer cleanu  p for partially decoded values.
 
 ## Fixed array should use just copy
 

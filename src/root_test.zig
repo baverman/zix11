@@ -66,7 +66,7 @@ test "GetProperty reply decode copies into caller scratch" {
     var scratch: [8]u8 = undefined;
     const header = wire.ReplyHeader.decode(&packet);
     var reader: std.Io.Reader = .fixed(packet[8..]);
-    const reply = try x.GetProperty.Reply.decode(&reader, &scratch, header);
+    const reply = try x.GetProperty.Reply.decode(&scratch, &reader, header);
 
     try std.testing.expectEqual(@as(u8, 32), reply.format);
     try std.testing.expectEqual(@as(x.Atom, @enumFromInt(57)), reply.type);

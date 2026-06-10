@@ -150,21 +150,10 @@ class ReplyType(BaseType):
             emit_decl_items(emit, self.items)
             emit()
 
-            used_args: set[str] = set()
-            for item in self.items:
-                used_args |= item.type.decode_args()
-            unused_args = tuple(a for a in ('reader', 'header_') if a not in used_args)
-
-            args = []
-            if self.use_buffer:
-                args.append('buffer_: []u8')
-
             emit_decode_fn(
                 emit,
-                self.size == 'dyn',
                 self.items,
-                args=args + ['header_: wire.ReplyHeader'],
-                unused_args=unused_args,
+                mandatory_args=('reader', 'header_'),
             )
 
             if self.size == 'dyn':

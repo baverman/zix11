@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from functools import cached_property
+from typing import Mapping
 
 from . import xcbxml
 from .common import (
@@ -35,6 +36,12 @@ class StructType(BaseType):
             decode_params=collect_decode_params(items, resolver),
         )
         resolver.set(struct.name, result)
+        return result
+
+    def decode_args(self) -> Mapping[str, str]:
+        result: dict[str, str] = {}
+        for it in self.items:
+            result.update(it.type.decode_args())
         return result
 
     @property
@@ -72,9 +79,8 @@ class StructType(BaseType):
 
             emit_decode_fn(
                 emit,
-                self.size == 'dyn',
                 self.items,
-                args=tuple(f'{name}: {ztype}' for name, ztype in self.decode_params),
+                additional_args=tuple(f'{name}: {ztype}' for name, ztype in self.decode_params),
             )
 
             if self.size == 'dyn':

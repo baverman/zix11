@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Protocol, Sequence, TypeVar
+from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Mapping, Protocol, Sequence, TypeVar
 
 from . import xcbxml
 
@@ -80,7 +81,7 @@ class TypeProtocol(Protocol):
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None: ...
 
-    def decode_args(self) -> set[str]: ...
+    def decode_args(self) -> Mapping[str, str]: ...
 
     def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]: ...
 
@@ -103,8 +104,11 @@ class BaseType(TypeProtocol):
         _ = prefix
         return self
 
-    def decode_args(self) -> set[str]:
-        return {'reader'}
+    def decode_args(self) -> Mapping[str, str]:
+        result = {'reader': '*std.Io.Reader'}
+        if self.size == 'dyn':
+            result['allocator'] = 'std.mem.Allocator'
+        return result
 
     def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:
         return []
@@ -197,8 +201,12 @@ class InjectedType(BaseType):
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         self.base_type.emit_deinit(emit, value_expr)
 
-    def decode_args(self) -> set[str]:
-        return {'header_'} if self.arg_name.split('.', 1)[0] == 'header_' else set()
+    def decode_args(self) -> Mapping[str, str]:
+        return (
+            {'header_': 'wire.ReplyHeader'}
+            if self.arg_name.split('.', 1)[0] == 'header_'
+            else self.base_type.decode_args()
+        )
 
 
 def emit_decl_items(emit: Emit, items: Iterable[Field]) -> None:
@@ -225,18 +233,36 @@ def emit_encode_fn(emit: Emit, items: Iterable[Field]) -> None:
     emit('}')
 
 
+COMMON_ARGS = {
+    'allocator': 'std.mem.Allocator',
+    'buffer_': '[]u8',
+    'reader': '*std.Io.Reader',
+    'header_': 'wire.ReplyHeader',
+}
+
+
 def emit_decode_fn(
     emit: Emit,
-    is_dynamic: bool,
     items: Iterable[Field],
-    args: Sequence[str] | None = None,
-    unused_args: tuple[str, ...] = (),
+    additional_args: Sequence[str] | None = None,
+    mandatory_args: tuple[str, ...] = (),
 ) -> None:
-    fargs = []
-    if is_dynamic:
-        fargs.append('allocator: std.mem.Allocator')
-    fargs.append('reader: *std.Io.Reader')
-    fargs.extend(args or ())
+    # TODO: move to a separate function, potentionally it
+    # would be needed when emitting an actual decode
+    # TODO: need more predictable order, maybe sort by name would be ok.
+    item_args = OrderedDict[str, str]()
+    for item in items:
+        item_args.update(item.type.decode_args())
+
+    args = OrderedDict[str, str]()
+    for arg in COMMON_ARGS:
+        if arg in mandatory_args or arg in item_args:
+            args[arg] = COMMON_ARGS[arg]
+    args.update(item_args)
+    unused_args = args.keys() - item_args.keys()
+
+    fargs: list[str] = [f'{name}: {COMMON_ARGS.get(name, typ)}' for name, typ in args.items()]
+    fargs.extend(additional_args or ())
 
     emit(f'pub fn decode({", ".join(fargs)}) !@This() {{')
     with emit.block():

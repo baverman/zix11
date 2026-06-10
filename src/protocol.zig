@@ -175,7 +175,7 @@ pub const Protocol = struct {
                     return switch (reply_mode) {
                         .fixed => try Reply.decode(&packet_reader, header),
                         .alloc => try Reply.decode(storage, &packet_reader, header),
-                        .buffer => try Reply.decode(&packet_reader, storage, header),
+                        .buffer => try Reply.decode(storage, &packet_reader, header),
                     };
                 },
                 else => try self.queueEventPacket(packet),
