@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from . import xcbxml
-from .common import BaseType, Emit, Size
+from .common import BaseType, DecodeScope, Emit, Size
 from .resolver import Resolver
 from .simple import SCALAR_TYPES, EnumType, EnumWireType
 
@@ -40,7 +40,8 @@ class XidUnionType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try writer.writeInt(u32, {self.coerce_to_raw(value_expr)}, .native);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'{value_expr} = {self.coerce_from_raw("try reader.takeInt(u32, .native)")};')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:

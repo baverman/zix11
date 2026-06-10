@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
+from typing import Mapping
 
 from . import xcbxml
 from .common import (
+    COMMON_ARGS,
+    collect_decode_args,
     Emit,
+    DecodeScope,
     Field,
     InnerType,
+    ordered_decode_args,
     Parent,
     Size,
     emit_decl_items,
@@ -23,21 +28,72 @@ from .resolver import Resolver
 from .simple import EnumType
 
 
-def _replace_field_ref_in_expr(expr: xcbxml.ListExpr, ref: str) -> None:
+def decode_scope(items: list[Field], args: Mapping[str, str]) -> DecodeScope:
+    return DecodeScope(
+        owner_expr='payload',
+        local_names=frozenset(
+            {
+                'switch_value',
+                *args,
+                *(item.name for item in items if not item.public),
+            }
+        ),
+    )
+
+
+def replace_field_ref_in_expr(expr: xcbxml.ListExpr, ref: str, ztype: str) -> xcbxml.ListExpr:
     if isinstance(expr, xcbxml.FieldRef) and expr.ref == ref:
-        return
+        return xcbxml.ParamRef(ref=ref, type=ztype)
     if isinstance(expr, xcbxml.PopCount):
-        if isinstance(expr.expr, xcbxml.FieldRef) and expr.expr.ref == ref:
-            expr.expr = xcbxml.ParamRef(ref=ref, type='u32')
-        else:
-            _replace_field_ref_in_expr(expr.expr, ref)
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, ztype)
     elif isinstance(expr, xcbxml.SumOf):
-        _replace_field_ref_in_expr(expr.expr, ref)
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, ztype)
     elif isinstance(expr, xcbxml.Op):
-        _replace_field_ref_in_expr(expr.left, ref)
-        _replace_field_ref_in_expr(expr.right, ref)
+        expr.left = replace_field_ref_in_expr(expr.left, ref, ztype)
+        expr.right = replace_field_ref_in_expr(expr.right, ref, ztype)
     elif isinstance(expr, xcbxml.Unop):
-        _replace_field_ref_in_expr(expr.expr, ref)
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, ztype)
+    return expr
+
+
+def bind_outer_list_refs(
+    list_type: ListType,
+    fields_by_name: dict[str, Field],
+    seen: set[str | None],
+) -> None:
+    if list_type.len is None:
+        return
+    for ref in expr_refs(list_type.len):
+        if ref in fields_by_name and ref not in seen:
+            seen.add(ref)
+            field = fields_by_name[ref]
+            list_type.len = replace_field_ref_in_expr(list_type.len, ref, field.type.decl_name)
+
+
+def switch_decode_signature(args: Mapping[str, str]) -> str:
+    result: list[str] = []
+    for name, ztype in ordered_decode_args(args).items():
+        if name in COMMON_ARGS:
+            result.append(f'{name}: {ztype}')
+    result.append('switch_value: u32')
+    for name, ztype in ordered_decode_args(args).items():
+        if name not in COMMON_ARGS:
+            result.append(f'{name}: {ztype}')
+    return ', '.join(result)
+
+
+def switch_decode_call_args(
+    args: Mapping[str, str], scope: DecodeScope, switch_value: str
+) -> list[str]:
+    result: list[str] = []
+    for name in ordered_decode_args(args):
+        if name in COMMON_ARGS:
+            result.append(name)
+    result.append(switch_value)
+    for name in ordered_decode_args(args):
+        if name not in COMMON_ARGS:
+            result.append(scope.get(name))
+    return result
 
 
 @dataclass(frozen=True)
@@ -81,9 +137,9 @@ class CaseArm:
             emit_decl_items(emit, self.items)
         emit('},')
 
-    def emit_decode_body(self, emit: Emit) -> None:
+    def emit_decode_body(self, emit: Emit, scope: DecodeScope) -> None:
         for item in self.items:
-            item.type.emit_decode(emit, item.decode_target_expr('payload'))
+            item.type.emit_decode(emit, item.decode_target_expr('payload'), scope)
 
     def emit_encode_body(self, emit: Emit) -> None:
         for item in self.items:
@@ -161,9 +217,9 @@ class BitcaseArm:
             emit_decl_items(emit, self.items)
         emit('} = null,')
 
-    def emit_decode_body(self, emit: Emit) -> None:
+    def emit_decode_body(self, emit: Emit, scope: DecodeScope) -> None:
         for item in self.items:
-            item.type.emit_decode(emit, item.decode_target_expr('payload'))
+            item.type.emit_decode(emit, item.decode_target_expr('payload'), scope)
 
     def emit_encode_body(self, emit: Emit) -> None:
         for item in self.items:
@@ -184,7 +240,6 @@ class CaseType(InnerType):
     name: str
     field_name: str
     arms: list[CaseArm]
-    decode_params: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def decl_name(self) -> str:
@@ -193,6 +248,12 @@ class CaseType(InnerType):
     @cached_property
     def size(self) -> Size:
         return 'dyn' if any(items_size(arm.items) == 'dyn' for arm in self.arms) else 'fixed'
+
+    def decode_args(self) -> Mapping[str, str]:
+        args = dict(super().decode_args())
+        for arm in self.arms:
+            args.update(collect_decode_args(arm.items))
+        return args
 
     @staticmethod
     def from_schema(
@@ -214,15 +275,12 @@ class CaseType(InnerType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
         switch_value = f'@intFromEnum({zig_local_name(self.field_name)})'
         owner_expr = value_expr.rpartition('.')[0]
-        extra = ''.join(f', {owner_expr}.{name}' for name, _ in self.decode_params)
         type_ref = f'@TypeOf({owner_expr}).{self.name}'
-        if self.size == 'dyn':
-            emit(f'{value_expr} = try {type_ref}.decode(allocator, reader, {switch_value}{extra});')
-        else:
-            emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
+        args = ', '.join(switch_decode_call_args(self.decode_args(), scope, switch_value))
+        emit(f'{value_expr} = try {type_ref}.decode({args});')
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
@@ -233,15 +291,11 @@ class CaseType(InnerType):
             f'@as({discrim_field.type.decl_name}, '
             f'@enumFromInt({{owner}}.{field.name}.switchValue()))'
         )
-        seen = {self.field_name}
+        seen: set[str | None] = {self.field_name}
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
-                    for ref in expr_refs(it.type.len):  # type: ignore[arg-type]
-                        if ref in fields_by_name and ref not in seen:
-                            seen.add(ref)
-                            self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
-                            _replace_field_ref_in_expr(it.type.len, ref)  # type: ignore[arg-type]
+                    bind_outer_list_refs(it.type, fields_by_name, seen)
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -274,15 +328,7 @@ class CaseType(InnerType):
                 emit('};')
             emit('}')
             emit()
-            params_sig = ''.join(f', {name}: {ztype}' for name, ztype in self.decode_params)
-            if self.size == 'dyn':
-                emit(
-                    f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
-                )
-            else:
-                emit(
-                    f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
-                )
+            emit(f'pub fn decode({switch_decode_signature(self.decode_args())}) !@This() {{')
             with emit.block():
                 emit('return switch (switch_value) {')
                 with emit.block():
@@ -292,7 +338,7 @@ class CaseType(InnerType):
                             emit(
                                 f'var payload: @typeInfo(@This()).@"union".fields[{i}].type = undefined;'
                             )
-                            arm.emit_decode_body(emit)
+                            arm.emit_decode_body(emit, decode_scope(arm.items, self.decode_args()))
                             emit(f'break :blk .{{ .{arm.name} = payload }};')
                         emit('},')
                     emit('else => return error.UnexpectedSwitchTag,')
@@ -319,7 +365,6 @@ class BitcaseType(InnerType):
     name: str
     expr: xcbxml.ListExpr
     arms: list[BitcaseArm]
-    decode_params: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def decl_name(self) -> str:
@@ -332,6 +377,12 @@ class BitcaseType(InnerType):
     @cached_property
     def size(self) -> Size:
         return 'dyn' if any(arm.size == 'dyn' for arm in self.arms) else 'fixed'
+
+    def decode_args(self) -> Mapping[str, str]:
+        args = dict(super().decode_args())
+        for arm in self.arms:
+            args.update(collect_decode_args(arm.items))
+        return args
 
     @staticmethod
     def from_schema(
@@ -353,18 +404,15 @@ class BitcaseType(InnerType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
         owner_expr = value_expr.rpartition('.')[0]
         if self.field_name is not None:
             switch_value = zig_local_name(self.field_name)
         else:
             switch_value = emit_expr(self.expr, f'{owner_expr}.')
-        extra = ''.join(f', {owner_expr}.{name}' for name, _ in self.decode_params)
         type_ref = f'@TypeOf({owner_expr}).{self.name}'
-        if self.size == 'dyn':
-            emit(f'{value_expr} = try {type_ref}.decode(allocator, reader, {switch_value}{extra});')
-        else:
-            emit(f'{value_expr} = try {type_ref}.decode(reader, {switch_value}{extra});')
+        args = ', '.join(switch_decode_call_args(self.decode_args(), scope, switch_value))
+        emit(f'{value_expr} = try {type_ref}.decode({args});')
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
@@ -373,15 +421,11 @@ class BitcaseType(InnerType):
             mask_field = fields_by_name[self.field_name]
             mask_field.public = False
             mask_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.switchValue())'
-        seen = {self.field_name} if self.field_name else set()
+        seen: set[str | None] = {self.field_name} if self.field_name else set()
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
-                    for ref in expr_refs(it.type.len):  # type: ignore[arg-type]
-                        if ref in fields_by_name and ref not in seen:
-                            seen.add(ref)
-                            self.decode_params.append((ref, fields_by_name[ref].type.decl_name))
-                            _replace_field_ref_in_expr(it.type.len, ref)  # type: ignore[arg-type]
+                    bind_outer_list_refs(it.type, fields_by_name, seen)
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -415,17 +459,8 @@ class BitcaseType(InnerType):
                 emit('return result;')
             emit('}')
 
-            # TODO: there should be a helper
             emit()
-            params_sig = ''.join(f', {name}: {ztype}' for name, ztype in self.decode_params)
-            if self.size == 'dyn':
-                emit(
-                    f'pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
-                )
-            else:
-                emit(
-                    f'pub fn decode(reader: *std.Io.Reader, switch_value: u32{params_sig}) !@This() {{'
-                )
+            emit(f'pub fn decode({switch_decode_signature(self.decode_args())}) !@This() {{')
             with emit.block():
                 emit('var result: @This() = .{};')
                 for i, arm in enumerate(self.arms):
@@ -437,13 +472,15 @@ class BitcaseType(InnerType):
                                 raise NotImplementedError(
                                     'single-item bitcase payload must be public'
                                 )
-                            item.type.emit_decode(emit, f'const {arm.name}')
+                            item.type.emit_decode(
+                                emit, f'const {arm.name}', decode_scope(arm.items, self.decode_args())
+                            )
                             emit(f'result.{arm.name} = {arm.name};')
                         else:
                             emit(
                                 f'var payload: @typeInfo(@TypeOf(result.{arm.name})).optional.child = undefined;'
                             )
-                            arm.emit_decode_body(emit)
+                            arm.emit_decode_body(emit, decode_scope(arm.items, self.decode_args()))
                             emit(f'result.{arm.name} = payload;')
                     emit('}')
                 emit('return result;')

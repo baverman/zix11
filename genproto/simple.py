@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from . import xcbxml
-from .common import BaseType, Emit, Size, zig_tag_name
+from .common import BaseType, DecodeScope, Emit, Size, zig_tag_name
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,8 @@ class ScalarType(BaseType):
         else:
             emit(f'try writer.writeInt({self.name}, {value_expr}, .native);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         if self.name == 'bool':
             emit(f'{value_expr} = (try reader.takeByte()) != 0;')
         elif self.name == 'u8':
@@ -65,7 +66,8 @@ class PadType(BaseType):
     def emit_encode(self, emit: Emit, _expr: str) -> None:
         emit(f'try writer.splatByteAll(0, {self.byte_count});')
 
-    def emit_decode(self, emit: Emit, _expr: str) -> None:
+    def emit_decode(self, emit: Emit, _expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'_ = try reader.take({self.byte_count});')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -85,7 +87,8 @@ class AlignPadType(BaseType):
     def emit_encode(self, emit: Emit, _expr: str) -> None:
         emit(f'try writer.splatByteAll(0, wire.pad(writer.end, {self.alignment}));')
 
-    def emit_decode(self, emit: Emit, _expr: str) -> None:
+    def emit_decode(self, emit: Emit, _expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'_ = try reader.take(wire.pad(reader.seek, {self.alignment}));')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -106,7 +109,8 @@ class RequiredStartAlignType(BaseType):
     def emit_encode(self, emit: Emit, _expr: str) -> None:
         emit(f'try writer.splatByteAll(0, wire.pad(writer.end + {self.offset}, {self.alignment}));')
 
-    def emit_decode(self, emit: Emit, _expr: str) -> None:
+    def emit_decode(self, emit: Emit, _expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'_ = try reader.take(wire.pad(reader.seek + {self.offset}, {self.alignment}));')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -166,7 +170,8 @@ class EnumType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         raise NotImplementedError('enum wire width must be provided by the use site')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         raise NotImplementedError('enum wire width must be provided by the use site')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -229,7 +234,8 @@ class EnumWireType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         self.scalar_type.emit_encode(emit, self.coerce_to_raw(value_expr))
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         if self.scalar_type.name == 'u8':
             emit(f'{value_expr} = {self.coerce_from_raw("try reader.takeByte()")};')
         else:

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Mapping, cast
+from typing import Mapping
 
 from . import xcbxml
-from .common import BaseType, Emit, Field, Parent, Size, TypeProtocol, emit_expr
+from .common import BaseType, DecodeScope, Emit, Field, Parent, Size, TypeProtocol, emit_expr
 from .resolver import Resolver
-
-if TYPE_CHECKING:
-    from .struct import StructType
 
 
 @dataclass
@@ -50,12 +47,12 @@ class ListType(BaseType):
                 self.item_type.emit_encode(emit, 'elem')
             emit('}')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
         T = self.item_type
         if isinstance(self.len, int):
             emit(f'for (&{value_expr}) |*elem| {{')
             with emit.block():
-                self.emit_element_decode(emit, 'elem.*', value_expr.rpartition('.')[0])
+                self.item_type.emit_decode(emit, 'elem.*', scope)
             emit('}')
             return
 
@@ -87,7 +84,7 @@ class ListType(BaseType):
                         emit('else => |e| return e,')
                     emit('};')
                     emit(f'var elem: {T.decl_name} = undefined;')
-                    self.emit_element_decode(emit, 'elem', owner_expr)
+                    self.item_type.emit_decode(emit, 'elem', scope)
                     emit(f'try decoded_{name}_list.append(allocator, elem);')
                 emit('}')
                 emit(f'const decoded_{name}_buf = try decoded_{name}_list.toOwnedSlice(allocator);')
@@ -111,34 +108,23 @@ class ListType(BaseType):
                 emit(f'const decoded_{name}_buf = try allocator.alloc({T.decl_name}, {len_expr});')
                 emit(f'for (decoded_{name}_buf) |*elem| {{')
                 with emit.block():
-                    self.emit_element_decode(emit, 'elem.*', owner_expr)
+                    self.item_type.emit_decode(emit, 'elem.*', scope)
                 emit('}')
 
         emit(f'{value_expr} = decoded_{name}_buf;')
         if not self.use_buffer:
             emit(f'{owner_expr}.decoded_{name}_buf = decoded_{name}_buf;')
 
-    # TODO: oh well, it's quite an ugly hack, I don't see why it have to use getattr
-    def emit_element_decode(self, emit: Emit, target: str, owner_expr: str) -> None:
-        params = getattr(self.item_type, 'decode_params', ())
-        if params:
-            args = ''.join(f', {owner_expr}.{name}' for name, _ in params)
-            cast('StructType', self.item_type).emit_decode(emit, target, decode_args=args)
-        else:
-            self.item_type.emit_decode(emit, target)
-
     def decode_args(self) -> Mapping[str, str]:
         args = dict(super().decode_args())
+        if isinstance(self.len, xcbxml.ParamRef):
+            args[self.len.ref] = self.len.type
         if isinstance(self.len, xcbxml.FieldRef) and self.len.ref.split('.', 1)[0] == 'header_':
             args['header_'] = 'wire.ReplyHeader'
         if self.use_buffer:
             args['buffer_'] = '[]u8'
+        args.update(self.item_type.decode_args())
         return args
-
-    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:
-        if isinstance(self.len, xcbxml.ParamRef):
-            return [(self.len.ref, resolver.get(self.len.type).decl_name)]
-        return []
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
@@ -191,4 +177,6 @@ class ListType(BaseType):
     ) -> ListType:
         item_type = resolver.get(list_field.item_type)
         len_expr = list_field.len_expr
+        if isinstance(len_expr, xcbxml.ParamRef):
+            len_expr = xcbxml.ParamRef(ref=len_expr.ref, type=resolver.get(len_expr.type).decl_name)
         return ListType(item_type=item_type, len=len_expr)

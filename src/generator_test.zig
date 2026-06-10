@@ -638,3 +638,22 @@ test "BlobList decode consumes crafted bytes" {
     try std.testing.expectEqualStrings("bo", result.blobs[0].bytes);
     try std.testing.expectEqualStrings("moo", result.blobs[1].bytes);
 }
+
+test "GetMatrix reply decode passes parent width to row decoder" {
+    const packet = makePacket(&tmp, .{
+        &[_]u16{ 3, 2 },
+        &[_]u32{ 10, 20, 30, 40, 50, 60 },
+    });
+    var reader: std.Io.Reader = .fixed(packet);
+    var reply = try core.GetMatrix.Reply.decode(
+        std.testing.allocator,
+        &reader,
+        .{ .byte_slot = 0, .length = 0 },
+    );
+    defer reply.deinit(std.testing.allocator);
+
+    try std.testing.expectEqual(@as(u16, 3), reply.matrix.width);
+    try std.testing.expectEqual(@as(usize, 2), reply.matrix.rows.len);
+    try std.testing.expectEqualSlices(u32, &.{ 10, 20, 30 }, reply.matrix.rows[0].cells);
+    try std.testing.expectEqualSlices(u32, &.{ 40, 50, 60 }, reply.matrix.rows[1].cells);
+}

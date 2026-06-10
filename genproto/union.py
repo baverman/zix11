@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 
 from . import xcbxml
-from .common import BaseType, Emit, Field, Size
+from .common import BaseType, DecodeScope, Emit, Field, Size
 from .fields import build_items
 from .resolver import Resolver
 
@@ -29,7 +29,8 @@ class UnionType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'{value_expr} = try {self.decl_name}.decode(reader);')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -85,7 +86,7 @@ class UnionType(BaseType):
                     emit('var reader_impl: std.Io.Reader = .fixed(&self.raw);')
                     emit('const reader = &reader_impl;')
                     emit(f'var value: {item.type.decl_name} = undefined;')
-                    item.type.emit_decode(emit, 'value')
+                    item.type.emit_decode(emit, 'value', DecodeScope.empty())
                     emit('return value;')
                 emit('}')
         emit('};')

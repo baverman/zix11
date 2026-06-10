@@ -6,6 +6,7 @@ from functools import cached_property
 from . import xcbxml
 from .common import (
     BaseType,
+    DecodeScope,
     Emit,
     Field,
     InjectedType,
@@ -138,7 +139,10 @@ class ReplyType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         raise NotImplementedError
 
-    def emit_decode(self, emit: Emit, var_decl: str) -> None:
+    def emit_decode(self, emit: Emit, var_decl: str, scope: DecodeScope) -> None:
+        _ = emit
+        _ = var_decl
+        _ = scope
         raise NotImplementedError
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:

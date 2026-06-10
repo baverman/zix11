@@ -5,21 +5,6 @@ from .common import Field, Parent
 from .resolver import Resolver
 
 
-def collect_decode_params(
-    items: Sequence[Field], resolver: Resolver
-) -> tuple[tuple[str, str], ...]:
-    field_names = {it.name for it in items}
-    seen: set[str] = set()
-    params: list[tuple[str, str]] = []
-    for it in items:
-        for name, ztype in it.type.free_decode_args(resolver):
-            if name in field_names or name in seen:
-                continue
-            seen.add(name)
-            params.append((name, ztype))
-    return tuple(params)
-
-
 def get_byte_slot(items: Sequence[Field]) -> Field | None:
     if items:
         field_type = items[0].type

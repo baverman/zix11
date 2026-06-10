@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Mapping, Protocol, Sequence, TypeVar
+from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Mapping, Protocol, TypeVar
 
 from . import xcbxml
 
@@ -66,6 +66,23 @@ class Emit:
         return '\n'.join(self.lines)
 
 
+@dataclass(frozen=True)
+class DecodeScope:
+    owner_expr: str
+    local_names: frozenset[str] = frozenset()
+
+    @staticmethod
+    def empty() -> DecodeScope:
+        return DecodeScope(owner_expr='')
+
+    def get(self, name: str) -> str:
+        if name in self.local_names:
+            return zig_local_name(name)
+        if not self.owner_expr:
+            raise NotImplementedError(f'decode argument requires owner scope: {name}')
+        return f'{self.owner_expr}.{name}'
+
+
 class TypeProtocol(Protocol):
     @property
     def size(self) -> Size: ...
@@ -77,13 +94,11 @@ class TypeProtocol(Protocol):
 
     def emit_encode(self, emit: Emit, value_expr: str) -> None: ...
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None: ...
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None: ...
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None: ...
 
     def decode_args(self) -> Mapping[str, str]: ...
-
-    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]: ...
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
@@ -109,9 +124,6 @@ class BaseType(TypeProtocol):
         if self.size == 'dyn':
             result['allocator'] = 'std.mem.Allocator'
         return result
-
-    def free_decode_args(self, resolver: Resolver) -> list[tuple[str, str]]:
-        return []
 
     def coerce_from_raw(self, value_expr: str) -> str:
         return value_expr
@@ -195,7 +207,8 @@ class InjectedType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         self.base_type.emit_encode(emit, value_expr)
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'{value_expr} = {self.base_type.coerce_from_raw(self.arg_name)};')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -241,28 +254,53 @@ COMMON_ARGS = {
 }
 
 
+def collect_decode_args(items: Iterable[Field]) -> OrderedDict[str, str]:
+    items = tuple(items)
+    field_names = {item.name for item in items}
+    args = OrderedDict[str, str]()
+    for item in items:
+        for name, ztype in item.type.decode_args().items():
+            if name in field_names:
+                continue
+            args[name] = ztype
+    return args
+
+
+def ordered_decode_args(args: Mapping[str, str]) -> OrderedDict[str, str]:
+    result = OrderedDict[str, str]()
+    for name, ztype in COMMON_ARGS.items():
+        if name in args:
+            result[name] = ztype
+    for name, ztype in args.items():
+        if name not in result:
+            result[name] = ztype
+    return result
+
+
+def decode_call_args(args: Mapping[str, str], scope: DecodeScope) -> list[str]:
+    result: list[str] = []
+    for name in ordered_decode_args(args):
+        if name in COMMON_ARGS:
+            result.append(name)
+        else:
+            result.append(scope.get(name))
+    return result
+
+
 def emit_decode_fn(
     emit: Emit,
     items: Iterable[Field],
-    additional_args: Sequence[str] | None = None,
     mandatory_args: tuple[str, ...] = (),
 ) -> None:
-    # TODO: move to a separate function, potentionally it
-    # would be needed when emitting an actual decode
-    # TODO: need more predictable order, maybe sort by name would be ok.
-    item_args = OrderedDict[str, str]()
-    for item in items:
-        item_args.update(item.type.decode_args())
+    items = tuple(items)
+    item_args = collect_decode_args(items)
 
-    args = OrderedDict[str, str]()
-    for arg in COMMON_ARGS:
-        if arg in mandatory_args or arg in item_args:
-            args[arg] = COMMON_ARGS[arg]
-    args.update(item_args)
+    args = ordered_decode_args({**{arg: COMMON_ARGS[arg] for arg in mandatory_args}, **item_args})
     unused_args = args.keys() - item_args.keys()
 
     fargs: list[str] = [f'{name}: {COMMON_ARGS.get(name, typ)}' for name, typ in args.items()]
-    fargs.extend(additional_args or ())
+    local_names = frozenset([*args, *(item.name for item in items if not item.public)])
+    scope = DecodeScope(owner_expr='result', local_names=local_names)
 
     emit(f'pub fn decode({", ".join(fargs)}) !@This() {{')
     with emit.block():
@@ -270,7 +308,7 @@ def emit_decode_fn(
         for arg in unused_args:
             emit(f'_ = {arg};')
         for item in items:
-            item.type.emit_decode(emit, item.decode_target_expr('result'))
+            item.type.emit_decode(emit, item.decode_target_expr('result'), scope)
         emit('return result;')
     emit('}')
 

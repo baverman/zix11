@@ -3115,7 +3115,7 @@ pub const GetMap = struct {
                 return result;
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, virtualMods: u16, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
                 var result: @This() = .{};
                 if ((switch_value & 1) != 0) {
                     var payload: @typeInfo(@TypeOf(result.types_rtrn)).optional.child = undefined;
@@ -3305,7 +3305,7 @@ pub const GetMap = struct {
             result.totalVModMapKeys = try reader.takeByte();
             _ = try reader.take(1);
             result.virtualMods = try reader.takeInt(u16, .native);
-            result.map = try @TypeOf(result).Map.decode(allocator, reader, present, result.nTypes, result.nKeySyms, result.nKeyActions, result.totalActions, result.totalKeyBehaviors, result.virtualMods, result.totalKeyExplicit, result.totalModMapKeys, result.totalVModMapKeys);
+            result.map = try @TypeOf(result).Map.decode(allocator, reader, present, result.nTypes, result.nKeySyms, result.nKeyActions, result.totalActions, result.totalKeyBehaviors, result.totalKeyExplicit, result.totalModMapKeys, result.totalVModMapKeys);
             return result;
         }
 
@@ -3439,7 +3439,7 @@ pub const SetMap = struct {
             return result;
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, virtualMods: u16, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
             var result: @This() = .{};
             if ((switch_value & 1) != 0) {
                 var payload: @typeInfo(@TypeOf(result.types)).optional.child = undefined;
@@ -4076,7 +4076,7 @@ pub const GetNames = struct {
                 return result;
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, indicators: u32, virtualMods: u16, groupNames: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
                 var result: @This() = .{};
                 if ((switch_value & 1) != 0) {
                     const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -4270,7 +4270,7 @@ pub const GetNames = struct {
             result.nKeyAliases = try reader.takeByte();
             result.nKTLevels = try reader.takeInt(u16, .native);
             _ = try reader.take(4);
-            result.valueList = try @TypeOf(result).ValueList.decode(allocator, reader, which, result.nTypes, result.indicators, result.virtualMods, result.groupNames, result.nKeys, result.nKeyAliases, result.nRadioGroups);
+            result.valueList = try @TypeOf(result).ValueList.decode(allocator, reader, which, result.nTypes, result.nKeys, result.nKeyAliases, result.nRadioGroups);
             return result;
         }
 
@@ -4423,7 +4423,7 @@ pub const SetNames = struct {
             return result;
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, indicators: u32, virtualMods: u16, groupNames: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
             var result: @This() = .{};
             if ((switch_value & 1) != 0) {
                 const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -4948,7 +4948,7 @@ pub const GetKbdByName = struct {
                         return result;
                     }
 
-                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, virtualMods: u16, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
                         var result: @This() = .{};
                         if ((switch_value & 1) != 0) {
                             var payload: @typeInfo(@TypeOf(result.types_rtrn)).optional.child = undefined;
@@ -5273,7 +5273,7 @@ pub const GetKbdByName = struct {
                         return result;
                     }
 
-                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, indicators: u32, virtualMods: u16, groupNames: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
                         var result: @This() = .{};
                         if ((switch_value & 1) != 0) {
                             const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -5624,7 +5624,7 @@ pub const GetKbdByName = struct {
                     payload.totalVModMapKeys = try reader.takeByte();
                     _ = try reader.take(1);
                     payload.virtualMods = try reader.takeInt(u16, .native);
-                    payload.map = try @TypeOf(payload).Map.decode(allocator, reader, present, payload.nTypes, payload.nKeySyms, payload.nKeyActions, payload.totalActions, payload.totalKeyBehaviors, payload.virtualMods, payload.totalKeyExplicit, payload.totalModMapKeys, payload.totalVModMapKeys);
+                    payload.map = try @TypeOf(payload).Map.decode(allocator, reader, present, payload.nTypes, payload.nKeySyms, payload.nKeyActions, payload.totalActions, payload.totalKeyBehaviors, payload.totalKeyExplicit, payload.totalModMapKeys, payload.totalVModMapKeys);
                     result.types = payload;
                 }
                 if ((switch_value & 2) != 0) {
@@ -5690,7 +5690,7 @@ pub const GetKbdByName = struct {
                     payload.nKeyAliases = try reader.takeByte();
                     payload.nKTLevels = try reader.takeInt(u16, .native);
                     _ = try reader.take(4);
-                    payload.valueList = try @TypeOf(payload).ValueList.decode(allocator, reader, which, payload.nTypes, payload.indicators, payload.virtualMods, payload.groupNames, payload.nKeys, payload.nKeyAliases, payload.nRadioGroups);
+                    payload.valueList = try @TypeOf(payload).ValueList.decode(allocator, reader, which, payload.nTypes, payload.nKeys, payload.nKeyAliases, payload.nRadioGroups);
                     result.key_names = payload;
                 }
                 if ((switch_value & 64) != 0) {

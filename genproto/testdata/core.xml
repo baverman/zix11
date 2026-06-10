@@ -96,6 +96,20 @@
         </list>
     </struct>
 
+    <struct name="MatrixRow">
+        <list type="CARD32" name="cells">
+            <paramref type="CARD16">width</paramref>
+        </list>
+    </struct>
+
+    <struct name="Matrix">
+        <field type="CARD16" name="width" />
+        <field type="CARD16" name="height" />
+        <list type="MatrixRow" name="rows">
+            <fieldref>height</fieldref>
+        </list>
+    </struct>
+
     <struct name="RepeatedLike">
         <field type="CARD8" name="count" />
         <list type="CARD32" name="items">
@@ -181,6 +195,12 @@
         <field type="CARD32" name="id" />
         <reply>
             <field type="CARD32" name="id" />
+        </reply>
+    </request>
+
+    <request name="GetMatrix" opcode="4">
+        <reply>
+            <field type="Matrix" name="matrix" />
         </reply>
     </request>
 </xcb>

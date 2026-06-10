@@ -7,6 +7,9 @@ from typing import Mapping
 from . import xcbxml
 from .common import (
     BaseType,
+    collect_decode_args,
+    decode_call_args,
+    DecodeScope,
     Emit,
     Field,
     Size,
@@ -16,7 +19,7 @@ from .common import (
     emit_encode_fn,
     items_size,
 )
-from .fields import build_items, collect_decode_params
+from .fields import build_items
 from .resolver import Resolver
 
 
@@ -25,7 +28,6 @@ class StructType(BaseType):
     name: str
     items: list[Field]
     module_prefix: str = ''
-    decode_params: tuple[tuple[str, str], ...] = ()
 
     @staticmethod
     def from_schema(struct: xcbxml.Struct, resolver: Resolver) -> StructType:
@@ -33,16 +35,12 @@ class StructType(BaseType):
         result = StructType(
             name=struct.name,
             items=items,
-            decode_params=collect_decode_params(items, resolver),
         )
         resolver.set(struct.name, result)
         return result
 
     def decode_args(self) -> Mapping[str, str]:
-        result: dict[str, str] = {}
-        for it in self.items:
-            result.update(it.type.decode_args())
-        return result
+        return collect_decode_args(self.items)
 
     @property
     def decl_name(self) -> str:
@@ -58,11 +56,9 @@ class StructType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try {value_expr}.encode(writer);')
 
-    def emit_decode(self, emit: Emit, value_expr: str, decode_args: str = '') -> None:
-        if self.size == 'dyn':
-            emit(f'{value_expr} = try {self.decl_name}.decode(allocator, reader{decode_args});')
-        else:
-            emit(f'{value_expr} = try {self.decl_name}.decode(reader{decode_args});')
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        args = ', '.join(decode_call_args(self.decode_args(), scope))
+        emit(f'{value_expr} = try {self.decl_name}.decode({args});')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         if self.size == 'dyn':
@@ -80,7 +76,6 @@ class StructType(BaseType):
             emit_decode_fn(
                 emit,
                 self.items,
-                additional_args=tuple(f'{name}: {ztype}' for name, ztype in self.decode_params),
             )
 
             if self.size == 'dyn':

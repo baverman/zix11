@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Sequence
 from . import xcbxml
 from .common import (
     BaseType,
+    DecodeScope,
     Emit,
     Field,
     Size,
@@ -41,7 +42,8 @@ class EventStructType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         emit(f'try writer.writeAll({value_expr}.raw[0..]);')
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = scope
         emit(f'{value_expr} = try {self.name}.decode(reader);')
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -105,7 +107,10 @@ class EventType(BaseType):
     def emit_encode(self, emit: Emit, value_expr: str) -> None:
         raise NotImplementedError
 
-    def emit_decode(self, emit: Emit, value_expr: str) -> None:
+    def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
+        _ = emit
+        _ = value_expr
+        _ = scope
         raise NotImplementedError
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
@@ -174,7 +179,9 @@ class EventType(BaseType):
                         emit(f'const {name} = self.{name};')
                     emit('var result: Body = undefined;')
                     for item in body_items:
-                        item.type.emit_decode(emit, item.decode_target_expr('result'))
+                        item.type.emit_decode(
+                            emit, item.decode_target_expr('result'), DecodeScope.empty()
+                        )
                     emit('return result;')
                 emit('}')
 
@@ -184,7 +191,9 @@ class EventType(BaseType):
                 emit('var result: @This() = undefined;')
                 if self.no_sequence_number:
                     for item in self.items:
-                        item.type.emit_decode(emit, item.decode_target_expr('result'))
+                        item.type.emit_decode(
+                            emit, item.decode_target_expr('result'), DecodeScope.empty()
+                        )
                 elif self.xge:
                     if body_items:
                         emit('const header = try reader.peek(8);')
@@ -199,7 +208,9 @@ class EventType(BaseType):
                     if not body_items:
                         emit('const payload_start_seek = reader.seek;')
                     for item in prefix_items:
-                        item.type.emit_decode(emit, item.decode_target_expr('result'))
+                        item.type.emit_decode(
+                            emit, item.decode_target_expr('result'), DecodeScope.empty()
+                        )
                     if body_items:
                         emit('result._body = packet[reader.seek..];')
                         emit('const remaining_packet_len = packet.len - reader.seek;')
@@ -218,7 +229,9 @@ class EventType(BaseType):
                         header_item = get_byte_slot(self.items)
                         if header_item is not None:
                             header_item.type.emit_decode(
-                                emit, header_item.decode_target_expr('result')
+                                emit,
+                                header_item.decode_target_expr('result'),
+                                DecodeScope.empty(),
                             )
                             body_items = self.items[1:]
                         else:
@@ -229,7 +242,9 @@ class EventType(BaseType):
                         body_items = []
                     emit('_ = try reader.takeInt(u16, .native);')
                     for item in body_items:
-                        item.type.emit_decode(emit, item.decode_target_expr('result'))
+                        item.type.emit_decode(
+                            emit, item.decode_target_expr('result'), DecodeScope.empty()
+                        )
                 emit('return result;')
             emit('}')
             if not self.xge:
