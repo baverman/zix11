@@ -2598,69 +2598,69 @@ pub const SelectEvents = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, affectWhich: u16, clear: u16, selectAll: u16) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 1) != 0) {
                 var payload: @typeInfo(@TypeOf(result.NewKeyboardNotify)).optional.child = undefined;
                 payload.affectNewKeyboard = try reader.takeInt(u16, .native);
                 payload.newKeyboardDetails = try reader.takeInt(u16, .native);
                 result.NewKeyboardNotify = payload;
             }
-            if ((switch_value & 4) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 4) != 0) {
                 var payload: @typeInfo(@TypeOf(result.StateNotify)).optional.child = undefined;
                 payload.affectState = try reader.takeInt(u16, .native);
                 payload.stateDetails = try reader.takeInt(u16, .native);
                 result.StateNotify = payload;
             }
-            if ((switch_value & 8) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 8) != 0) {
                 var payload: @typeInfo(@TypeOf(result.ControlsNotify)).optional.child = undefined;
                 payload.affectCtrls = try reader.takeInt(u32, .native);
                 payload.ctrlDetails = try reader.takeInt(u32, .native);
                 result.ControlsNotify = payload;
             }
-            if ((switch_value & 16) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 16) != 0) {
                 var payload: @typeInfo(@TypeOf(result.IndicatorStateNotify)).optional.child = undefined;
                 payload.affectIndicatorState = try reader.takeInt(u32, .native);
                 payload.indicatorStateDetails = try reader.takeInt(u32, .native);
                 result.IndicatorStateNotify = payload;
             }
-            if ((switch_value & 32) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 32) != 0) {
                 var payload: @typeInfo(@TypeOf(result.IndicatorMapNotify)).optional.child = undefined;
                 payload.affectIndicatorMap = try reader.takeInt(u32, .native);
                 payload.indicatorMapDetails = try reader.takeInt(u32, .native);
                 result.IndicatorMapNotify = payload;
             }
-            if ((switch_value & 64) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 64) != 0) {
                 var payload: @typeInfo(@TypeOf(result.NamesNotify)).optional.child = undefined;
                 payload.affectNames = try reader.takeInt(u16, .native);
                 payload.namesDetails = try reader.takeInt(u16, .native);
                 result.NamesNotify = payload;
             }
-            if ((switch_value & 128) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 128) != 0) {
                 var payload: @typeInfo(@TypeOf(result.CompatMapNotify)).optional.child = undefined;
                 payload.affectCompat = try reader.takeByte();
                 payload.compatDetails = try reader.takeByte();
                 result.CompatMapNotify = payload;
             }
-            if ((switch_value & 256) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 256) != 0) {
                 var payload: @typeInfo(@TypeOf(result.BellNotify)).optional.child = undefined;
                 payload.affectBell = try reader.takeByte();
                 payload.bellDetails = try reader.takeByte();
                 result.BellNotify = payload;
             }
-            if ((switch_value & 512) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 512) != 0) {
                 var payload: @typeInfo(@TypeOf(result.ActionMessage)).optional.child = undefined;
                 payload.affectMsgDetails = try reader.takeByte();
                 payload.msgDetails = try reader.takeByte();
                 result.ActionMessage = payload;
             }
-            if ((switch_value & 1024) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 1024) != 0) {
                 var payload: @typeInfo(@TypeOf(result.AccessXNotify)).optional.child = undefined;
                 payload.affectAccessX = try reader.takeInt(u16, .native);
                 payload.accessXDetails = try reader.takeInt(u16, .native);
                 result.AccessXNotify = payload;
             }
-            if ((switch_value & 2048) != 0) {
+            if (((affectWhich & ((~clear) & (~selectAll))) & 2048) != 0) {
                 var payload: @typeInfo(@TypeOf(result.ExtensionDeviceNotify)).optional.child = undefined;
                 payload.affectExtDev = try reader.takeInt(u16, .native);
                 payload.extdevDetails = try reader.takeInt(u16, .native);
@@ -3115,9 +3115,9 @@ pub const GetMap = struct {
                 return result;
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, nKeyActions: u8, nKeySyms: u8, nTypes: u8, present: u16, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8, virtualMods: u16) !@This() {
                 var result: @This() = .{};
-                if ((switch_value & 1) != 0) {
+                if ((present & 1) != 0) {
                     var payload: @typeInfo(@TypeOf(result.types_rtrn)).optional.child = undefined;
                     const decoded_types_rtrn_buf = try allocator.alloc(KeyType, @intCast(nTypes));
                     for (decoded_types_rtrn_buf) |*elem| {
@@ -3127,7 +3127,7 @@ pub const GetMap = struct {
                     payload.decoded_types_rtrn_buf = decoded_types_rtrn_buf;
                     result.types_rtrn = payload;
                 }
-                if ((switch_value & 2) != 0) {
+                if ((present & 2) != 0) {
                     var payload: @typeInfo(@TypeOf(result.syms_rtrn)).optional.child = undefined;
                     const decoded_syms_rtrn_buf = try allocator.alloc(KeySymMap, @intCast(nKeySyms));
                     for (decoded_syms_rtrn_buf) |*elem| {
@@ -3137,7 +3137,7 @@ pub const GetMap = struct {
                     payload.decoded_syms_rtrn_buf = decoded_syms_rtrn_buf;
                     result.syms_rtrn = payload;
                 }
-                if ((switch_value & 16) != 0) {
+                if ((present & 16) != 0) {
                     var payload: @typeInfo(@TypeOf(result.KeyActions)).optional.child = undefined;
                     const decoded_acts_rtrn_count_buf = try allocator.dupe(u8, try reader.take(@intCast(nKeyActions)));
                     payload.acts_rtrn_count = decoded_acts_rtrn_count_buf;
@@ -3151,7 +3151,7 @@ pub const GetMap = struct {
                     payload.decoded_acts_rtrn_acts_buf = decoded_acts_rtrn_acts_buf;
                     result.KeyActions = payload;
                 }
-                if ((switch_value & 32) != 0) {
+                if ((present & 32) != 0) {
                     var payload: @typeInfo(@TypeOf(result.behaviors_rtrn)).optional.child = undefined;
                     const decoded_behaviors_rtrn_buf = try allocator.alloc(SetBehavior, @intCast(totalKeyBehaviors));
                     for (decoded_behaviors_rtrn_buf) |*elem| {
@@ -3161,7 +3161,7 @@ pub const GetMap = struct {
                     payload.decoded_behaviors_rtrn_buf = decoded_behaviors_rtrn_buf;
                     result.behaviors_rtrn = payload;
                 }
-                if ((switch_value & 64) != 0) {
+                if ((present & 64) != 0) {
                     var payload: @typeInfo(@TypeOf(result.VirtualMods)).optional.child = undefined;
                     const decoded_vmods_rtrn_buf = try allocator.dupe(u8, try reader.take(@intCast(@popCount(virtualMods))));
                     payload.vmods_rtrn = decoded_vmods_rtrn_buf;
@@ -3169,7 +3169,7 @@ pub const GetMap = struct {
                     _ = try reader.take(wire.pad(reader.seek, 4));
                     result.VirtualMods = payload;
                 }
-                if ((switch_value & 8) != 0) {
+                if ((present & 8) != 0) {
                     var payload: @typeInfo(@TypeOf(result.ExplicitComponents)).optional.child = undefined;
                     const decoded_explicit_rtrn_buf = try allocator.alloc(SetExplicit, @intCast(totalKeyExplicit));
                     for (decoded_explicit_rtrn_buf) |*elem| {
@@ -3180,7 +3180,7 @@ pub const GetMap = struct {
                     _ = try reader.take(wire.pad(reader.seek, 4));
                     result.ExplicitComponents = payload;
                 }
-                if ((switch_value & 4) != 0) {
+                if ((present & 4) != 0) {
                     var payload: @typeInfo(@TypeOf(result.ModifierMap)).optional.child = undefined;
                     const decoded_modmap_rtrn_buf = try allocator.alloc(KeyModMap, @intCast(totalModMapKeys));
                     for (decoded_modmap_rtrn_buf) |*elem| {
@@ -3191,7 +3191,7 @@ pub const GetMap = struct {
                     _ = try reader.take(wire.pad(reader.seek, 4));
                     result.ModifierMap = payload;
                 }
-                if ((switch_value & 128) != 0) {
+                if ((present & 128) != 0) {
                     var payload: @typeInfo(@TypeOf(result.vmodmap_rtrn)).optional.child = undefined;
                     const decoded_vmodmap_rtrn_buf = try allocator.alloc(KeyVModMap, @intCast(totalVModMapKeys));
                     for (decoded_vmodmap_rtrn_buf) |*elem| {
@@ -3305,7 +3305,7 @@ pub const GetMap = struct {
             result.totalVModMapKeys = try reader.takeByte();
             _ = try reader.take(1);
             result.virtualMods = try reader.takeInt(u16, .native);
-            result.map = try @TypeOf(result).Map.decode(allocator, reader, present, result.nTypes, result.nKeySyms, result.nKeyActions, result.totalActions, result.totalKeyBehaviors, result.totalKeyExplicit, result.totalModMapKeys, result.totalVModMapKeys);
+            result.map = try @TypeOf(result).Map.decode(allocator, reader, result.nKeyActions, result.nKeySyms, result.nTypes, present, result.totalActions, result.totalKeyBehaviors, result.totalKeyExplicit, result.totalModMapKeys, result.totalVModMapKeys, result.virtualMods);
             return result;
         }
 
@@ -3439,9 +3439,9 @@ pub const SetMap = struct {
             return result;
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, nKeyActions: u8, nKeySyms: u8, nTypes: u8, present: u16, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8, virtualMods: u16) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((present & 1) != 0) {
                 var payload: @typeInfo(@TypeOf(result.types)).optional.child = undefined;
                 const decoded_types_buf = try allocator.alloc(SetKeyType, @intCast(nTypes));
                 for (decoded_types_buf) |*elem| {
@@ -3451,7 +3451,7 @@ pub const SetMap = struct {
                 payload.decoded_types_buf = decoded_types_buf;
                 result.types = payload;
             }
-            if ((switch_value & 2) != 0) {
+            if ((present & 2) != 0) {
                 var payload: @typeInfo(@TypeOf(result.syms)).optional.child = undefined;
                 const decoded_syms_buf = try allocator.alloc(KeySymMap, @intCast(nKeySyms));
                 for (decoded_syms_buf) |*elem| {
@@ -3461,7 +3461,7 @@ pub const SetMap = struct {
                 payload.decoded_syms_buf = decoded_syms_buf;
                 result.syms = payload;
             }
-            if ((switch_value & 16) != 0) {
+            if ((present & 16) != 0) {
                 var payload: @typeInfo(@TypeOf(result.KeyActions)).optional.child = undefined;
                 const decoded_actionsCount_buf = try allocator.dupe(u8, try reader.take(@intCast(nKeyActions)));
                 payload.actionsCount = decoded_actionsCount_buf;
@@ -3475,7 +3475,7 @@ pub const SetMap = struct {
                 payload.decoded_actions_buf = decoded_actions_buf;
                 result.KeyActions = payload;
             }
-            if ((switch_value & 32) != 0) {
+            if ((present & 32) != 0) {
                 var payload: @typeInfo(@TypeOf(result.behaviors)).optional.child = undefined;
                 const decoded_behaviors_buf = try allocator.alloc(SetBehavior, @intCast(totalKeyBehaviors));
                 for (decoded_behaviors_buf) |*elem| {
@@ -3485,7 +3485,7 @@ pub const SetMap = struct {
                 payload.decoded_behaviors_buf = decoded_behaviors_buf;
                 result.behaviors = payload;
             }
-            if ((switch_value & 64) != 0) {
+            if ((present & 64) != 0) {
                 var payload: @typeInfo(@TypeOf(result.VirtualMods)).optional.child = undefined;
                 const decoded_vmods_buf = try allocator.dupe(u8, try reader.take(@intCast(@popCount(virtualMods))));
                 payload.vmods = decoded_vmods_buf;
@@ -3493,7 +3493,7 @@ pub const SetMap = struct {
                 _ = try reader.take(wire.pad(reader.seek, 4));
                 result.VirtualMods = payload;
             }
-            if ((switch_value & 8) != 0) {
+            if ((present & 8) != 0) {
                 var payload: @typeInfo(@TypeOf(result.explicit)).optional.child = undefined;
                 const decoded_explicit_buf = try allocator.alloc(SetExplicit, @intCast(totalKeyExplicit));
                 for (decoded_explicit_buf) |*elem| {
@@ -3503,7 +3503,7 @@ pub const SetMap = struct {
                 payload.decoded_explicit_buf = decoded_explicit_buf;
                 result.explicit = payload;
             }
-            if ((switch_value & 4) != 0) {
+            if ((present & 4) != 0) {
                 var payload: @typeInfo(@TypeOf(result.modmap)).optional.child = undefined;
                 const decoded_modmap_buf = try allocator.alloc(KeyModMap, @intCast(totalModMapKeys));
                 for (decoded_modmap_buf) |*elem| {
@@ -3513,7 +3513,7 @@ pub const SetMap = struct {
                 payload.decoded_modmap_buf = decoded_modmap_buf;
                 result.modmap = payload;
             }
-            if ((switch_value & 128) != 0) {
+            if ((present & 128) != 0) {
                 var payload: @typeInfo(@TypeOf(result.vmodmap)).optional.child = undefined;
                 const decoded_vmodmap_buf = try allocator.alloc(KeyVModMap, @intCast(totalVModMapKeys));
                 for (decoded_vmodmap_buf) |*elem| {
@@ -4076,33 +4076,33 @@ pub const GetNames = struct {
                 return result;
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, groupNames: u8, indicators: u32, nKeyAliases: u8, nKeys: u8, nRadioGroups: u8, nTypes: u8, virtualMods: u16, which: u32) !@This() {
                 var result: @This() = .{};
-                if ((switch_value & 1) != 0) {
+                if ((which & 1) != 0) {
                     const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.keycodesName = keycodesName;
                 }
-                if ((switch_value & 2) != 0) {
+                if ((which & 2) != 0) {
                     const geometryName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.geometryName = geometryName;
                 }
-                if ((switch_value & 4) != 0) {
+                if ((which & 4) != 0) {
                     const symbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.symbolsName = symbolsName;
                 }
-                if ((switch_value & 8) != 0) {
+                if ((which & 8) != 0) {
                     const physSymbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.physSymbolsName = physSymbolsName;
                 }
-                if ((switch_value & 16) != 0) {
+                if ((which & 16) != 0) {
                     const typesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.typesName = typesName;
                 }
-                if ((switch_value & 32) != 0) {
+                if ((which & 32) != 0) {
                     const compatName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                     result.compatName = compatName;
                 }
-                if ((switch_value & 64) != 0) {
+                if ((which & 64) != 0) {
                     var payload: @typeInfo(@TypeOf(result.typeNames)).optional.child = undefined;
                     const decoded_typeNames_buf = try allocator.alloc(xproto.Atom, @intCast(nTypes));
                     for (decoded_typeNames_buf) |*elem| {
@@ -4112,7 +4112,7 @@ pub const GetNames = struct {
                     payload.decoded_typeNames_buf = decoded_typeNames_buf;
                     result.typeNames = payload;
                 }
-                if ((switch_value & 128) != 0) {
+                if ((which & 128) != 0) {
                     var payload: @typeInfo(@TypeOf(result.KTLevelNames)).optional.child = undefined;
                     const decoded_nLevelsPerType_buf = try allocator.dupe(u8, try reader.take(@intCast(nTypes)));
                     payload.nLevelsPerType = decoded_nLevelsPerType_buf;
@@ -4126,7 +4126,7 @@ pub const GetNames = struct {
                     payload.decoded_ktLevelNames_buf = decoded_ktLevelNames_buf;
                     result.KTLevelNames = payload;
                 }
-                if ((switch_value & 256) != 0) {
+                if ((which & 256) != 0) {
                     var payload: @typeInfo(@TypeOf(result.indicatorNames)).optional.child = undefined;
                     const decoded_indicatorNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(indicators)));
                     for (decoded_indicatorNames_buf) |*elem| {
@@ -4136,7 +4136,7 @@ pub const GetNames = struct {
                     payload.decoded_indicatorNames_buf = decoded_indicatorNames_buf;
                     result.indicatorNames = payload;
                 }
-                if ((switch_value & 2048) != 0) {
+                if ((which & 2048) != 0) {
                     var payload: @typeInfo(@TypeOf(result.virtualModNames)).optional.child = undefined;
                     const decoded_virtualModNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(virtualMods)));
                     for (decoded_virtualModNames_buf) |*elem| {
@@ -4146,7 +4146,7 @@ pub const GetNames = struct {
                     payload.decoded_virtualModNames_buf = decoded_virtualModNames_buf;
                     result.virtualModNames = payload;
                 }
-                if ((switch_value & 4096) != 0) {
+                if ((which & 4096) != 0) {
                     var payload: @typeInfo(@TypeOf(result.groups)).optional.child = undefined;
                     const decoded_groups_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(groupNames)));
                     for (decoded_groups_buf) |*elem| {
@@ -4156,7 +4156,7 @@ pub const GetNames = struct {
                     payload.decoded_groups_buf = decoded_groups_buf;
                     result.groups = payload;
                 }
-                if ((switch_value & 512) != 0) {
+                if ((which & 512) != 0) {
                     var payload: @typeInfo(@TypeOf(result.keyNames)).optional.child = undefined;
                     const decoded_keyNames_buf = try allocator.alloc(KeyName, @intCast(nKeys));
                     for (decoded_keyNames_buf) |*elem| {
@@ -4166,7 +4166,7 @@ pub const GetNames = struct {
                     payload.decoded_keyNames_buf = decoded_keyNames_buf;
                     result.keyNames = payload;
                 }
-                if ((switch_value & 1024) != 0) {
+                if ((which & 1024) != 0) {
                     var payload: @typeInfo(@TypeOf(result.keyAliases)).optional.child = undefined;
                     const decoded_keyAliases_buf = try allocator.alloc(KeyAlias, @intCast(nKeyAliases));
                     for (decoded_keyAliases_buf) |*elem| {
@@ -4176,7 +4176,7 @@ pub const GetNames = struct {
                     payload.decoded_keyAliases_buf = decoded_keyAliases_buf;
                     result.keyAliases = payload;
                 }
-                if ((switch_value & 8192) != 0) {
+                if ((which & 8192) != 0) {
                     var payload: @typeInfo(@TypeOf(result.radioGroupNames)).optional.child = undefined;
                     const decoded_radioGroupNames_buf = try allocator.alloc(xproto.Atom, @intCast(nRadioGroups));
                     for (decoded_radioGroupNames_buf) |*elem| {
@@ -4270,7 +4270,7 @@ pub const GetNames = struct {
             result.nKeyAliases = try reader.takeByte();
             result.nKTLevels = try reader.takeInt(u16, .native);
             _ = try reader.take(4);
-            result.valueList = try @TypeOf(result).ValueList.decode(allocator, reader, which, result.nTypes, result.nKeys, result.nKeyAliases, result.nRadioGroups);
+            result.valueList = try @TypeOf(result).ValueList.decode(allocator, reader, result.groupNames, result.indicators, result.nKeyAliases, result.nKeys, result.nRadioGroups, result.nTypes, result.virtualMods, which);
             return result;
         }
 
@@ -4423,33 +4423,33 @@ pub const SetNames = struct {
             return result;
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, groupNames: u8, indicators: u32, nKeyAliases: u8, nKeys: u8, nRadioGroups: u8, nTypes: u8, virtualMods: u16, which: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((which & 1) != 0) {
                 const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.keycodesName = keycodesName;
             }
-            if ((switch_value & 2) != 0) {
+            if ((which & 2) != 0) {
                 const geometryName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.geometryName = geometryName;
             }
-            if ((switch_value & 4) != 0) {
+            if ((which & 4) != 0) {
                 const symbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.symbolsName = symbolsName;
             }
-            if ((switch_value & 8) != 0) {
+            if ((which & 8) != 0) {
                 const physSymbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.physSymbolsName = physSymbolsName;
             }
-            if ((switch_value & 16) != 0) {
+            if ((which & 16) != 0) {
                 const typesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.typesName = typesName;
             }
-            if ((switch_value & 32) != 0) {
+            if ((which & 32) != 0) {
                 const compatName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.compatName = compatName;
             }
-            if ((switch_value & 64) != 0) {
+            if ((which & 64) != 0) {
                 var payload: @typeInfo(@TypeOf(result.typeNames)).optional.child = undefined;
                 const decoded_typeNames_buf = try allocator.alloc(xproto.Atom, @intCast(nTypes));
                 for (decoded_typeNames_buf) |*elem| {
@@ -4459,7 +4459,7 @@ pub const SetNames = struct {
                 payload.decoded_typeNames_buf = decoded_typeNames_buf;
                 result.typeNames = payload;
             }
-            if ((switch_value & 128) != 0) {
+            if ((which & 128) != 0) {
                 var payload: @typeInfo(@TypeOf(result.KTLevelNames)).optional.child = undefined;
                 const decoded_nLevelsPerType_buf = try allocator.dupe(u8, try reader.take(@intCast(nTypes)));
                 payload.nLevelsPerType = decoded_nLevelsPerType_buf;
@@ -4473,7 +4473,7 @@ pub const SetNames = struct {
                 payload.decoded_ktLevelNames_buf = decoded_ktLevelNames_buf;
                 result.KTLevelNames = payload;
             }
-            if ((switch_value & 256) != 0) {
+            if ((which & 256) != 0) {
                 var payload: @typeInfo(@TypeOf(result.indicatorNames)).optional.child = undefined;
                 const decoded_indicatorNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(indicators)));
                 for (decoded_indicatorNames_buf) |*elem| {
@@ -4483,7 +4483,7 @@ pub const SetNames = struct {
                 payload.decoded_indicatorNames_buf = decoded_indicatorNames_buf;
                 result.indicatorNames = payload;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((which & 2048) != 0) {
                 var payload: @typeInfo(@TypeOf(result.virtualModNames)).optional.child = undefined;
                 const decoded_virtualModNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(virtualMods)));
                 for (decoded_virtualModNames_buf) |*elem| {
@@ -4493,7 +4493,7 @@ pub const SetNames = struct {
                 payload.decoded_virtualModNames_buf = decoded_virtualModNames_buf;
                 result.virtualModNames = payload;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((which & 4096) != 0) {
                 var payload: @typeInfo(@TypeOf(result.groups)).optional.child = undefined;
                 const decoded_groups_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(groupNames)));
                 for (decoded_groups_buf) |*elem| {
@@ -4503,7 +4503,7 @@ pub const SetNames = struct {
                 payload.decoded_groups_buf = decoded_groups_buf;
                 result.groups = payload;
             }
-            if ((switch_value & 512) != 0) {
+            if ((which & 512) != 0) {
                 var payload: @typeInfo(@TypeOf(result.keyNames)).optional.child = undefined;
                 const decoded_keyNames_buf = try allocator.alloc(KeyName, @intCast(nKeys));
                 for (decoded_keyNames_buf) |*elem| {
@@ -4513,7 +4513,7 @@ pub const SetNames = struct {
                 payload.decoded_keyNames_buf = decoded_keyNames_buf;
                 result.keyNames = payload;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((which & 1024) != 0) {
                 var payload: @typeInfo(@TypeOf(result.keyAliases)).optional.child = undefined;
                 const decoded_keyAliases_buf = try allocator.alloc(KeyAlias, @intCast(nKeyAliases));
                 for (decoded_keyAliases_buf) |*elem| {
@@ -4523,7 +4523,7 @@ pub const SetNames = struct {
                 payload.decoded_keyAliases_buf = decoded_keyAliases_buf;
                 result.keyAliases = payload;
             }
-            if ((switch_value & 8192) != 0) {
+            if ((which & 8192) != 0) {
                 var payload: @typeInfo(@TypeOf(result.radioGroupNames)).optional.child = undefined;
                 const decoded_radioGroupNames_buf = try allocator.alloc(xproto.Atom, @intCast(nRadioGroups));
                 for (decoded_radioGroupNames_buf) |*elem| {
@@ -4948,9 +4948,9 @@ pub const GetKbdByName = struct {
                         return result;
                     }
 
-                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeySyms: u8, nKeyActions: u8, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8) !@This() {
+                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, nKeyActions: u8, nKeySyms: u8, nTypes: u8, present: u16, totalActions: u16, totalKeyBehaviors: u8, totalKeyExplicit: u8, totalModMapKeys: u8, totalVModMapKeys: u8, virtualMods: u16) !@This() {
                         var result: @This() = .{};
-                        if ((switch_value & 1) != 0) {
+                        if ((present & 1) != 0) {
                             var payload: @typeInfo(@TypeOf(result.types_rtrn)).optional.child = undefined;
                             const decoded_types_rtrn_buf = try allocator.alloc(KeyType, @intCast(nTypes));
                             for (decoded_types_rtrn_buf) |*elem| {
@@ -4960,7 +4960,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_types_rtrn_buf = decoded_types_rtrn_buf;
                             result.types_rtrn = payload;
                         }
-                        if ((switch_value & 2) != 0) {
+                        if ((present & 2) != 0) {
                             var payload: @typeInfo(@TypeOf(result.syms_rtrn)).optional.child = undefined;
                             const decoded_syms_rtrn_buf = try allocator.alloc(KeySymMap, @intCast(nKeySyms));
                             for (decoded_syms_rtrn_buf) |*elem| {
@@ -4970,7 +4970,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_syms_rtrn_buf = decoded_syms_rtrn_buf;
                             result.syms_rtrn = payload;
                         }
-                        if ((switch_value & 16) != 0) {
+                        if ((present & 16) != 0) {
                             var payload: @typeInfo(@TypeOf(result.KeyActions)).optional.child = undefined;
                             const decoded_acts_rtrn_count_buf = try allocator.dupe(u8, try reader.take(@intCast(nKeyActions)));
                             payload.acts_rtrn_count = decoded_acts_rtrn_count_buf;
@@ -4984,7 +4984,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_acts_rtrn_acts_buf = decoded_acts_rtrn_acts_buf;
                             result.KeyActions = payload;
                         }
-                        if ((switch_value & 32) != 0) {
+                        if ((present & 32) != 0) {
                             var payload: @typeInfo(@TypeOf(result.behaviors_rtrn)).optional.child = undefined;
                             const decoded_behaviors_rtrn_buf = try allocator.alloc(SetBehavior, @intCast(totalKeyBehaviors));
                             for (decoded_behaviors_rtrn_buf) |*elem| {
@@ -4994,7 +4994,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_behaviors_rtrn_buf = decoded_behaviors_rtrn_buf;
                             result.behaviors_rtrn = payload;
                         }
-                        if ((switch_value & 64) != 0) {
+                        if ((present & 64) != 0) {
                             var payload: @typeInfo(@TypeOf(result.VirtualMods)).optional.child = undefined;
                             const decoded_vmods_rtrn_buf = try allocator.dupe(u8, try reader.take(@intCast(@popCount(virtualMods))));
                             payload.vmods_rtrn = decoded_vmods_rtrn_buf;
@@ -5002,7 +5002,7 @@ pub const GetKbdByName = struct {
                             _ = try reader.take(wire.pad(reader.seek, 4));
                             result.VirtualMods = payload;
                         }
-                        if ((switch_value & 8) != 0) {
+                        if ((present & 8) != 0) {
                             var payload: @typeInfo(@TypeOf(result.ExplicitComponents)).optional.child = undefined;
                             const decoded_explicit_rtrn_buf = try allocator.alloc(SetExplicit, @intCast(totalKeyExplicit));
                             for (decoded_explicit_rtrn_buf) |*elem| {
@@ -5013,7 +5013,7 @@ pub const GetKbdByName = struct {
                             _ = try reader.take(wire.pad(reader.seek, 4));
                             result.ExplicitComponents = payload;
                         }
-                        if ((switch_value & 4) != 0) {
+                        if ((present & 4) != 0) {
                             var payload: @typeInfo(@TypeOf(result.ModifierMap)).optional.child = undefined;
                             const decoded_modmap_rtrn_buf = try allocator.alloc(KeyModMap, @intCast(totalModMapKeys));
                             for (decoded_modmap_rtrn_buf) |*elem| {
@@ -5024,7 +5024,7 @@ pub const GetKbdByName = struct {
                             _ = try reader.take(wire.pad(reader.seek, 4));
                             result.ModifierMap = payload;
                         }
-                        if ((switch_value & 128) != 0) {
+                        if ((present & 128) != 0) {
                             var payload: @typeInfo(@TypeOf(result.vmodmap_rtrn)).optional.child = undefined;
                             const decoded_vmodmap_rtrn_buf = try allocator.alloc(KeyVModMap, @intCast(totalVModMapKeys));
                             for (decoded_vmodmap_rtrn_buf) |*elem| {
@@ -5273,33 +5273,33 @@ pub const GetKbdByName = struct {
                         return result;
                     }
 
-                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, nTypes: u8, nKeys: u8, nKeyAliases: u8, nRadioGroups: u8) !@This() {
+                    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, groupNames: u8, indicators: u32, nKeyAliases: u8, nKeys: u8, nRadioGroups: u8, nTypes: u8, virtualMods: u16, which: u32) !@This() {
                         var result: @This() = .{};
-                        if ((switch_value & 1) != 0) {
+                        if ((which & 1) != 0) {
                             const keycodesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.keycodesName = keycodesName;
                         }
-                        if ((switch_value & 2) != 0) {
+                        if ((which & 2) != 0) {
                             const geometryName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.geometryName = geometryName;
                         }
-                        if ((switch_value & 4) != 0) {
+                        if ((which & 4) != 0) {
                             const symbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.symbolsName = symbolsName;
                         }
-                        if ((switch_value & 8) != 0) {
+                        if ((which & 8) != 0) {
                             const physSymbolsName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.physSymbolsName = physSymbolsName;
                         }
-                        if ((switch_value & 16) != 0) {
+                        if ((which & 16) != 0) {
                             const typesName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.typesName = typesName;
                         }
-                        if ((switch_value & 32) != 0) {
+                        if ((which & 32) != 0) {
                             const compatName = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                             result.compatName = compatName;
                         }
-                        if ((switch_value & 64) != 0) {
+                        if ((which & 64) != 0) {
                             var payload: @typeInfo(@TypeOf(result.typeNames)).optional.child = undefined;
                             const decoded_typeNames_buf = try allocator.alloc(xproto.Atom, @intCast(nTypes));
                             for (decoded_typeNames_buf) |*elem| {
@@ -5309,7 +5309,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_typeNames_buf = decoded_typeNames_buf;
                             result.typeNames = payload;
                         }
-                        if ((switch_value & 128) != 0) {
+                        if ((which & 128) != 0) {
                             var payload: @typeInfo(@TypeOf(result.KTLevelNames)).optional.child = undefined;
                             const decoded_nLevelsPerType_buf = try allocator.dupe(u8, try reader.take(@intCast(nTypes)));
                             payload.nLevelsPerType = decoded_nLevelsPerType_buf;
@@ -5323,7 +5323,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_ktLevelNames_buf = decoded_ktLevelNames_buf;
                             result.KTLevelNames = payload;
                         }
-                        if ((switch_value & 256) != 0) {
+                        if ((which & 256) != 0) {
                             var payload: @typeInfo(@TypeOf(result.indicatorNames)).optional.child = undefined;
                             const decoded_indicatorNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(indicators)));
                             for (decoded_indicatorNames_buf) |*elem| {
@@ -5333,7 +5333,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_indicatorNames_buf = decoded_indicatorNames_buf;
                             result.indicatorNames = payload;
                         }
-                        if ((switch_value & 2048) != 0) {
+                        if ((which & 2048) != 0) {
                             var payload: @typeInfo(@TypeOf(result.virtualModNames)).optional.child = undefined;
                             const decoded_virtualModNames_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(virtualMods)));
                             for (decoded_virtualModNames_buf) |*elem| {
@@ -5343,7 +5343,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_virtualModNames_buf = decoded_virtualModNames_buf;
                             result.virtualModNames = payload;
                         }
-                        if ((switch_value & 4096) != 0) {
+                        if ((which & 4096) != 0) {
                             var payload: @typeInfo(@TypeOf(result.groups)).optional.child = undefined;
                             const decoded_groups_buf = try allocator.alloc(xproto.Atom, @intCast(@popCount(groupNames)));
                             for (decoded_groups_buf) |*elem| {
@@ -5353,7 +5353,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_groups_buf = decoded_groups_buf;
                             result.groups = payload;
                         }
-                        if ((switch_value & 512) != 0) {
+                        if ((which & 512) != 0) {
                             var payload: @typeInfo(@TypeOf(result.keyNames)).optional.child = undefined;
                             const decoded_keyNames_buf = try allocator.alloc(KeyName, @intCast(nKeys));
                             for (decoded_keyNames_buf) |*elem| {
@@ -5363,7 +5363,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_keyNames_buf = decoded_keyNames_buf;
                             result.keyNames = payload;
                         }
-                        if ((switch_value & 1024) != 0) {
+                        if ((which & 1024) != 0) {
                             var payload: @typeInfo(@TypeOf(result.keyAliases)).optional.child = undefined;
                             const decoded_keyAliases_buf = try allocator.alloc(KeyAlias, @intCast(nKeyAliases));
                             for (decoded_keyAliases_buf) |*elem| {
@@ -5373,7 +5373,7 @@ pub const GetKbdByName = struct {
                             payload.decoded_keyAliases_buf = decoded_keyAliases_buf;
                             result.keyAliases = payload;
                         }
-                        if ((switch_value & 8192) != 0) {
+                        if ((which & 8192) != 0) {
                             var payload: @typeInfo(@TypeOf(result.radioGroupNames)).optional.child = undefined;
                             const decoded_radioGroupNames_buf = try allocator.alloc(xproto.Atom, @intCast(nRadioGroups));
                             for (decoded_radioGroupNames_buf) |*elem| {
@@ -5589,9 +5589,9 @@ pub const GetKbdByName = struct {
                 return result;
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, reported: u16) !@This() {
                 var result: @This() = .{};
-                if ((switch_value & 13) != 0) {
+                if ((reported & 13) != 0) {
                     var payload: @typeInfo(@TypeOf(result.types)).optional.child = undefined;
                     payload.getmap_type = try reader.takeByte();
                     payload.typeDeviceID = try reader.takeByte();
@@ -5624,10 +5624,10 @@ pub const GetKbdByName = struct {
                     payload.totalVModMapKeys = try reader.takeByte();
                     _ = try reader.take(1);
                     payload.virtualMods = try reader.takeInt(u16, .native);
-                    payload.map = try @TypeOf(payload).Map.decode(allocator, reader, present, payload.nTypes, payload.nKeySyms, payload.nKeyActions, payload.totalActions, payload.totalKeyBehaviors, payload.totalKeyExplicit, payload.totalModMapKeys, payload.totalVModMapKeys);
+                    payload.map = try @TypeOf(payload).Map.decode(allocator, reader, payload.nKeyActions, payload.nKeySyms, payload.nTypes, present, payload.totalActions, payload.totalKeyBehaviors, payload.totalKeyExplicit, payload.totalModMapKeys, payload.totalVModMapKeys, payload.virtualMods);
                     result.types = payload;
                 }
-                if ((switch_value & 2) != 0) {
+                if ((reported & 2) != 0) {
                     var payload: @typeInfo(@TypeOf(result.compat_map)).optional.child = undefined;
                     payload.compatmap_type = try reader.takeByte();
                     payload.compatDeviceID = try reader.takeByte();
@@ -5653,7 +5653,7 @@ pub const GetKbdByName = struct {
                     payload.decoded_group_rtrn_buf = decoded_group_rtrn_buf;
                     result.compat_map = payload;
                 }
-                if ((switch_value & 16) != 0) {
+                if ((reported & 16) != 0) {
                     var payload: @typeInfo(@TypeOf(result.indicator_maps)).optional.child = undefined;
                     payload.indicatormap_type = try reader.takeByte();
                     payload.indicatorDeviceID = try reader.takeByte();
@@ -5671,7 +5671,7 @@ pub const GetKbdByName = struct {
                     payload.decoded_maps_buf = decoded_maps_buf;
                     result.indicator_maps = payload;
                 }
-                if ((switch_value & 160) != 0) {
+                if ((reported & 160) != 0) {
                     var payload: @typeInfo(@TypeOf(result.key_names)).optional.child = undefined;
                     payload.keyname_type = try reader.takeByte();
                     payload.keyDeviceID = try reader.takeByte();
@@ -5690,10 +5690,10 @@ pub const GetKbdByName = struct {
                     payload.nKeyAliases = try reader.takeByte();
                     payload.nKTLevels = try reader.takeInt(u16, .native);
                     _ = try reader.take(4);
-                    payload.valueList = try @TypeOf(payload).ValueList.decode(allocator, reader, which, payload.nTypes, payload.nKeys, payload.nKeyAliases, payload.nRadioGroups);
+                    payload.valueList = try @TypeOf(payload).ValueList.decode(allocator, reader, payload.groupNames, payload.indicators, payload.nKeyAliases, payload.nKeys, payload.nRadioGroups, payload.nTypes, payload.virtualMods, which);
                     result.key_names = payload;
                 }
-                if ((switch_value & 64) != 0) {
+                if ((reported & 64) != 0) {
                     var payload: @typeInfo(@TypeOf(result.geometry)).optional.child = undefined;
                     payload.geometry_type = try reader.takeByte();
                     payload.geometryDeviceID = try reader.takeByte();

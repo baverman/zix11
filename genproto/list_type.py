@@ -4,7 +4,17 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from . import xcbxml
-from .common import BaseType, DecodeScope, Emit, Field, Parent, Size, TypeProtocol, emit_expr
+from .common import (
+    BaseType,
+    DecodeScope,
+    Emit,
+    Field,
+    Parent,
+    Size,
+    TypeProtocol,
+    emit_expr,
+    expr_decode_args,
+)
 from .resolver import Resolver
 
 
@@ -117,8 +127,8 @@ class ListType(BaseType):
 
     def decode_args(self) -> Mapping[str, str]:
         args = dict(super().decode_args())
-        if isinstance(self.len, xcbxml.ParamRef):
-            args[self.len.ref] = self.len.type
+        if self.len is not None and not isinstance(self.len, int):
+            args.update(expr_decode_args(self.len))
         if isinstance(self.len, xcbxml.FieldRef) and self.len.ref.split('.', 1)[0] == 'header_':
             args['header_'] = 'wire.ReplyHeader'
         if self.use_buffer:

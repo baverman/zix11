@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Mapping, Protocol, TypeVar
@@ -171,7 +170,7 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = Non
     if isinstance(expr, xcbxml.FieldRef):
         return f'{prefix}{expr.ref}'
     if isinstance(expr, xcbxml.ParamRef):
-        return expr.ref
+        return zig_local_name(expr.ref)
     if isinstance(expr, xcbxml.Op):
         return f'({emit_expr(expr.left, prefix, element_expr)} {expr.op} {emit_expr(expr.right, prefix, element_expr)})'
     if isinstance(expr, xcbxml.Unop):
@@ -253,11 +252,13 @@ COMMON_ARGS = {
     'header_': 'wire.ReplyHeader',
 }
 
+COMMON_ARGS_ORDER = ['allocator', 'buffer_', 'reader', 'header_']
 
-def collect_decode_args(items: Iterable[Field]) -> OrderedDict[str, str]:
+
+def collect_decode_args(items: Iterable[Field]) -> Mapping[str, str]:
     items = tuple(items)
     field_names = {item.name for item in items}
-    args = OrderedDict[str, str]()
+    args: dict[str, str] = {}
     for item in items:
         for name, ztype in item.type.decode_args().items():
             if name in field_names:
@@ -266,14 +267,13 @@ def collect_decode_args(items: Iterable[Field]) -> OrderedDict[str, str]:
     return args
 
 
-def ordered_decode_args(args: Mapping[str, str]) -> OrderedDict[str, str]:
-    result = OrderedDict[str, str]()
-    for name, ztype in COMMON_ARGS.items():
-        if name in args:
-            result[name] = ztype
-    for name, ztype in args.items():
-        if name not in result:
-            result[name] = ztype
+def ordered_decode_args(args: Mapping[str, str]) -> list[str]:
+    result = []
+    for arg in COMMON_ARGS_ORDER:
+        if arg in args:
+            result.append(arg)
+
+    result.extend(sorted([it for it in args if it not in COMMON_ARGS]))
     return result
 
 
@@ -287,6 +287,20 @@ def decode_call_args(args: Mapping[str, str], scope: DecodeScope) -> list[str]:
     return result
 
 
+def expr_decode_args(expr: xcbxml.ListExpr) -> dict[str, str]:
+    if isinstance(expr, xcbxml.ParamRef):
+        return {expr.ref: expr.type}
+    if isinstance(expr, xcbxml.Op):
+        return {**expr_decode_args(expr.left), **expr_decode_args(expr.right)}
+    if isinstance(expr, xcbxml.Unop):
+        return expr_decode_args(expr.expr)
+    if isinstance(expr, xcbxml.PopCount):
+        return expr_decode_args(expr.expr)
+    if isinstance(expr, xcbxml.SumOf):
+        return expr_decode_args(expr.expr)
+    return {}
+
+
 def emit_decode_fn(
     emit: Emit,
     items: Iterable[Field],
@@ -295,10 +309,13 @@ def emit_decode_fn(
     items = tuple(items)
     item_args = collect_decode_args(items)
 
-    args = ordered_decode_args({**{arg: COMMON_ARGS[arg] for arg in mandatory_args}, **item_args})
+    args = {**{arg: COMMON_ARGS[arg] for arg in mandatory_args}, **item_args}
     unused_args = args.keys() - item_args.keys()
 
-    fargs: list[str] = [f'{name}: {COMMON_ARGS.get(name, typ)}' for name, typ in args.items()]
+    fargs: list[str] = [
+        f'{zig_local_name(name)}: {COMMON_ARGS.get(name, args[name])}'
+        for name in ordered_decode_args(args)
+    ]
     local_names = frozenset([*args, *(item.name for item in items if not item.public)])
     scope = DecodeScope(owner_expr='result', local_names=local_names)
 

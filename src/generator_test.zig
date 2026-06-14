@@ -3,7 +3,7 @@ const core = @import("testgen/core.zig");
 const foo = @import("testgen/foo.zig");
 const generated_events = @import("testgen/events.zig");
 const generated_errors = @import("testgen/errors.zig");
-const makePacket = @import("test_helpers.zig").makePacket;
+const makePacket = @import("test/packet.zig").makePacket;
 
 var tmp: [256]u8 = undefined;
 

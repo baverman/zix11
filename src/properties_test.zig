@@ -3,7 +3,7 @@ const connection = @import("connection.zig");
 const properties = @import("properties.zig");
 const protocol = @import("protocol.zig");
 const x = @import("gen/xproto.zig");
-const makeConn = @import("test_helpers.zig").makeConn;
+const makeConn = @import("test/connection.zig").makeConn;
 
 fn focusReplyPacket(sequence: u16) [32]u8 {
     var packet = std.mem.zeroes([32]u8);

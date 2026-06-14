@@ -560,8 +560,8 @@ pub const InputInfo = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) !@This() {
+            return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     payload.min_keycode = try reader.takeByte();
@@ -622,7 +622,7 @@ pub const InputInfo = struct {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
-        result.info = try @TypeOf(result).Info.decode(allocator, reader, @intFromEnum(class_id));
+        result.info = try @TypeOf(result).Info.decode(allocator, reader, class_id);
         return result;
     }
 
@@ -1013,8 +1013,8 @@ pub const FeedbackState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) !@This() {
+            return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     payload.pitch = try reader.takeInt(u16, .native);
@@ -1115,7 +1115,7 @@ pub const FeedbackState = struct {
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
         result.len = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, class_id);
         return result;
     }
 
@@ -1412,8 +1412,8 @@ pub const FeedbackCtl = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) !@This() {
+            return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     payload.key = try reader.takeByte();
@@ -1509,7 +1509,7 @@ pub const FeedbackCtl = struct {
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
         result.len = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, class_id);
         return result;
     }
 
@@ -1664,8 +1664,8 @@ pub const InputState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) !@This() {
+            return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     _ = try reader.take(wire.pad(reader.seek + 2, 4));
@@ -1731,7 +1731,7 @@ pub const InputState = struct {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(class_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, class_id);
         return result;
     }
 
@@ -2026,8 +2026,8 @@ pub const DeviceState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) !@This() {
+            return switch (@intFromEnum(control_id)) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     const num_valuators = try reader.takeInt(u32, .native);
@@ -2135,7 +2135,7 @@ pub const DeviceState = struct {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(control_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, control_id);
         return result;
     }
 
@@ -2391,8 +2391,8 @@ pub const DeviceCtl = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) !@This() {
+            return switch (@intFromEnum(control_id)) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     payload.first_valuator = try reader.takeByte();
@@ -2479,7 +2479,7 @@ pub const DeviceCtl = struct {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(control_id));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, control_id);
         return result;
     }
 
@@ -2712,8 +2712,8 @@ pub const HierarchyChange = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": HierarchyChangeType) !@This() {
+            return switch (@intFromEnum(@"type")) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     const name_len = try reader.takeInt(u16, .native);
@@ -2782,7 +2782,7 @@ pub const HierarchyChange = struct {
         var result: @This() = undefined;
         const @"type" = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(@"type"));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @"type");
         return result;
     }
 
@@ -3151,8 +3151,8 @@ pub const DeviceClass = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": DeviceClassType) !@This() {
+            return switch (@intFromEnum(@"type")) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     _ = try reader.take(wire.pad(reader.seek + 2, 4));
@@ -3271,7 +3271,7 @@ pub const DeviceClass = struct {
         const @"type" = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
         result.sourceid = try reader.takeInt(u16, .native);
-        result.data = try @TypeOf(result).Data.decode(allocator, reader, @intFromEnum(@"type"));
+        result.data = try @TypeOf(result).Data.decode(allocator, reader, @"type");
         return result;
     }
 
@@ -4611,8 +4611,8 @@ pub const ChangeDeviceProperty = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, num_items: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+            return switch (@intFromEnum(format)) {
                 8 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     const decoded_data8_buf = try allocator.dupe(u8, try reader.take(@intCast(num_items)));
@@ -4774,8 +4774,8 @@ pub const GetDeviceProperty = struct {
                 };
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, num_items: u32) !@This() {
-                return switch (switch_value) {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+                return switch (@intFromEnum(format)) {
                     8 => blk: {
                         var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                         const decoded_data8_buf = try allocator.dupe(u8, try reader.take(@intCast(num_items)));
@@ -4845,7 +4845,7 @@ pub const GetDeviceProperty = struct {
             const format = @as(PropertyFormat, @enumFromInt(try reader.takeByte()));
             result.device_id = try reader.takeByte();
             _ = try reader.take(10);
-            result.items = try @TypeOf(result).Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
+            result.items = try @TypeOf(result).Items.decode(allocator, reader, format, result.num_items);
             return result;
         }
 
@@ -5418,8 +5418,8 @@ pub const XIChangeProperty = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, num_items: u32) !@This() {
-            return switch (switch_value) {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+            return switch (@intFromEnum(format)) {
                 8 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                     const decoded_data8_buf = try allocator.dupe(u8, try reader.take(@intCast(num_items)));
@@ -5578,8 +5578,8 @@ pub const XIGetProperty = struct {
                 };
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, switch_value: u32, num_items: u32) !@This() {
-                return switch (switch_value) {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+                return switch (@intFromEnum(format)) {
                     8 => blk: {
                         var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
                         const decoded_data8_buf = try allocator.dupe(u8, try reader.take(@intCast(num_items)));
@@ -5648,7 +5648,7 @@ pub const XIGetProperty = struct {
             result.num_items = try reader.takeInt(u32, .native);
             const format = @as(PropertyFormat, @enumFromInt(try reader.takeByte()));
             _ = try reader.take(11);
-            result.items = try @TypeOf(result).Items.decode(allocator, reader, @intFromEnum(format), result.num_items);
+            result.items = try @TypeOf(result).Items.decode(allocator, reader, format, result.num_items);
             return result;
         }
 

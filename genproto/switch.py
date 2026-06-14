@@ -8,6 +8,7 @@ from . import xcbxml
 from .common import (
     COMMON_ARGS,
     collect_decode_args,
+    decode_call_args,
     Emit,
     DecodeScope,
     Field,
@@ -17,6 +18,7 @@ from .common import (
     Size,
     emit_decl_items,
     emit_expr,
+    expr_decode_args,
     expr_refs,
     items_size,
     zig_local_name,
@@ -33,7 +35,6 @@ def decode_scope(items: list[Field], args: Mapping[str, str]) -> DecodeScope:
         owner_expr='payload',
         local_names=frozenset(
             {
-                'switch_value',
                 *args,
                 *(item.name for item in items if not item.public),
             }
@@ -70,30 +71,17 @@ def bind_outer_list_refs(
             list_type.len = replace_field_ref_in_expr(list_type.len, ref, field.type.decl_name)
 
 
-def switch_decode_signature(args: Mapping[str, str]) -> str:
-    result: list[str] = []
-    for name, ztype in ordered_decode_args(args).items():
-        if name in COMMON_ARGS:
-            result.append(f'{name}: {ztype}')
-    result.append('switch_value: u32')
-    for name, ztype in ordered_decode_args(args).items():
-        if name not in COMMON_ARGS:
-            result.append(f'{name}: {ztype}')
-    return ', '.join(result)
-
-
-def switch_decode_call_args(
-    args: Mapping[str, str], scope: DecodeScope, switch_value: str
-) -> list[str]:
-    result: list[str] = []
-    for name in ordered_decode_args(args):
-        if name in COMMON_ARGS:
-            result.append(name)
-    result.append(switch_value)
-    for name in ordered_decode_args(args):
-        if name not in COMMON_ARGS:
-            result.append(scope.get(name))
-    return result
+def bind_expr_refs(
+    expr: xcbxml.ListExpr,
+    fields_by_name: dict[str, Field],
+    seen: set[str | None],
+) -> xcbxml.ListExpr:
+    for ref in expr_refs(expr):
+        if ref in fields_by_name and ref not in seen:
+            seen.add(ref)
+            field = fields_by_name[ref]
+            expr = replace_field_ref_in_expr(expr, ref, field.type.decl_name)
+    return expr
 
 
 @dataclass(frozen=True)
@@ -235,10 +223,10 @@ class BitcaseArm:
             emit(f'_ = {owner};')
 
 
-@dataclass(frozen=True)
+@dataclass
 class CaseType(InnerType):
     name: str
-    field_name: str
+    field_name: xcbxml.FieldRef | xcbxml.ParamRef
     arms: list[CaseArm]
 
     @property
@@ -251,6 +239,8 @@ class CaseType(InnerType):
 
     def decode_args(self) -> Mapping[str, str]:
         args = dict(super().decode_args())
+        if isinstance(self.field_name, xcbxml.ParamRef):
+            args[self.field_name.ref] = self.field_name.type
         for arm in self.arms:
             args.update(collect_decode_args(arm.items))
         return args
@@ -268,7 +258,7 @@ class CaseType(InnerType):
 
         return CaseType(
             name=case_switch.name[:1].upper() + case_switch.name[1:],
-            field_name=case_switch.fieldref.ref,
+            field_name=case_switch.fieldref,
             arms=arms,
         )
 
@@ -276,22 +266,23 @@ class CaseType(InnerType):
         emit(f'try {value_expr}.encode(writer);')
 
     def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
-        switch_value = f'@intFromEnum({zig_local_name(self.field_name)})'
         owner_expr = value_expr.rpartition('.')[0]
         type_ref = f'@TypeOf({owner_expr}).{self.name}'
-        args = ', '.join(switch_decode_call_args(self.decode_args(), scope, switch_value))
+        args = ', '.join(decode_call_args(self.decode_args(), scope))
         emit(f'{value_expr} = try {type_ref}.decode({args});')
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
     ) -> None:
-        discrim_field = fields_by_name[self.field_name]
+        discrim_name = self.field_name.ref
+        discrim_field = fields_by_name[discrim_name]
         discrim_field.public = False
         discrim_field.encode_value_expr_ = (
             f'@as({discrim_field.type.decl_name}, '
             f'@enumFromInt({{owner}}.{field.name}.switchValue()))'
         )
-        seen: set[str | None] = {self.field_name}
+        self.field_name = xcbxml.ParamRef(ref=discrim_name, type=discrim_field.type.decl_name)
+        seen: set[str | None] = {discrim_name}
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
@@ -328,9 +319,14 @@ class CaseType(InnerType):
                 emit('};')
             emit('}')
             emit()
-            emit(f'pub fn decode({switch_decode_signature(self.decode_args())}) !@This() {{')
+            decode_args = self.decode_args()
+            params = ', '.join(
+                f'{zig_local_name(name)}: {COMMON_ARGS.get(name, decode_args[name])}'
+                for name in ordered_decode_args(decode_args)
+            )
+            emit(f'pub fn decode({params}) !@This() {{')
             with emit.block():
-                emit('return switch (switch_value) {')
+                emit(f'return switch (@intFromEnum({emit_expr(self.field_name, "")})) {{')
                 with emit.block():
                     for i, arm in enumerate(self.arms):
                         emit(f'{arm.value} => blk: {{')
@@ -360,7 +356,7 @@ class CaseType(InnerType):
         emit('};')
 
 
-@dataclass(frozen=True)
+@dataclass
 class BitcaseType(InnerType):
     name: str
     expr: xcbxml.ListExpr
@@ -372,7 +368,7 @@ class BitcaseType(InnerType):
 
     @property
     def field_name(self) -> str | None:
-        return self.expr.ref if isinstance(self.expr, xcbxml.FieldRef) else None
+        return self.expr.ref if isinstance(self.expr, (xcbxml.FieldRef, xcbxml.ParamRef)) else None
 
     @cached_property
     def size(self) -> Size:
@@ -380,6 +376,7 @@ class BitcaseType(InnerType):
 
     def decode_args(self) -> Mapping[str, str]:
         args = dict(super().decode_args())
+        args.update(expr_decode_args(self.expr))
         for arm in self.arms:
             args.update(collect_decode_args(arm.items))
         return args
@@ -406,22 +403,22 @@ class BitcaseType(InnerType):
 
     def emit_decode(self, emit: Emit, value_expr: str, scope: DecodeScope) -> None:
         owner_expr = value_expr.rpartition('.')[0]
-        if self.field_name is not None:
-            switch_value = zig_local_name(self.field_name)
-        else:
-            switch_value = emit_expr(self.expr, f'{owner_expr}.')
         type_ref = f'@TypeOf({owner_expr}).{self.name}'
-        args = ', '.join(switch_decode_call_args(self.decode_args(), scope, switch_value))
+        args = ', '.join(decode_call_args(self.decode_args(), scope))
         emit(f'{value_expr} = try {type_ref}.decode({args});')
 
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
     ) -> None:
-        if self.field_name is not None:
-            mask_field = fields_by_name[self.field_name]
+        field_name = self.field_name
+        if field_name is not None:
+            mask_field = fields_by_name[field_name]
             mask_field.public = False
             mask_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.switchValue())'
-        seen: set[str | None] = {self.field_name} if self.field_name else set()
+            self.expr = xcbxml.ParamRef(ref=field_name, type=mask_field.type.decl_name)
+        seen: set[str | None] = {field_name} if field_name else set()
+        if field_name is None:
+            self.expr = bind_expr_refs(self.expr, fields_by_name, seen)
         for arm in self.arms:
             for it in arm.items:
                 if isinstance(it.type, ListType):
@@ -460,11 +457,17 @@ class BitcaseType(InnerType):
             emit('}')
 
             emit()
-            emit(f'pub fn decode({switch_decode_signature(self.decode_args())}) !@This() {{')
+            decode_args = self.decode_args()
+            params = ', '.join(
+                f'{zig_local_name(name)}: {COMMON_ARGS.get(name, decode_args[name])}'
+                for name in ordered_decode_args(decode_args)
+            )
+            emit(f'pub fn decode({params}) !@This() {{')
             with emit.block():
                 emit('var result: @This() = .{};')
+                switch_expr = emit_expr(self.expr, '')
                 for i, arm in enumerate(self.arms):
-                    emit(f'if ((switch_value & {arm.value}) != 0) {{')
+                    emit(f'if (({switch_expr} & {arm.value}) != 0) {{')
                     with emit.block():
                         if arm.is_direct:
                             item = arm.items[0]

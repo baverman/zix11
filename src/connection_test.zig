@@ -3,7 +3,7 @@ const connection = @import("connection.zig");
 const ext = @import("ext.zig");
 const errors = @import("errors.zig");
 const protocol = @import("protocol.zig");
-const makeConn = @import("test_helpers.zig").makeConn;
+const makeConn = @import("test/connection.zig").makeConn;
 
 test "Connection.taggedError decodes core protocol errors" {
     var conn = try makeConn(&.{}, &.{});

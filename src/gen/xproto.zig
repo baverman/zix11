@@ -1573,65 +1573,65 @@ pub const CreateWindow = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const background_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.background_pixmap = background_pixmap;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const background_pixel = try reader.takeInt(u32, .native);
                 result.background_pixel = background_pixel;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const border_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.border_pixmap = border_pixmap;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const border_pixel = try reader.takeInt(u32, .native);
                 result.border_pixel = border_pixel;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const bit_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.bit_gravity = bit_gravity;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const win_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.win_gravity = win_gravity;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.backing_store = backing_store;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const backing_planes = try reader.takeInt(u32, .native);
                 result.backing_planes = backing_planes;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const backing_pixel = try reader.takeInt(u32, .native);
                 result.backing_pixel = backing_pixel;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const override_redirect = try reader.takeInt(u32, .native);
                 result.override_redirect = override_redirect;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const save_under = try reader.takeInt(u32, .native);
                 result.save_under = save_under;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const event_mask = try reader.takeInt(u32, .native);
                 result.event_mask = event_mask;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const do_not_propogate_mask = try reader.takeInt(u32, .native);
                 result.do_not_propogate_mask = do_not_propogate_mask;
             }
-            if ((switch_value & 8192) != 0) {
+            if ((value_mask & 8192) != 0) {
                 const colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.colormap = colormap;
             }
-            if ((switch_value & 16384) != 0) {
+            if ((value_mask & 16384) != 0) {
                 const cursor = @as(Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.cursor = cursor;
             }
@@ -1752,65 +1752,65 @@ pub const ChangeWindowAttributes = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const background_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.background_pixmap = background_pixmap;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const background_pixel = try reader.takeInt(u32, .native);
                 result.background_pixel = background_pixel;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const border_pixmap = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.border_pixmap = border_pixmap;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const border_pixel = try reader.takeInt(u32, .native);
                 result.border_pixel = border_pixel;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const bit_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.bit_gravity = bit_gravity;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const win_gravity = @as(Gravity, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.win_gravity = win_gravity;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const backing_store = @as(BackingStore, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.backing_store = backing_store;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const backing_planes = try reader.takeInt(u32, .native);
                 result.backing_planes = backing_planes;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const backing_pixel = try reader.takeInt(u32, .native);
                 result.backing_pixel = backing_pixel;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const override_redirect = try reader.takeInt(u32, .native);
                 result.override_redirect = override_redirect;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const save_under = try reader.takeInt(u32, .native);
                 result.save_under = save_under;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const event_mask = try reader.takeInt(u32, .native);
                 result.event_mask = event_mask;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const do_not_propogate_mask = try reader.takeInt(u32, .native);
                 result.do_not_propogate_mask = do_not_propogate_mask;
             }
-            if ((switch_value & 8192) != 0) {
+            if ((value_mask & 8192) != 0) {
                 const colormap = @as(Colormap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.colormap = colormap;
             }
-            if ((switch_value & 16384) != 0) {
+            if ((value_mask & 16384) != 0) {
                 const cursor = @as(Cursor, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.cursor = cursor;
             }
@@ -2089,33 +2089,33 @@ pub const ConfigureWindow = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u16) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const x = try reader.takeInt(i32, .native);
                 result.x = x;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const y = try reader.takeInt(i32, .native);
                 result.y = y;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const width = try reader.takeInt(u32, .native);
                 result.width = width;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const height = try reader.takeInt(u32, .native);
                 result.height = height;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const border_width = try reader.takeInt(u32, .native);
                 result.border_width = border_width;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const sibling = @as(Window, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.sibling = sibling;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const stack_mode = @as(StackMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.stack_mode = stack_mode;
             }
@@ -3569,97 +3569,97 @@ pub const CreateGC = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const function = @as(GX, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.function = function;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const plane_mask = try reader.takeInt(u32, .native);
                 result.plane_mask = plane_mask;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const foreground = try reader.takeInt(u32, .native);
                 result.foreground = foreground;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const background = try reader.takeInt(u32, .native);
                 result.background = background;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const line_width = try reader.takeInt(u32, .native);
                 result.line_width = line_width;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const line_style = @as(LineStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.line_style = line_style;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const cap_style = @as(CapStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.cap_style = cap_style;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const join_style = @as(JoinStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.join_style = join_style;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const fill_style = @as(FillStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.fill_style = fill_style;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const fill_rule = @as(FillRule, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.fill_rule = fill_rule;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const tile = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.tile = tile;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const stipple = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.stipple = stipple;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const tile_stipple_x_origin = try reader.takeInt(i32, .native);
                 result.tile_stipple_x_origin = tile_stipple_x_origin;
             }
-            if ((switch_value & 8192) != 0) {
+            if ((value_mask & 8192) != 0) {
                 const tile_stipple_y_origin = try reader.takeInt(i32, .native);
                 result.tile_stipple_y_origin = tile_stipple_y_origin;
             }
-            if ((switch_value & 16384) != 0) {
+            if ((value_mask & 16384) != 0) {
                 const font = @as(Font, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.font = font;
             }
-            if ((switch_value & 32768) != 0) {
+            if ((value_mask & 32768) != 0) {
                 const subwindow_mode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindow_mode = subwindow_mode;
             }
-            if ((switch_value & 65536) != 0) {
+            if ((value_mask & 65536) != 0) {
                 const graphics_exposures = try reader.takeInt(u32, .native);
                 result.graphics_exposures = graphics_exposures;
             }
-            if ((switch_value & 131072) != 0) {
+            if ((value_mask & 131072) != 0) {
                 const clip_x_origin = try reader.takeInt(i32, .native);
                 result.clip_x_origin = clip_x_origin;
             }
-            if ((switch_value & 262144) != 0) {
+            if ((value_mask & 262144) != 0) {
                 const clip_y_origin = try reader.takeInt(i32, .native);
                 result.clip_y_origin = clip_y_origin;
             }
-            if ((switch_value & 524288) != 0) {
+            if ((value_mask & 524288) != 0) {
                 const clip_mask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clip_mask = clip_mask;
             }
-            if ((switch_value & 1048576) != 0) {
+            if ((value_mask & 1048576) != 0) {
                 const dash_offset = try reader.takeInt(u32, .native);
                 result.dash_offset = dash_offset;
             }
-            if ((switch_value & 2097152) != 0) {
+            if ((value_mask & 2097152) != 0) {
                 const dashes = try reader.takeInt(u32, .native);
                 result.dashes = dashes;
             }
-            if ((switch_value & 4194304) != 0) {
+            if ((value_mask & 4194304) != 0) {
                 const arc_mode = @as(ArcMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.arc_mode = arc_mode;
             }
@@ -3814,97 +3814,97 @@ pub const ChangeGC = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const function = @as(GX, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.function = function;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const plane_mask = try reader.takeInt(u32, .native);
                 result.plane_mask = plane_mask;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const foreground = try reader.takeInt(u32, .native);
                 result.foreground = foreground;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const background = try reader.takeInt(u32, .native);
                 result.background = background;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const line_width = try reader.takeInt(u32, .native);
                 result.line_width = line_width;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const line_style = @as(LineStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.line_style = line_style;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const cap_style = @as(CapStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.cap_style = cap_style;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const join_style = @as(JoinStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.join_style = join_style;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const fill_style = @as(FillStyle, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.fill_style = fill_style;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const fill_rule = @as(FillRule, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.fill_rule = fill_rule;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const tile = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.tile = tile;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const stipple = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.stipple = stipple;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const tile_stipple_x_origin = try reader.takeInt(i32, .native);
                 result.tile_stipple_x_origin = tile_stipple_x_origin;
             }
-            if ((switch_value & 8192) != 0) {
+            if ((value_mask & 8192) != 0) {
                 const tile_stipple_y_origin = try reader.takeInt(i32, .native);
                 result.tile_stipple_y_origin = tile_stipple_y_origin;
             }
-            if ((switch_value & 16384) != 0) {
+            if ((value_mask & 16384) != 0) {
                 const font = @as(Font, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.font = font;
             }
-            if ((switch_value & 32768) != 0) {
+            if ((value_mask & 32768) != 0) {
                 const subwindow_mode = @as(SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindow_mode = subwindow_mode;
             }
-            if ((switch_value & 65536) != 0) {
+            if ((value_mask & 65536) != 0) {
                 const graphics_exposures = try reader.takeInt(u32, .native);
                 result.graphics_exposures = graphics_exposures;
             }
-            if ((switch_value & 131072) != 0) {
+            if ((value_mask & 131072) != 0) {
                 const clip_x_origin = try reader.takeInt(i32, .native);
                 result.clip_x_origin = clip_x_origin;
             }
-            if ((switch_value & 262144) != 0) {
+            if ((value_mask & 262144) != 0) {
                 const clip_y_origin = try reader.takeInt(i32, .native);
                 result.clip_y_origin = clip_y_origin;
             }
-            if ((switch_value & 524288) != 0) {
+            if ((value_mask & 524288) != 0) {
                 const clip_mask = @as(Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clip_mask = clip_mask;
             }
-            if ((switch_value & 1048576) != 0) {
+            if ((value_mask & 1048576) != 0) {
                 const dash_offset = try reader.takeInt(u32, .native);
                 result.dash_offset = dash_offset;
             }
-            if ((switch_value & 2097152) != 0) {
+            if ((value_mask & 2097152) != 0) {
                 const dashes = try reader.takeInt(u32, .native);
                 result.dashes = dashes;
             }
-            if ((switch_value & 4194304) != 0) {
+            if ((value_mask & 4194304) != 0) {
                 const arc_mode = @as(ArcMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.arc_mode = arc_mode;
             }
@@ -5387,37 +5387,37 @@ pub const ChangeKeyboardControl = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const key_click_percent = try reader.takeInt(i32, .native);
                 result.key_click_percent = key_click_percent;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const bell_percent = try reader.takeInt(i32, .native);
                 result.bell_percent = bell_percent;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const bell_pitch = try reader.takeInt(i32, .native);
                 result.bell_pitch = bell_pitch;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const bell_duration = try reader.takeInt(i32, .native);
                 result.bell_duration = bell_duration;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const led = try reader.takeInt(u32, .native);
                 result.led = led;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const led_mode = @as(LedMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.led_mode = led_mode;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const key = try reader.takeInt(u32, .native);
                 result.key = key;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const auto_repeat_mode = @as(AutoRepeatMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.auto_repeat_mode = auto_repeat_mode;
             }

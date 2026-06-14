@@ -756,57 +756,57 @@ pub const CreatePicture = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const repeat = @as(Repeat, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.repeat = repeat;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const alphamap = @as(Picture, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.alphamap = alphamap;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const alphaxorigin = try reader.takeInt(i32, .native);
                 result.alphaxorigin = alphaxorigin;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const alphayorigin = try reader.takeInt(i32, .native);
                 result.alphayorigin = alphayorigin;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const clipxorigin = try reader.takeInt(i32, .native);
                 result.clipxorigin = clipxorigin;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const clipyorigin = try reader.takeInt(i32, .native);
                 result.clipyorigin = clipyorigin;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clipmask = clipmask;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const graphicsexposure = try reader.takeInt(u32, .native);
                 result.graphicsexposure = graphicsexposure;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindowmode = subwindowmode;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const polyedge = @as(PolyEdge, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.polyedge = polyedge;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const polymode = @as(PolyMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.polymode = polymode;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.dither = dither;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const componentalpha = try reader.takeInt(u32, .native);
                 result.componentalpha = componentalpha;
             }
@@ -907,57 +907,57 @@ pub const ChangePicture = struct {
             return result;
         }
 
-        pub fn decode(reader: *std.Io.Reader, switch_value: u32) !@This() {
+        pub fn decode(reader: *std.Io.Reader, value_mask: u32) !@This() {
             var result: @This() = .{};
-            if ((switch_value & 1) != 0) {
+            if ((value_mask & 1) != 0) {
                 const repeat = @as(Repeat, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.repeat = repeat;
             }
-            if ((switch_value & 2) != 0) {
+            if ((value_mask & 2) != 0) {
                 const alphamap = @as(Picture, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.alphamap = alphamap;
             }
-            if ((switch_value & 4) != 0) {
+            if ((value_mask & 4) != 0) {
                 const alphaxorigin = try reader.takeInt(i32, .native);
                 result.alphaxorigin = alphaxorigin;
             }
-            if ((switch_value & 8) != 0) {
+            if ((value_mask & 8) != 0) {
                 const alphayorigin = try reader.takeInt(i32, .native);
                 result.alphayorigin = alphayorigin;
             }
-            if ((switch_value & 16) != 0) {
+            if ((value_mask & 16) != 0) {
                 const clipxorigin = try reader.takeInt(i32, .native);
                 result.clipxorigin = clipxorigin;
             }
-            if ((switch_value & 32) != 0) {
+            if ((value_mask & 32) != 0) {
                 const clipyorigin = try reader.takeInt(i32, .native);
                 result.clipyorigin = clipyorigin;
             }
-            if ((switch_value & 64) != 0) {
+            if ((value_mask & 64) != 0) {
                 const clipmask = @as(xproto.Pixmap, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.clipmask = clipmask;
             }
-            if ((switch_value & 128) != 0) {
+            if ((value_mask & 128) != 0) {
                 const graphicsexposure = try reader.takeInt(u32, .native);
                 result.graphicsexposure = graphicsexposure;
             }
-            if ((switch_value & 256) != 0) {
+            if ((value_mask & 256) != 0) {
                 const subwindowmode = @as(xproto.SubwindowMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.subwindowmode = subwindowmode;
             }
-            if ((switch_value & 512) != 0) {
+            if ((value_mask & 512) != 0) {
                 const polyedge = @as(PolyEdge, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.polyedge = polyedge;
             }
-            if ((switch_value & 1024) != 0) {
+            if ((value_mask & 1024) != 0) {
                 const polymode = @as(PolyMode, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.polymode = polymode;
             }
-            if ((switch_value & 2048) != 0) {
+            if ((value_mask & 2048) != 0) {
                 const dither = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
                 result.dither = dither;
             }
-            if ((switch_value & 4096) != 0) {
+            if ((value_mask & 4096) != 0) {
                 const componentalpha = try reader.takeInt(u32, .native);
                 result.componentalpha = componentalpha;
             }
