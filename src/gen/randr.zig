@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const render = @import("render.zig");
 const xproto = @import("xproto.zig");
@@ -129,14 +129,14 @@ pub const ScreenSize = struct {
     mwidth: u16,
     mheight: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.width, .native);
         try writer.writeInt(u16, self.height, .native);
         try writer.writeInt(u16, self.mwidth, .native);
         try writer.writeInt(u16, self.mheight, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.width = try reader.takeInt(u16, .native);
         result.height = try reader.takeInt(u16, .native);
@@ -150,14 +150,14 @@ pub const RefreshRates = struct {
     rates: []const u16,
     decoded_rates_buf: ?[]u16 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(self.rates.len), .native);
         for (self.rates) |elem| {
             try writer.writeInt(u16, elem, .native);
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const nRates = try reader.takeInt(u16, .native);
         const decoded_rates_buf = try allocator.alloc(u16, @intCast(nRates));
@@ -193,7 +193,7 @@ pub const ModeInfo = struct {
     name_len: u16,
     mode_flags: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.id, .native);
         try writer.writeInt(u16, self.width, .native);
         try writer.writeInt(u16, self.height, .native);
@@ -209,7 +209,7 @@ pub const ModeInfo = struct {
         try writer.writeInt(u32, self.mode_flags, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.id = try reader.takeInt(u32, .native);
         result.width = try reader.takeInt(u16, .native);
@@ -239,7 +239,7 @@ pub const CrtcChange = struct {
     width: u16,
     height: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
@@ -252,7 +252,7 @@ pub const CrtcChange = struct {
         try writer.writeInt(u16, self.height, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -279,7 +279,7 @@ pub const OutputChange = struct {
     connection: Connection,
     subpixel_order: render.SubPixel,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
@@ -291,7 +291,7 @@ pub const OutputChange = struct {
         try writer.writeByte(@intCast(@intFromEnum(self.subpixel_order)));
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.config_timestamp = try reader.takeInt(u32, .native);
@@ -313,7 +313,7 @@ pub const OutputProperty = struct {
     timestamp: u32,
     status: xproto.Property,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.atom)), .native);
@@ -322,7 +322,7 @@ pub const OutputProperty = struct {
         try writer.splatByteAll(0, 11);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.output = @as(Output, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -339,14 +339,14 @@ pub const ProviderChange = struct {
     window: xproto.Window,
     provider: Provider,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.splatByteAll(0, 16);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -363,7 +363,7 @@ pub const ProviderProperty = struct {
     timestamp: u32,
     state: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.atom)), .native);
@@ -372,7 +372,7 @@ pub const ProviderProperty = struct {
         try writer.splatByteAll(0, 11);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
         result.provider = @as(Provider, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -388,13 +388,13 @@ pub const ResourceChange = struct {
     timestamp: u32,
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.splatByteAll(0, 20);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -416,7 +416,7 @@ pub const MonitorInfo = struct {
     outputs: []const Output,
     decoded_outputs_buf: ?[]Output = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.name)), .native);
         try writer.writeByte(@intFromBool(self.primary));
         try writer.writeByte(@intFromBool(self.automatic));
@@ -432,7 +432,7 @@ pub const MonitorInfo = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.name = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.primary = (try reader.takeByte()) != 0;
@@ -468,7 +468,7 @@ pub const LeaseNotify = struct {
     lease: Lease,
     created: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.lease)), .native);
@@ -476,7 +476,7 @@ pub const LeaseNotify = struct {
         try writer.splatByteAll(0, 15);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.timestamp = try reader.takeInt(u32, .native);
         result.window = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -498,17 +498,17 @@ pub const NotifyData = struct {
         return self.raw;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeAll(self.raw[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var raw: [28]u8 = undefined;
         @memcpy(raw[0..], try reader.take(28));
         return .{ .raw = raw };
     }
 
-    pub fn fromCc(value: CrtcChange) !@This() {
+    pub fn fromCc(value: CrtcChange) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -516,7 +516,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asCc(self: @This()) !CrtcChange {
+    pub fn asCc(self: @This()) errors.DecodeError!CrtcChange {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: CrtcChange = undefined;
@@ -524,7 +524,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromOc(value: OutputChange) !@This() {
+    pub fn fromOc(value: OutputChange) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -532,7 +532,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asOc(self: @This()) !OutputChange {
+    pub fn asOc(self: @This()) errors.DecodeError!OutputChange {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: OutputChange = undefined;
@@ -540,7 +540,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromOp(value: OutputProperty) !@This() {
+    pub fn fromOp(value: OutputProperty) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -548,7 +548,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asOp(self: @This()) !OutputProperty {
+    pub fn asOp(self: @This()) errors.DecodeError!OutputProperty {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: OutputProperty = undefined;
@@ -556,7 +556,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromPc(value: ProviderChange) !@This() {
+    pub fn fromPc(value: ProviderChange) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -564,7 +564,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asPc(self: @This()) !ProviderChange {
+    pub fn asPc(self: @This()) errors.DecodeError!ProviderChange {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: ProviderChange = undefined;
@@ -572,7 +572,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromPp(value: ProviderProperty) !@This() {
+    pub fn fromPp(value: ProviderProperty) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -580,7 +580,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asPp(self: @This()) !ProviderProperty {
+    pub fn asPp(self: @This()) errors.DecodeError!ProviderProperty {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: ProviderProperty = undefined;
@@ -588,7 +588,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromRc(value: ResourceChange) !@This() {
+    pub fn fromRc(value: ResourceChange) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -596,7 +596,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asRc(self: @This()) !ResourceChange {
+    pub fn asRc(self: @This()) errors.DecodeError!ResourceChange {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: ResourceChange = undefined;
@@ -604,7 +604,7 @@ pub const NotifyData = struct {
         return value;
     }
 
-    pub fn fromLc(value: LeaseNotify) !@This() {
+    pub fn fromLc(value: LeaseNotify) errors.EncodeError!@This() {
         var raw = std.mem.zeroes([28]u8);
         var writer_impl: std.Io.Writer = .fixed(&raw);
         const writer = &writer_impl;
@@ -612,7 +612,7 @@ pub const NotifyData = struct {
         return .{ .raw = raw };
     }
 
-    pub fn asLc(self: @This()) !LeaseNotify {
+    pub fn asLc(self: @This()) errors.DecodeError!LeaseNotify {
         var reader_impl: std.Io.Reader = .fixed(&self.raw);
         const reader = &reader_impl;
         var value: LeaseNotify = undefined;
@@ -628,7 +628,7 @@ pub const QueryVersion = struct {
     major_version: u32,
     minor_version: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.major_version, .native);
         try writer.writeInt(u32, self.minor_version, .native);
     }
@@ -637,7 +637,7 @@ pub const QueryVersion = struct {
         major_version: u32,
         minor_version: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.major_version = try reader.takeInt(u32, .native);
@@ -659,7 +659,7 @@ pub const SetScreenConfig = struct {
     rotation: u16,
     rate: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
@@ -676,7 +676,7 @@ pub const SetScreenConfig = struct {
         root: xproto.Window,
         subpixel_order: render.SubPixel,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.new_timestamp = try reader.takeInt(u32, .native);
@@ -696,7 +696,7 @@ pub const SelectInput = struct {
     window: xproto.Window,
     enable: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, self.enable, .native);
         try writer.splatByteAll(0, 2);
@@ -711,7 +711,7 @@ pub const GetScreenInfo = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -729,7 +729,7 @@ pub const GetScreenInfo = struct {
         rates: []const RefreshRates,
         decoded_rates_buf: ?[]RefreshRates = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.rotations = header_.byte_slot;
             result.root = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -747,7 +747,7 @@ pub const GetScreenInfo = struct {
             }
             result.sizes = decoded_sizes_buf;
             result.decoded_sizes_buf = decoded_sizes_buf;
-            const decoded_rates_buf = try allocator.alloc(RefreshRates, @intCast((result.nInfo - result.nSizes)));
+            const decoded_rates_buf = try allocator.alloc(RefreshRates, @intCast((result.nInfo - nSizes)));
             for (decoded_rates_buf) |*elem| {
                 elem.* = try RefreshRates.decode(allocator, reader);
             }
@@ -780,7 +780,7 @@ pub const GetScreenSizeRange = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -790,7 +790,7 @@ pub const GetScreenSizeRange = struct {
         max_width: u16,
         max_height: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.min_width = try reader.takeInt(u16, .native);
@@ -813,7 +813,7 @@ pub const SetScreenSize = struct {
     mm_width: u32,
     mm_height: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, self.width, .native);
         try writer.writeInt(u16, self.height, .native);
@@ -830,7 +830,7 @@ pub const GetScreenResources = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -846,7 +846,7 @@ pub const GetScreenResources = struct {
         names: []const u8,
         decoded_names_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.timestamp = try reader.takeInt(u32, .native);
@@ -912,7 +912,7 @@ pub const GetOutputInfo = struct {
     output: Output,
     config_timestamp: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
     }
@@ -935,7 +935,7 @@ pub const GetOutputInfo = struct {
         name: []const u8,
         decoded_name_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1004,7 +1004,7 @@ pub const ListOutputProperties = struct {
 
     output: Output,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
     }
 
@@ -1012,7 +1012,7 @@ pub const ListOutputProperties = struct {
         atoms: []const xproto.Atom,
         decoded_atoms_buf: ?[]xproto.Atom = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_atoms = try reader.takeInt(u16, .native);
@@ -1043,7 +1043,7 @@ pub const QueryOutputProperty = struct {
     output: Output,
     property: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
     }
@@ -1055,7 +1055,7 @@ pub const QueryOutputProperty = struct {
         validValues: []const i32,
         decoded_validValues_buf: ?[]i32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.pending = (try reader.takeByte()) != 0;
             result.range = (try reader.takeByte()) != 0;
@@ -1091,7 +1091,7 @@ pub const ConfigureOutputProperty = struct {
     values: []const i32,
     decoded_values_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeByte(@intFromBool(self.pending));
@@ -1118,7 +1118,7 @@ pub const ChangeOutputProperty = struct {
     data: []const u8,
     decoded_data_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
@@ -1139,7 +1139,7 @@ pub const DeleteOutputProperty = struct {
     output: Output,
     property: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
     }
@@ -1159,7 +1159,7 @@ pub const GetOutputProperty = struct {
     delete: bool,
     pending: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
@@ -1178,7 +1178,7 @@ pub const GetOutputProperty = struct {
         data: []const u8,
         decoded_data_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.format = header_.byte_slot;
             result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -1210,7 +1210,7 @@ pub const CreateMode = struct {
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try self.mode_info.encode(writer);
         try writer.writeAll(self.name);
@@ -1219,7 +1219,7 @@ pub const CreateMode = struct {
     pub const Reply = struct {
         mode: Mode,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.mode = @as(Mode, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -1235,7 +1235,7 @@ pub const DestroyMode = struct {
 
     mode: Mode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.mode)), .native);
     }
 
@@ -1249,7 +1249,7 @@ pub const AddOutputMode = struct {
     output: Output,
     mode: Mode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.mode)), .native);
     }
@@ -1264,7 +1264,7 @@ pub const DeleteOutputMode = struct {
     output: Output,
     mode: Mode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.mode)), .native);
     }
@@ -1279,7 +1279,7 @@ pub const GetCrtcInfo = struct {
     crtc: Crtc,
     config_timestamp: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
     }
@@ -1299,7 +1299,7 @@ pub const GetCrtcInfo = struct {
         possible: []const Output,
         decoded_possible_buf: ?[]Output = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1356,7 +1356,7 @@ pub const SetCrtcConfig = struct {
     outputs: []const Output,
     decoded_outputs_buf: ?[]Output = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
@@ -1374,7 +1374,7 @@ pub const SetCrtcConfig = struct {
         status: SetConfig,
         timestamp: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1390,14 +1390,14 @@ pub const GetCrtcGammaSize = struct {
 
     crtc: Crtc,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
     }
 
     pub const Reply = struct {
         size: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.size = try reader.takeInt(u16, .native);
@@ -1413,7 +1413,7 @@ pub const GetCrtcGamma = struct {
 
     crtc: Crtc,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
     }
 
@@ -1425,7 +1425,7 @@ pub const GetCrtcGamma = struct {
         blue: []const u16,
         decoded_blue_buf: ?[]u16 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const size = try reader.takeInt(u16, .native);
@@ -1483,7 +1483,7 @@ pub const SetCrtcGamma = struct {
     blue: []const u16,
     decoded_blue_buf: ?[]u16 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
         try writer.writeInt(u16, @intCast(self.blue.len), .native);
         try writer.splatByteAll(0, 2);
@@ -1507,7 +1507,7 @@ pub const GetScreenResourcesCurrent = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -1523,7 +1523,7 @@ pub const GetScreenResourcesCurrent = struct {
         names: []const u8,
         decoded_names_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1593,7 +1593,7 @@ pub const SetCrtcTransform = struct {
     filter_params: []const i32,
     decoded_filter_params_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
         try self.transform.encode(writer);
         try writer.writeInt(u16, @intCast(self.filter_name.len), .native);
@@ -1614,7 +1614,7 @@ pub const GetCrtcTransform = struct {
 
     crtc: Crtc,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
     }
 
@@ -1631,7 +1631,7 @@ pub const GetCrtcTransform = struct {
         current_params: []const i32,
         decoded_current_params_buf: ?[]i32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.pending_transform = try render.TRANSFORM.decode(reader);
@@ -1697,7 +1697,7 @@ pub const GetPanning = struct {
 
     crtc: Crtc,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
     }
 
@@ -1717,7 +1717,7 @@ pub const GetPanning = struct {
         border_right: i16,
         border_bottom: i16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1757,7 +1757,7 @@ pub const SetPanning = struct {
     border_right: i16,
     border_bottom: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.crtc)), .native);
         try writer.writeInt(u32, self.timestamp, .native);
         try writer.writeInt(u16, self.left, .native);
@@ -1778,7 +1778,7 @@ pub const SetPanning = struct {
         status: SetConfig,
         timestamp: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.status = @as(SetConfig, @enumFromInt(header_.byte_slot));
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1794,7 +1794,7 @@ pub const SetOutputPrimary = struct {
     window: xproto.Window,
     output: Output,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.output)), .native);
     }
@@ -1808,14 +1808,14 @@ pub const GetOutputPrimary = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
     pub const Reply = struct {
         output: Output,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.output = @as(Output, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -1830,7 +1830,7 @@ pub const GetProviders = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -1839,7 +1839,7 @@ pub const GetProviders = struct {
         providers: []const Provider,
         decoded_providers_buf: ?[]Provider = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1871,7 +1871,7 @@ pub const GetProviderInfo = struct {
     provider: Provider,
     config_timestamp: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
     }
@@ -1891,7 +1891,7 @@ pub const GetProviderInfo = struct {
         name: []const u8,
         decoded_name_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.status = header_.byte_slot;
             result.timestamp = try reader.takeInt(u32, .native);
@@ -1969,7 +1969,7 @@ pub const SetProviderOffloadSink = struct {
     sink_provider: Provider,
     config_timestamp: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.sink_provider)), .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
@@ -1986,7 +1986,7 @@ pub const SetProviderOutputSource = struct {
     source_provider: Provider,
     config_timestamp: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source_provider)), .native);
         try writer.writeInt(u32, self.config_timestamp, .native);
@@ -2001,7 +2001,7 @@ pub const ListProviderProperties = struct {
 
     provider: Provider,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
     }
 
@@ -2009,7 +2009,7 @@ pub const ListProviderProperties = struct {
         atoms: []const xproto.Atom,
         decoded_atoms_buf: ?[]xproto.Atom = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_atoms = try reader.takeInt(u16, .native);
@@ -2040,7 +2040,7 @@ pub const QueryProviderProperty = struct {
     provider: Provider,
     property: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
     }
@@ -2052,7 +2052,7 @@ pub const QueryProviderProperty = struct {
         valid_values: []const i32,
         decoded_valid_values_buf: ?[]i32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.pending = (try reader.takeByte()) != 0;
             result.range = (try reader.takeByte()) != 0;
@@ -2088,7 +2088,7 @@ pub const ConfigureProviderProperty = struct {
     values: []const i32,
     decoded_values_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeByte(@intFromBool(self.pending));
@@ -2115,7 +2115,7 @@ pub const ChangeProviderProperty = struct {
     data: []const u8,
     decoded_data_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
@@ -2136,7 +2136,7 @@ pub const DeleteProviderProperty = struct {
     provider: Provider,
     property: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
     }
@@ -2156,7 +2156,7 @@ pub const GetProviderProperty = struct {
     delete: bool,
     pending: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.provider)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
@@ -2175,7 +2175,7 @@ pub const GetProviderProperty = struct {
         data: []const u8,
         decoded_data_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.format = header_.byte_slot;
             result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -2205,7 +2205,7 @@ pub const GetMonitors = struct {
     window: xproto.Window,
     get_active: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeByte(@intFromBool(self.get_active));
     }
@@ -2216,7 +2216,7 @@ pub const GetMonitors = struct {
         monitors: []const MonitorInfo,
         decoded_monitors_buf: ?[]MonitorInfo = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.timestamp = try reader.takeInt(u32, .native);
@@ -2252,7 +2252,7 @@ pub const SetMonitor = struct {
     window: xproto.Window,
     monitorinfo: MonitorInfo,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try self.monitorinfo.encode(writer);
     }
@@ -2267,7 +2267,7 @@ pub const DeleteMonitor = struct {
     window: xproto.Window,
     name: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.name)), .native);
     }
@@ -2282,7 +2282,7 @@ pub const FreeLease = struct {
     lid: Lease,
     terminate: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.lid)), .native);
         try writer.writeByte(self.terminate);
     }
@@ -2303,7 +2303,7 @@ pub const ScreenChangeNotifyEvent = struct {
     mwidth: u16,
     mheight: u16,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.rotation = try reader.takeByte();
@@ -2321,7 +2321,7 @@ pub const ScreenChangeNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -2346,7 +2346,7 @@ pub const NotifyEvent = struct {
     subCode: Notify,
     u: NotifyData,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.subCode = @as(Notify, @enumFromInt(try reader.takeByte()));
@@ -2355,7 +2355,7 @@ pub const NotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -2367,7 +2367,7 @@ pub const NotifyEvent = struct {
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .RandRScreenChangeNotify = try ScreenChangeNotifyEvent.decode(reader) },
@@ -2385,3 +2385,102 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(Mode);
+    std.testing.refAllDecls(Crtc);
+    std.testing.refAllDecls(Output);
+    std.testing.refAllDecls(Provider);
+    std.testing.refAllDecls(Lease);
+    std.testing.refAllDecls(Rotation);
+    std.testing.refAllDecls(SetConfig);
+    std.testing.refAllDecls(NotifyMask);
+    std.testing.refAllDecls(ModeFlag);
+    std.testing.refAllDecls(Connection);
+    std.testing.refAllDecls(Transform);
+    std.testing.refAllDecls(ProviderCapability);
+    std.testing.refAllDecls(Notify);
+    std.testing.refAllDecls(ScreenSize);
+    std.testing.refAllDecls(RefreshRates);
+    std.testing.refAllDecls(ModeInfo);
+    std.testing.refAllDecls(CrtcChange);
+    std.testing.refAllDecls(OutputChange);
+    std.testing.refAllDecls(OutputProperty);
+    std.testing.refAllDecls(ProviderChange);
+    std.testing.refAllDecls(ProviderProperty);
+    std.testing.refAllDecls(ResourceChange);
+    std.testing.refAllDecls(MonitorInfo);
+    std.testing.refAllDecls(LeaseNotify);
+    std.testing.refAllDecls(NotifyData);
+    std.testing.refAllDecls(ScreenChangeNotifyEvent);
+    std.testing.refAllDecls(NotifyEvent);
+    std.testing.refAllDecls(QueryVersion);
+    std.testing.refAllDecls(QueryVersion.Reply);
+    std.testing.refAllDecls(SetScreenConfig);
+    std.testing.refAllDecls(SetScreenConfig.Reply);
+    std.testing.refAllDecls(SelectInput);
+    std.testing.refAllDecls(GetScreenInfo);
+    std.testing.refAllDecls(GetScreenInfo.Reply);
+    std.testing.refAllDecls(GetScreenSizeRange);
+    std.testing.refAllDecls(GetScreenSizeRange.Reply);
+    std.testing.refAllDecls(SetScreenSize);
+    std.testing.refAllDecls(GetScreenResources);
+    std.testing.refAllDecls(GetScreenResources.Reply);
+    std.testing.refAllDecls(GetOutputInfo);
+    std.testing.refAllDecls(GetOutputInfo.Reply);
+    std.testing.refAllDecls(ListOutputProperties);
+    std.testing.refAllDecls(ListOutputProperties.Reply);
+    std.testing.refAllDecls(QueryOutputProperty);
+    std.testing.refAllDecls(QueryOutputProperty.Reply);
+    std.testing.refAllDecls(ConfigureOutputProperty);
+    std.testing.refAllDecls(ChangeOutputProperty);
+    std.testing.refAllDecls(DeleteOutputProperty);
+    std.testing.refAllDecls(GetOutputProperty);
+    std.testing.refAllDecls(GetOutputProperty.Reply);
+    std.testing.refAllDecls(CreateMode);
+    std.testing.refAllDecls(CreateMode.Reply);
+    std.testing.refAllDecls(DestroyMode);
+    std.testing.refAllDecls(AddOutputMode);
+    std.testing.refAllDecls(DeleteOutputMode);
+    std.testing.refAllDecls(GetCrtcInfo);
+    std.testing.refAllDecls(GetCrtcInfo.Reply);
+    std.testing.refAllDecls(SetCrtcConfig);
+    std.testing.refAllDecls(SetCrtcConfig.Reply);
+    std.testing.refAllDecls(GetCrtcGammaSize);
+    std.testing.refAllDecls(GetCrtcGammaSize.Reply);
+    std.testing.refAllDecls(GetCrtcGamma);
+    std.testing.refAllDecls(GetCrtcGamma.Reply);
+    std.testing.refAllDecls(SetCrtcGamma);
+    std.testing.refAllDecls(GetScreenResourcesCurrent);
+    std.testing.refAllDecls(GetScreenResourcesCurrent.Reply);
+    std.testing.refAllDecls(SetCrtcTransform);
+    std.testing.refAllDecls(GetCrtcTransform);
+    std.testing.refAllDecls(GetCrtcTransform.Reply);
+    std.testing.refAllDecls(GetPanning);
+    std.testing.refAllDecls(GetPanning.Reply);
+    std.testing.refAllDecls(SetPanning);
+    std.testing.refAllDecls(SetPanning.Reply);
+    std.testing.refAllDecls(SetOutputPrimary);
+    std.testing.refAllDecls(GetOutputPrimary);
+    std.testing.refAllDecls(GetOutputPrimary.Reply);
+    std.testing.refAllDecls(GetProviders);
+    std.testing.refAllDecls(GetProviders.Reply);
+    std.testing.refAllDecls(GetProviderInfo);
+    std.testing.refAllDecls(GetProviderInfo.Reply);
+    std.testing.refAllDecls(SetProviderOffloadSink);
+    std.testing.refAllDecls(SetProviderOutputSource);
+    std.testing.refAllDecls(ListProviderProperties);
+    std.testing.refAllDecls(ListProviderProperties.Reply);
+    std.testing.refAllDecls(QueryProviderProperty);
+    std.testing.refAllDecls(QueryProviderProperty.Reply);
+    std.testing.refAllDecls(ConfigureProviderProperty);
+    std.testing.refAllDecls(ChangeProviderProperty);
+    std.testing.refAllDecls(DeleteProviderProperty);
+    std.testing.refAllDecls(GetProviderProperty);
+    std.testing.refAllDecls(GetProviderProperty.Reply);
+    std.testing.refAllDecls(GetMonitors);
+    std.testing.refAllDecls(GetMonitors.Reply);
+    std.testing.refAllDecls(SetMonitor);
+    std.testing.refAllDecls(DeleteMonitor);
+    std.testing.refAllDecls(FreeLease);
+}

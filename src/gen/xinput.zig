@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const xfixes = @import("xfixes.zig");
 const xproto = @import("xproto.zig");
@@ -359,12 +359,12 @@ pub const FP3232 = struct {
     integral: i32,
     frac: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(i32, self.integral, .native);
         try writer.writeInt(u32, self.frac, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.integral = try reader.takeInt(i32, .native);
         result.frac = try reader.takeInt(u32, .native);
@@ -378,7 +378,7 @@ pub const DeviceInfo = struct {
     num_class_info: u8,
     device_use: DeviceUse,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.device_type)), .native);
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.num_class_info);
@@ -386,7 +386,7 @@ pub const DeviceInfo = struct {
         try writer.splatByteAll(0, 1);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.device_type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
         result.device_id = try reader.takeByte();
@@ -404,7 +404,7 @@ pub const KeyInfo = struct {
     max_keycode: u8,
     num_keys: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeByte(self.min_keycode);
@@ -413,7 +413,7 @@ pub const KeyInfo = struct {
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -430,13 +430,13 @@ pub const ButtonInfo = struct {
     len: u8,
     num_buttons: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeInt(u16, self.num_buttons, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -450,13 +450,13 @@ pub const AxisInfo = struct {
     minimum: i32,
     maximum: i32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.resolution, .native);
         try writer.writeInt(i32, self.minimum, .native);
         try writer.writeInt(i32, self.maximum, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.resolution = try reader.takeInt(u32, .native);
         result.minimum = try reader.takeInt(i32, .native);
@@ -473,7 +473,7 @@ pub const ValuatorInfo = struct {
     axes: []const AxisInfo,
     decoded_axes_buf: ?[]AxisInfo = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeByte(@intCast(self.axes.len));
@@ -484,7 +484,7 @@ pub const ValuatorInfo = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -529,7 +529,7 @@ pub const InputInfo = struct {
             decoded_axes_buf: ?[]AxisInfo = null,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .key => |it| {
                     try writer.writeByte(it.min_keycode);
@@ -560,7 +560,7 @@ pub const InputInfo = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -612,13 +612,13 @@ pub const InputInfo = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(@as(InputClass, @enumFromInt(self.info.switchValue())))));
         try writer.writeByte(self.len);
         try self.info.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -635,12 +635,12 @@ pub const DeviceName = struct {
     string: []const u8,
     decoded_string_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(self.string.len));
         try writer.writeAll(self.string);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const len = try reader.takeByte();
         const decoded_string_buf = try allocator.dupe(u8, try reader.take(@intCast(len)));
@@ -662,12 +662,12 @@ pub const InputClassInfo = struct {
     class_id: InputClass,
     event_type_base: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.event_type_base);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.event_type_base = try reader.takeByte();
@@ -680,14 +680,14 @@ pub const DeviceTimeCoord = struct {
     axisvalues: []const i32,
     decoded_axisvalues_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         for (self.axisvalues) |elem| {
             try writer.writeInt(i32, elem, .native);
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, num_axes: u8) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, num_axes: u8) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.time = try reader.takeInt(u32, .native);
         const decoded_axisvalues_buf = try allocator.alloc(i32, @intCast(num_axes));
@@ -721,7 +721,7 @@ pub const KbdFeedbackState = struct {
     percent: u8,
     auto_repeats: [32]u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -736,7 +736,7 @@ pub const KbdFeedbackState = struct {
         try writer.writeAll(self.auto_repeats[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -764,7 +764,7 @@ pub const PtrFeedbackState = struct {
     accel_denom: u16,
     threshold: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -774,7 +774,7 @@ pub const PtrFeedbackState = struct {
         try writer.writeInt(u16, self.threshold, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -795,7 +795,7 @@ pub const IntegerFeedbackState = struct {
     min_value: i32,
     max_value: i32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -804,7 +804,7 @@ pub const IntegerFeedbackState = struct {
         try writer.writeInt(i32, self.max_value, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -824,7 +824,7 @@ pub const StringFeedbackState = struct {
     keysyms: []const u32,
     decoded_keysyms_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -835,7 +835,7 @@ pub const StringFeedbackState = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -868,7 +868,7 @@ pub const BellFeedbackState = struct {
     pitch: u16,
     duration: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -878,7 +878,7 @@ pub const BellFeedbackState = struct {
         try writer.writeInt(u16, self.duration, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -898,7 +898,7 @@ pub const LedFeedbackState = struct {
     led_mask: u32,
     led_values: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -906,7 +906,7 @@ pub const LedFeedbackState = struct {
         try writer.writeInt(u32, self.led_values, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -958,7 +958,7 @@ pub const FeedbackState = struct {
             duration: u16,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .keyboard => |it| {
                     try writer.writeInt(u16, it.pitch, .native);
@@ -1013,7 +1013,7 @@ pub const FeedbackState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -1103,14 +1103,14 @@ pub const FeedbackState = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(@as(FeedbackClass, @enumFromInt(self.data.switchValue())))));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1137,7 +1137,7 @@ pub const KbdFeedbackCtl = struct {
     led_mask: u32,
     led_values: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -1151,7 +1151,7 @@ pub const KbdFeedbackCtl = struct {
         try writer.writeInt(u32, self.led_values, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1176,7 +1176,7 @@ pub const PtrFeedbackCtl = struct {
     denom: i16,
     threshold: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -1186,7 +1186,7 @@ pub const PtrFeedbackCtl = struct {
         try writer.writeInt(i16, self.threshold, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1205,14 +1205,14 @@ pub const IntegerFeedbackCtl = struct {
     len: u16,
     int_to_display: i32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(i32, self.int_to_display, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1229,7 +1229,7 @@ pub const StringFeedbackCtl = struct {
     keysyms: []const u32,
     decoded_keysyms_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -1240,7 +1240,7 @@ pub const StringFeedbackCtl = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1273,7 +1273,7 @@ pub const BellFeedbackCtl = struct {
     pitch: i16,
     duration: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -1283,7 +1283,7 @@ pub const BellFeedbackCtl = struct {
         try writer.writeInt(i16, self.duration, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1303,7 +1303,7 @@ pub const LedFeedbackCtl = struct {
     led_mask: u32,
     led_values: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
@@ -1311,7 +1311,7 @@ pub const LedFeedbackCtl = struct {
         try writer.writeInt(u32, self.led_values, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1360,7 +1360,7 @@ pub const FeedbackCtl = struct {
             duration: i16,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .keyboard => |it| {
                     try writer.writeByte(it.key);
@@ -1412,7 +1412,7 @@ pub const FeedbackCtl = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: FeedbackClass) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -1497,14 +1497,14 @@ pub const FeedbackCtl = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(@as(FeedbackClass, @enumFromInt(self.data.switchValue())))));
         try writer.writeByte(self.feedback_id);
         try writer.writeInt(u16, self.len, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const class_id = @as(FeedbackClass, @enumFromInt(try reader.takeByte()));
         result.feedback_id = try reader.takeByte();
@@ -1524,7 +1524,7 @@ pub const KeyState = struct {
     num_keys: u8,
     keys: [32]u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeByte(self.num_keys);
@@ -1532,7 +1532,7 @@ pub const KeyState = struct {
         try writer.writeAll(self.keys[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -1551,7 +1551,7 @@ pub const ButtonState = struct {
     num_buttons: u8,
     buttons: [32]u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeByte(self.num_buttons);
@@ -1559,7 +1559,7 @@ pub const ButtonState = struct {
         try writer.writeAll(self.buttons[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -1579,7 +1579,7 @@ pub const ValuatorState = struct {
     valuators: []const i32,
     decoded_valuators_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.class_id)));
         try writer.writeByte(self.len);
         try writer.writeByte(@intCast(self.valuators.len));
@@ -1589,7 +1589,7 @@ pub const ValuatorState = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -1632,7 +1632,7 @@ pub const InputState = struct {
             decoded_valuators_buf: ?[]i32 = null,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .key => |it| {
                     try writer.splatByteAll(0, wire.pad(writer.end + 2, 4));
@@ -1664,7 +1664,7 @@ pub const InputState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, class_id: InputClass) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(class_id)) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -1721,13 +1721,13 @@ pub const InputState = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(@as(InputClass, @enumFromInt(self.data.switchValue())))));
         try writer.writeByte(self.len);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const class_id = @as(InputClass, @enumFromInt(try reader.takeByte()));
         result.len = try reader.takeByte();
@@ -1750,7 +1750,7 @@ pub const DeviceResolutionState = struct {
     resolution_max: []const u32,
     decoded_resolution_max_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u32, @intCast(self.resolution_max.len), .native);
@@ -1765,7 +1765,7 @@ pub const DeviceResolutionState = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -1822,7 +1822,7 @@ pub const DeviceAbsCalibState = struct {
     rotation: u32,
     button_threshold: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(i32, self.min_x, .native);
@@ -1835,7 +1835,7 @@ pub const DeviceAbsCalibState = struct {
         try writer.writeInt(u32, self.button_threshold, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -1861,7 +1861,7 @@ pub const DeviceAbsAreaState = struct {
     screen: u32,
     following: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u32, self.offset_x, .native);
@@ -1872,7 +1872,7 @@ pub const DeviceAbsAreaState = struct {
         try writer.writeInt(u32, self.following, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -1892,7 +1892,7 @@ pub const DeviceCoreState = struct {
     status: u8,
     iscore: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeByte(self.status);
@@ -1900,7 +1900,7 @@ pub const DeviceCoreState = struct {
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -1916,14 +1916,14 @@ pub const DeviceEnableState = struct {
     len: u16,
     enable: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeByte(self.enable);
         try writer.splatByteAll(0, 3);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -1972,7 +1972,7 @@ pub const DeviceState = struct {
             following: u32,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .resolution => |it| {
                     try writer.writeInt(u32, @intCast(it.resolution_max.len), .native);
@@ -2026,7 +2026,7 @@ pub const DeviceState = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(control_id)) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -2125,13 +2125,13 @@ pub const DeviceState = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(@as(DeviceControl, @enumFromInt(self.data.switchValue())))), .native);
         try writer.writeInt(u16, self.len, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2151,7 +2151,7 @@ pub const DeviceResolutionCtl = struct {
     resolution_values: []const u32,
     decoded_resolution_values_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeByte(self.first_valuator);
@@ -2162,7 +2162,7 @@ pub const DeviceResolutionCtl = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2199,7 +2199,7 @@ pub const DeviceAbsCalibCtl = struct {
     rotation: u32,
     button_threshold: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(i32, self.min_x, .native);
@@ -2212,7 +2212,7 @@ pub const DeviceAbsCalibCtl = struct {
         try writer.writeInt(u32, self.button_threshold, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2238,7 +2238,7 @@ pub const DeviceAbsAreaCtrl = struct {
     screen: i32,
     following: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u32, self.offset_x, .native);
@@ -2249,7 +2249,7 @@ pub const DeviceAbsAreaCtrl = struct {
         try writer.writeInt(u32, self.following, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2268,14 +2268,14 @@ pub const DeviceCoreCtrl = struct {
     len: u16,
     status: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeByte(self.status);
         try writer.splatByteAll(0, 3);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2290,14 +2290,14 @@ pub const DeviceEnableCtrl = struct {
     len: u16,
     enable: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeByte(self.enable);
         try writer.splatByteAll(0, 3);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2342,7 +2342,7 @@ pub const DeviceCtl = struct {
             following: u32,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .resolution => |it| {
                     try writer.writeByte(it.first_valuator);
@@ -2391,7 +2391,7 @@ pub const DeviceCtl = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, control_id: DeviceControl) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(control_id)) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -2469,13 +2469,13 @@ pub const DeviceCtl = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(@as(DeviceControl, @enumFromInt(self.data.switchValue())))), .native);
         try writer.writeInt(u16, self.len, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const control_id = @as(DeviceControl, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2494,14 +2494,14 @@ pub const GroupInfo = struct {
     locked: u8,
     effective: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.base);
         try writer.writeByte(self.latched);
         try writer.writeByte(self.locked);
         try writer.writeByte(self.effective);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.base = try reader.takeByte();
         result.latched = try reader.takeByte();
@@ -2517,14 +2517,14 @@ pub const ModifierInfo = struct {
     locked: u32,
     effective: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.base, .native);
         try writer.writeInt(u32, self.latched, .native);
         try writer.writeInt(u32, self.locked, .native);
         try writer.writeInt(u32, self.effective, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.base = try reader.takeInt(u32, .native);
         result.latched = try reader.takeInt(u32, .native);
@@ -2542,7 +2542,7 @@ pub const AddMaster = struct {
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, @intCast(self.name.len), .native);
@@ -2552,7 +2552,7 @@ pub const AddMaster = struct {
         try writer.splatByteAll(0, wire.pad(writer.end, 4));
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2583,7 +2583,7 @@ pub const RemoveMaster = struct {
     return_pointer: u16,
     return_keyboard: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.deviceid, .native);
@@ -2593,7 +2593,7 @@ pub const RemoveMaster = struct {
         try writer.writeInt(u16, self.return_keyboard, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2612,14 +2612,14 @@ pub const AttachSlave = struct {
     deviceid: u16,
     master: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeInt(u16, self.master, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2634,14 +2634,14 @@ pub const DetachSlave = struct {
     len: u16,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2676,7 +2676,7 @@ pub const HierarchyChange = struct {
             deviceid: u16,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .add_master => |it| {
                     try writer.writeInt(u16, @intCast(it.name.len), .native);
@@ -2712,7 +2712,7 @@ pub const HierarchyChange = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": HierarchyChangeType) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": HierarchyChangeType) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(@"type")) {
                 1 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -2772,13 +2772,13 @@ pub const HierarchyChange = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(@as(HierarchyChangeType, @enumFromInt(self.data.switchValue())))), .native);
         try writer.writeInt(u16, self.len, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const @"type" = @as(HierarchyChangeType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2796,7 +2796,7 @@ pub const EventMask = struct {
     mask: []const u32,
     decoded_mask_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeInt(u16, @intCast(self.mask.len), .native);
         for (self.mask) |elem| {
@@ -2804,7 +2804,7 @@ pub const EventMask = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.deviceid = try reader.takeInt(u16, .native);
         const mask_len = try reader.takeInt(u16, .native);
@@ -2835,7 +2835,7 @@ pub const ButtonClass = struct {
     labels: []const xproto.Atom,
     decoded_labels_buf: ?[]xproto.Atom = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -2848,13 +2848,13 @@ pub const ButtonClass = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
         result.sourceid = try reader.takeInt(u16, .native);
         const num_buttons = try reader.takeInt(u16, .native);
-        const decoded_state_buf = try allocator.alloc(u32, @intCast(((result.num_buttons + 31) / 32)));
+        const decoded_state_buf = try allocator.alloc(u32, @intCast(((num_buttons + 31) / 32)));
         for (decoded_state_buf) |*elem| {
             elem.* = try reader.takeInt(u32, .native);
         }
@@ -2890,7 +2890,7 @@ pub const KeyClass = struct {
     keys: []const u32,
     decoded_keys_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -2900,7 +2900,7 @@ pub const KeyClass = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2933,7 +2933,7 @@ pub const ScrollClass = struct {
     flags: u32,
     increment: FP3232,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -2944,7 +2944,7 @@ pub const ScrollClass = struct {
         try self.increment.encode(writer);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2965,7 +2965,7 @@ pub const TouchClass = struct {
     mode: TouchMode,
     num_touches: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -2973,7 +2973,7 @@ pub const TouchClass = struct {
         try writer.writeByte(self.num_touches);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -2990,7 +2990,7 @@ pub const GestureClass = struct {
     sourceid: u16,
     num_touches: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -2998,7 +2998,7 @@ pub const GestureClass = struct {
         try writer.splatByteAll(0, 1);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -3021,7 +3021,7 @@ pub const ValuatorClass = struct {
     resolution: u32,
     mode: ValuatorMode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
@@ -3035,7 +3035,7 @@ pub const ValuatorClass = struct {
         try writer.splatByteAll(0, 3);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.type = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -3091,7 +3091,7 @@ pub const DeviceClass = struct {
             num_touches: u8,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .key => |it| {
                     try writer.splatByteAll(0, wire.pad(writer.end + 2, 4));
@@ -3151,7 +3151,7 @@ pub const DeviceClass = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": DeviceClassType) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, @"type": DeviceClassType) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(@"type")) {
                 0 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -3169,7 +3169,7 @@ pub const DeviceClass = struct {
                     var payload: @typeInfo(@This()).@"union".fields[1].type = undefined;
                     _ = try reader.take(wire.pad(reader.seek + 2, 4));
                     const num_buttons = try reader.takeInt(u16, .native);
-                    const decoded_state_buf = try allocator.alloc(u32, @intCast(((payload.num_buttons + 31) / 32)));
+                    const decoded_state_buf = try allocator.alloc(u32, @intCast(((num_buttons + 31) / 32)));
                     for (decoded_state_buf) |*elem| {
                         elem.* = try reader.takeInt(u32, .native);
                     }
@@ -3259,14 +3259,14 @@ pub const DeviceClass = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(@as(DeviceClassType, @enumFromInt(self.data.switchValue())))), .native);
         try writer.writeInt(u16, self.len, .native);
         try writer.writeInt(u16, self.sourceid, .native);
         try self.data.encode(writer);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         const @"type" = @as(DeviceClassType, @enumFromInt(try reader.takeInt(u16, .native)));
         result.len = try reader.takeInt(u16, .native);
@@ -3290,7 +3290,7 @@ pub const XIDeviceInfo = struct {
     classes: []const DeviceClass,
     decoded_classes_buf: ?[]DeviceClass = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeInt(u16, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u16, self.attachment, .native);
@@ -3305,7 +3305,7 @@ pub const XIDeviceInfo = struct {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) !@This() {
+    pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader) errors.AllocDecodeError!@This() {
         var result: @This() = undefined;
         result.deviceid = try reader.takeInt(u16, .native);
         result.type = @as(DeviceType, @enumFromInt(try reader.takeInt(u16, .native)));
@@ -3348,13 +3348,13 @@ pub const GrabModifierInfo = struct {
     modifiers: u32,
     status: xproto.GrabStatus,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.modifiers, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.status)));
         try writer.splatByteAll(0, 3);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.modifiers = try reader.takeInt(u32, .native);
         result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -3368,14 +3368,14 @@ pub const BarrierReleasePointerInfo = struct {
     barrier: xfixes.Barrier,
     eventid: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.barrier)), .native);
         try writer.writeInt(u32, self.eventid, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.deviceid = try reader.takeInt(u16, .native);
         _ = try reader.take(2);
@@ -3392,7 +3392,7 @@ pub const HierarchyInfo = struct {
     enabled: bool,
     flags: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeInt(u16, self.attachment, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.type)));
@@ -3401,7 +3401,7 @@ pub const HierarchyInfo = struct {
         try writer.writeInt(u32, self.flags, .native);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         result.deviceid = try reader.takeInt(u16, .native);
         result.attachment = try reader.takeInt(u16, .native);
@@ -3424,11 +3424,11 @@ pub const EventForSend = struct {
         return self.raw;
     }
 
-    pub fn encode(self: @This(), writer: *std.Io.Writer) void {
+    pub fn encode(self: @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeAll(self.raw[0..]);
     }
 
-    pub fn decode(reader: *std.Io.Reader) !@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var raw: [32]u8 = undefined;
         @memcpy(raw[0..], try reader.take(32));
         return .{ .raw = raw };
@@ -3442,7 +3442,7 @@ pub const GetExtensionVersion = struct {
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(self.name.len), .native);
         try writer.splatByteAll(0, 2);
         try writer.writeAll(self.name);
@@ -3454,7 +3454,7 @@ pub const GetExtensionVersion = struct {
         server_minor: u16,
         present: bool,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.server_major = try reader.takeInt(u16, .native);
@@ -3471,7 +3471,7 @@ pub const ListInputDevices = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -3485,7 +3485,7 @@ pub const ListInputDevices = struct {
         names: []const xproto.STR,
         decoded_names_buf: ?[]xproto.STR = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const devices_len = try reader.takeByte();
@@ -3544,7 +3544,7 @@ pub const OpenDevice = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -3554,7 +3554,7 @@ pub const OpenDevice = struct {
         class_info: []const InputClassInfo,
         decoded_class_info_buf: ?[]InputClassInfo = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_classes = try reader.takeByte();
@@ -3585,7 +3585,7 @@ pub const CloseDevice = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -3600,7 +3600,7 @@ pub const SetDeviceMode = struct {
     device_id: u8,
     mode: ValuatorMode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.splatByteAll(0, 2);
@@ -3610,7 +3610,7 @@ pub const SetDeviceMode = struct {
         xi_reply_type: u8,
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -3628,7 +3628,7 @@ pub const SelectExtensionEvent = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, @intCast(self.classes.len), .native);
         try writer.splatByteAll(0, 2);
@@ -3646,7 +3646,7 @@ pub const GetSelectedExtensionEvents = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -3657,7 +3657,7 @@ pub const GetSelectedExtensionEvents = struct {
         all_classes: []const u32,
         decoded_all_classes_buf: ?[]u32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_this_classes = try reader.takeInt(u16, .native);
@@ -3702,7 +3702,7 @@ pub const ChangeDeviceDontPropagateList = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, @intCast(self.classes.len), .native);
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
@@ -3721,7 +3721,7 @@ pub const GetDeviceDontPropagateList = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -3730,7 +3730,7 @@ pub const GetDeviceDontPropagateList = struct {
         classes: []const u32,
         decoded_classes_buf: ?[]u32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_classes = try reader.takeInt(u16, .native);
@@ -3762,7 +3762,7 @@ pub const GetDeviceMotionEvents = struct {
     stop: u32,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.start, .native);
         try writer.writeInt(u32, self.stop, .native);
         try writer.writeByte(self.device_id);
@@ -3776,7 +3776,7 @@ pub const GetDeviceMotionEvents = struct {
         events: []const DeviceTimeCoord,
         decoded_events_buf: ?[]DeviceTimeCoord = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_events = try reader.takeInt(u32, .native);
@@ -3811,7 +3811,7 @@ pub const ChangeKeyboardDevice = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -3820,7 +3820,7 @@ pub const ChangeKeyboardDevice = struct {
         xi_reply_type: u8,
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -3838,7 +3838,7 @@ pub const ChangePointerDevice = struct {
     y_axis: u8,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.x_axis);
         try writer.writeByte(self.y_axis);
         try writer.writeByte(self.device_id);
@@ -3849,7 +3849,7 @@ pub const ChangePointerDevice = struct {
         xi_reply_type: u8,
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -3872,7 +3872,7 @@ pub const GrabDevice = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u16, @intCast(self.classes.len), .native);
@@ -3890,7 +3890,7 @@ pub const GrabDevice = struct {
         xi_reply_type: u8,
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -3907,7 +3907,7 @@ pub const UngrabDevice = struct {
     time: u32,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
@@ -3931,7 +3931,7 @@ pub const GrabDeviceKey = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeInt(u16, @intCast(self.classes.len), .native);
         try writer.writeInt(u16, self.modifiers, .native);
@@ -3960,7 +3960,7 @@ pub const UngrabDeviceKey = struct {
     key: u8,
     grabbed_device: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grabWindow)), .native);
         try writer.writeInt(u16, self.modifiers, .native);
         try writer.writeByte(self.modifier_device);
@@ -3986,7 +3986,7 @@ pub const GrabDeviceButton = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeByte(self.grabbed_device);
         try writer.writeByte(self.modifier_device);
@@ -4015,7 +4015,7 @@ pub const UngrabDeviceButton = struct {
     button: u8,
     grabbed_device: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeInt(u16, self.modifiers, .native);
         try writer.writeByte(self.modifier_device);
@@ -4035,7 +4035,7 @@ pub const AllowDeviceEvents = struct {
     mode: DeviceInputMode,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.writeByte(self.device_id);
@@ -4051,7 +4051,7 @@ pub const GetDeviceFocus = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4062,7 +4062,7 @@ pub const GetDeviceFocus = struct {
         time: u32,
         revert_to: xproto.InputFocus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.focus = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -4083,7 +4083,7 @@ pub const SetDeviceFocus = struct {
     revert_to: xproto.InputFocus,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.focus)), .native);
         try writer.writeInt(u32, self.time, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.revert_to)));
@@ -4100,7 +4100,7 @@ pub const GetFeedbackControl = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4110,7 +4110,7 @@ pub const GetFeedbackControl = struct {
         feedbacks: []const FeedbackState,
         decoded_feedbacks_buf: ?[]FeedbackState = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_feedbacks = try reader.takeInt(u16, .native);
@@ -4146,7 +4146,7 @@ pub const ChangeFeedbackControl = struct {
     feedback_id: u8,
     feedback: FeedbackCtl,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.mask, .native);
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.feedback_id);
@@ -4165,7 +4165,7 @@ pub const GetDeviceKeyMapping = struct {
     first_keycode: u8,
     count: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.first_keycode);
         try writer.writeByte(self.count);
@@ -4178,7 +4178,7 @@ pub const GetDeviceKeyMapping = struct {
         keysyms: []const u32,
         decoded_keysyms_buf: ?[]u32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.keysyms_per_keycode = try reader.takeByte();
@@ -4213,7 +4213,7 @@ pub const ChangeDeviceKeyMapping = struct {
     keysyms: []const u32,
     decoded_keysyms_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.first_keycode);
         try writer.writeByte(self.keysyms_per_keycode);
@@ -4232,7 +4232,7 @@ pub const GetDeviceModifierMapping = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4243,7 +4243,7 @@ pub const GetDeviceModifierMapping = struct {
         keymaps: []const u8,
         decoded_keymaps_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.keycodes_per_modifier = try reader.takeByte();
@@ -4273,7 +4273,7 @@ pub const SetDeviceModifierMapping = struct {
     keymaps: []const u8,
     decoded_keymaps_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.keycodes_per_modifier);
         try writer.splatByteAll(0, 2);
@@ -4284,7 +4284,7 @@ pub const SetDeviceModifierMapping = struct {
         xi_reply_type: u8,
         status: xproto.MappingStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.MappingStatus, @enumFromInt(try reader.takeByte()));
@@ -4300,7 +4300,7 @@ pub const GetDeviceButtonMapping = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4310,7 +4310,7 @@ pub const GetDeviceButtonMapping = struct {
         map: []const u8,
         decoded_map_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const map_size = try reader.takeByte();
@@ -4340,7 +4340,7 @@ pub const SetDeviceButtonMapping = struct {
     map: []const u8,
     decoded_map_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(@intCast(self.map.len));
         try writer.splatByteAll(0, 2);
@@ -4351,7 +4351,7 @@ pub const SetDeviceButtonMapping = struct {
         xi_reply_type: u8,
         status: xproto.MappingStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.MappingStatus, @enumFromInt(try reader.takeByte()));
@@ -4367,7 +4367,7 @@ pub const QueryDeviceState = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4377,7 +4377,7 @@ pub const QueryDeviceState = struct {
         classes: []const InputState,
         decoded_classes_buf: ?[]InputState = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_classes = try reader.takeByte();
@@ -4413,7 +4413,7 @@ pub const DeviceBell = struct {
     feedback_class: u8,
     percent: i8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.feedback_id);
         try writer.writeByte(self.feedback_class);
@@ -4432,7 +4432,7 @@ pub const SetDeviceValuators = struct {
     valuators: []const i32,
     decoded_valuators_buf: ?[]i32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.writeByte(self.first_valuator);
         try writer.writeByte(@intCast(self.valuators.len));
@@ -4446,7 +4446,7 @@ pub const SetDeviceValuators = struct {
         xi_reply_type: u8,
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -4463,7 +4463,7 @@ pub const GetDeviceControl = struct {
     control_id: DeviceControl,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 1);
@@ -4474,7 +4474,7 @@ pub const GetDeviceControl = struct {
         status: u8,
         control: DeviceState,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = try reader.takeByte();
@@ -4497,7 +4497,7 @@ pub const ChangeDeviceControl = struct {
     device_id: u8,
     control: DeviceCtl,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.control_id)), .native);
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 1);
@@ -4508,7 +4508,7 @@ pub const ChangeDeviceControl = struct {
         xi_reply_type: u8,
         status: u8,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.status = try reader.takeByte();
@@ -4524,7 +4524,7 @@ pub const ListDeviceProperties = struct {
 
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
     }
@@ -4534,7 +4534,7 @@ pub const ListDeviceProperties = struct {
         atoms: []const xproto.Atom,
         decoded_atoms_buf: ?[]xproto.Atom = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             const num_atoms = try reader.takeInt(u16, .native);
@@ -4583,7 +4583,7 @@ pub const ChangeDeviceProperty = struct {
             decoded_data32_buf: ?[]u32 = null,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .@"8Bits" => |it| {
                     try writer.writeAll(it.data8);
@@ -4611,7 +4611,7 @@ pub const ChangeDeviceProperty = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(format)) {
                 8 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -4673,7 +4673,7 @@ pub const ChangeDeviceProperty = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeByte(self.device_id);
@@ -4694,7 +4694,7 @@ pub const DeleteDeviceProperty = struct {
     property: xproto.Atom,
     device_id: u8,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeByte(self.device_id);
         try writer.splatByteAll(0, 3);
@@ -4714,7 +4714,7 @@ pub const GetDeviceProperty = struct {
     device_id: u8,
     delete: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.type)), .native);
         try writer.writeInt(u32, self.offset, .native);
@@ -4746,7 +4746,7 @@ pub const GetDeviceProperty = struct {
                 decoded_data32_buf: ?[]u32 = null,
             },
 
-            pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+            pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
                 switch (self.*) {
                     .@"8Bits" => |it| {
                         try writer.writeAll(it.data8);
@@ -4774,7 +4774,7 @@ pub const GetDeviceProperty = struct {
                 };
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) errors.AllocDecodeError!@This() {
                 return switch (@intFromEnum(format)) {
                     8 => blk: {
                         var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -4836,7 +4836,7 @@ pub const GetDeviceProperty = struct {
             }
         };
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.xi_reply_type = header_.byte_slot;
             result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -4862,7 +4862,7 @@ pub const XIQueryPointer = struct {
     window: xproto.Window,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
@@ -4881,7 +4881,7 @@ pub const XIQueryPointer = struct {
         buttons: []const u32,
         decoded_buttons_buf: ?[]u32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.root = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -4928,7 +4928,7 @@ pub const XIWarpPointer = struct {
     dst_y: i32,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.src_win)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.dst_win)), .native);
         try writer.writeInt(i32, self.src_x, .native);
@@ -4952,7 +4952,7 @@ pub const XIChangeCursor = struct {
     cursor: xproto.Cursor,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.cursor)), .native);
         try writer.writeInt(u16, self.deviceid, .native);
@@ -4969,7 +4969,7 @@ pub const XIChangeHierarchy = struct {
     changes: []const HierarchyChange,
     decoded_changes_buf: ?[]HierarchyChange = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(self.changes.len));
         try writer.splatByteAll(0, 3);
         for (self.changes) |elem| {
@@ -4987,7 +4987,7 @@ pub const XISetClientPointer = struct {
     window: xproto.Window,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
@@ -5002,7 +5002,7 @@ pub const XIGetClientPointer = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -5010,7 +5010,7 @@ pub const XIGetClientPointer = struct {
         set: bool,
         deviceid: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.set = (try reader.takeByte()) != 0;
@@ -5030,7 +5030,7 @@ pub const XISelectEvents = struct {
     masks: []const EventMask,
     decoded_masks_buf: ?[]EventMask = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, @intCast(self.masks.len), .native);
         try writer.splatByteAll(0, 2);
@@ -5049,7 +5049,7 @@ pub const XIQueryVersion = struct {
     major_version: u16,
     minor_version: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.major_version, .native);
         try writer.writeInt(u16, self.minor_version, .native);
     }
@@ -5058,7 +5058,7 @@ pub const XIQueryVersion = struct {
         major_version: u16,
         minor_version: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.major_version = try reader.takeInt(u16, .native);
@@ -5075,7 +5075,7 @@ pub const XIQueryDevice = struct {
 
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
     }
@@ -5084,7 +5084,7 @@ pub const XIQueryDevice = struct {
         infos: []const XIDeviceInfo,
         decoded_infos_buf: ?[]XIDeviceInfo = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_infos = try reader.takeInt(u16, .native);
@@ -5119,7 +5119,7 @@ pub const XISetFocus = struct {
     time: u32,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u16, self.deviceid, .native);
@@ -5135,7 +5135,7 @@ pub const XIGetFocus = struct {
 
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
     }
@@ -5143,7 +5143,7 @@ pub const XIGetFocus = struct {
     pub const Reply = struct {
         focus: xproto.Window,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.focus = @as(xproto.Window, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -5167,7 +5167,7 @@ pub const XIGrabDevice = struct {
     mask: []const u32,
     decoded_mask_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.cursor)), .native);
@@ -5185,7 +5185,7 @@ pub const XIGrabDevice = struct {
     pub const Reply = struct {
         status: xproto.GrabStatus,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.status = @as(xproto.GrabStatus, @enumFromInt(try reader.takeByte()));
@@ -5202,7 +5202,7 @@ pub const XIUngrabDevice = struct {
     time: u32,
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
@@ -5221,7 +5221,7 @@ pub const XIAllowEvents = struct {
     touchid: u32,
     grab_window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.event_mode)));
@@ -5251,7 +5251,7 @@ pub const XIPassiveGrabDevice = struct {
     modifiers: []const u32,
     decoded_modifiers_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.time, .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.cursor)), .native);
@@ -5276,7 +5276,7 @@ pub const XIPassiveGrabDevice = struct {
         modifiers: []const GrabModifierInfo,
         decoded_modifiers_buf: ?[]GrabModifierInfo = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_modifiers = try reader.takeInt(u16, .native);
@@ -5311,7 +5311,7 @@ pub const XIPassiveUngrabDevice = struct {
     modifiers: []const u32,
     decoded_modifiers_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.grab_window)), .native);
         try writer.writeInt(u32, self.detail, .native);
         try writer.writeInt(u16, self.deviceid, .native);
@@ -5332,7 +5332,7 @@ pub const XIListProperties = struct {
 
     deviceid: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
     }
@@ -5341,7 +5341,7 @@ pub const XIListProperties = struct {
         properties: []const xproto.Atom,
         decoded_properties_buf: ?[]xproto.Atom = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_properties = try reader.takeInt(u16, .native);
@@ -5390,7 +5390,7 @@ pub const XIChangeProperty = struct {
             decoded_data32_buf: ?[]u32 = null,
         },
 
-        pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+        pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
             switch (self.*) {
                 .@"8Bits" => |it| {
                     try writer.writeAll(it.data8);
@@ -5418,7 +5418,7 @@ pub const XIChangeProperty = struct {
             };
         }
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) errors.AllocDecodeError!@This() {
             return switch (@intFromEnum(format)) {
                 8 => blk: {
                     var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -5480,7 +5480,7 @@ pub const XIChangeProperty = struct {
         }
     };
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.writeByte(@intCast(@intFromEnum(@as(PropertyFormat, @enumFromInt(self.items.switchValue())))));
@@ -5500,7 +5500,7 @@ pub const XIDeleteProperty = struct {
     deviceid: u16,
     property: xproto.Atom,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.splatByteAll(0, 2);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.property)), .native);
@@ -5520,7 +5520,7 @@ pub const XIGetProperty = struct {
     offset: u32,
     len: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.deviceid, .native);
         try writer.writeByte(@intFromBool(self.delete));
         try writer.splatByteAll(0, 1);
@@ -5550,7 +5550,7 @@ pub const XIGetProperty = struct {
                 decoded_data32_buf: ?[]u32 = null,
             },
 
-            pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+            pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
                 switch (self.*) {
                     .@"8Bits" => |it| {
                         try writer.writeAll(it.data8);
@@ -5578,7 +5578,7 @@ pub const XIGetProperty = struct {
                 };
             }
 
-            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) !@This() {
+            pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, format: PropertyFormat, num_items: u32) errors.AllocDecodeError!@This() {
                 return switch (@intFromEnum(format)) {
                     8 => blk: {
                         var payload: @typeInfo(@This()).@"union".fields[0].type = undefined;
@@ -5640,7 +5640,7 @@ pub const XIGetProperty = struct {
             }
         };
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.type = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -5664,7 +5664,7 @@ pub const XIGetSelectedEvents = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -5672,7 +5672,7 @@ pub const XIGetSelectedEvents = struct {
         masks: []const EventMask,
         decoded_masks_buf: ?[]EventMask = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             const num_masks = try reader.takeInt(u16, .native);
@@ -5706,7 +5706,7 @@ pub const XIBarrierReleasePointer = struct {
     barriers: []const BarrierReleasePointerInfo,
     decoded_barriers_buf: ?[]BarrierReleasePointerInfo = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(self.barriers.len), .native);
         for (self.barriers) |elem| {
             try elem.encode(writer);
@@ -5728,7 +5728,7 @@ pub const SendExtensionEvent = struct {
     classes: []const u32,
     decoded_classes_buf: ?[]u32 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
         try writer.writeByte(self.device_id);
         try writer.writeByte(@intFromBool(self.propagate));
@@ -5753,7 +5753,7 @@ pub const DeviceValuatorEvent = struct {
     first_valuator: u8,
     valuators: [6]i32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -5767,7 +5767,7 @@ pub const DeviceValuatorEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -5798,7 +5798,7 @@ pub const DeviceKeyPressEvent = struct {
     same_screen: bool,
     device_id: u8,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.detail = try reader.takeByte();
@@ -5817,7 +5817,7 @@ pub const DeviceKeyPressEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -5846,7 +5846,7 @@ pub const DeviceFocusInEvent = struct {
     mode: xproto.NotifyMode,
     device_id: u8,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.detail = @as(xproto.NotifyDetail, @enumFromInt(try reader.takeByte()));
@@ -5859,7 +5859,7 @@ pub const DeviceFocusInEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -5886,7 +5886,7 @@ pub const DeviceStateNotifyEvent = struct {
     keys: [4]u8,
     valuators: [3]u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -5908,7 +5908,7 @@ pub const DeviceStateNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -5936,7 +5936,7 @@ pub const DeviceMappingNotifyEvent = struct {
     count: u8,
     time: u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -5950,7 +5950,7 @@ pub const DeviceMappingNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -5972,7 +5972,7 @@ pub const ChangeDeviceNotifyEvent = struct {
     time: u32,
     request: ChangeDevice,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -5983,7 +5983,7 @@ pub const ChangeDeviceNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -6001,7 +6001,7 @@ pub const DeviceKeyStateNotifyEvent = struct {
     device_id: u8,
     keys: [28]u8,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -6012,7 +6012,7 @@ pub const DeviceKeyStateNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -6028,7 +6028,7 @@ pub const DeviceButtonStateNotifyEvent = struct {
     device_id: u8,
     buttons: [28]u8,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.device_id = try reader.takeByte();
@@ -6039,7 +6039,7 @@ pub const DeviceButtonStateNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -6057,7 +6057,7 @@ pub const DevicePresenceNotifyEvent = struct {
     device_id: u8,
     control: u16,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -6070,7 +6070,7 @@ pub const DevicePresenceNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -6092,7 +6092,7 @@ pub const DevicePropertyNotifyEvent = struct {
     property: xproto.Atom,
     device_id: u8,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.state = @as(xproto.Property, @enumFromInt(try reader.takeByte()));
@@ -6104,7 +6104,7 @@ pub const DevicePropertyNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -6146,7 +6146,7 @@ pub const DeviceChangedEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const num_classes = self.num_classes;
@@ -6160,7 +6160,7 @@ pub const DeviceChangedEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6231,7 +6231,7 @@ pub const KeyPressEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const buttons_len = self.buttons_len;
@@ -6258,7 +6258,7 @@ pub const KeyPressEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6340,7 +6340,7 @@ pub const ButtonPressEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const buttons_len = self.buttons_len;
@@ -6367,7 +6367,7 @@ pub const ButtonPressEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6436,7 +6436,7 @@ pub const EnterEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const buttons_len = self.buttons_len;
@@ -6450,7 +6450,7 @@ pub const EnterEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6506,7 +6506,7 @@ pub const HierarchyEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const num_infos = self.num_infos;
@@ -6520,7 +6520,7 @@ pub const HierarchyEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6550,7 +6550,7 @@ pub const PropertyEvent = struct {
     property: xproto.Atom,
     what: PropertyFlag,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -6609,7 +6609,7 @@ pub const RawKeyPressEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const valuators_len = self.valuators_len;
@@ -6635,7 +6635,7 @@ pub const RawKeyPressEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6697,7 +6697,7 @@ pub const RawButtonPressEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const valuators_len = self.valuators_len;
@@ -6723,7 +6723,7 @@ pub const RawButtonPressEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6795,7 +6795,7 @@ pub const TouchBeginEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const buttons_len = self.buttons_len;
@@ -6822,7 +6822,7 @@ pub const TouchBeginEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6868,7 +6868,7 @@ pub const TouchOwnershipEvent = struct {
     sourceid: u16,
     flags: TouchOwnershipFlags,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -6932,7 +6932,7 @@ pub const RawTouchBeginEvent = struct {
         }
     };
 
-    pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {
+    pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {
         var reader_impl: std.Io.Reader = .fixed(self._body);
         const reader = &reader_impl;
         const valuators_len = self.valuators_len;
@@ -6958,7 +6958,7 @@ pub const RawTouchBeginEvent = struct {
         return result;
     }
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         const header = try reader.peek(8);
         const packet = try reader.peek(32 + @as(usize, std.mem.readInt(u32, header[4..8], .native)) * 4);
@@ -6999,7 +6999,7 @@ pub const BarrierHitEvent = struct {
     dx: FP3232,
     dy: FP3232,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -7053,7 +7053,7 @@ pub const GesturePinchBeginEvent = struct {
     group: GroupInfo,
     flags: u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -7112,7 +7112,7 @@ pub const GestureSwipeBeginEvent = struct {
     group: GroupInfo,
     flags: u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -7146,7 +7146,7 @@ pub const GestureSwipeBeginEvent = struct {
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .InputDeviceValuator = try DeviceValuatorEvent.decode(reader) },
@@ -7179,7 +7179,7 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
-pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeXgeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const header = try reader.peek(10);
     const event_type = std.mem.readInt(u16, header[8..10], .native);
     return switch (event_type) {
@@ -7219,3 +7219,237 @@ pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(DeviceUse);
+    std.testing.refAllDecls(InputClass);
+    std.testing.refAllDecls(ValuatorMode);
+    std.testing.refAllDecls(PropagateMode);
+    std.testing.refAllDecls(ModifierDevice);
+    std.testing.refAllDecls(DeviceInputMode);
+    std.testing.refAllDecls(FeedbackClass);
+    std.testing.refAllDecls(ChangeFeedbackControlMask);
+    std.testing.refAllDecls(ValuatorStateModeMask);
+    std.testing.refAllDecls(DeviceControl);
+    std.testing.refAllDecls(PropertyFormat);
+    std.testing.refAllDecls(Device);
+    std.testing.refAllDecls(HierarchyChangeType);
+    std.testing.refAllDecls(ChangeMode);
+    std.testing.refAllDecls(XIEventMask);
+    std.testing.refAllDecls(DeviceClassType);
+    std.testing.refAllDecls(DeviceType);
+    std.testing.refAllDecls(ScrollFlags);
+    std.testing.refAllDecls(ScrollType);
+    std.testing.refAllDecls(TouchMode);
+    std.testing.refAllDecls(GrabOwner);
+    std.testing.refAllDecls(EventMode);
+    std.testing.refAllDecls(GrabMode22);
+    std.testing.refAllDecls(GrabType);
+    std.testing.refAllDecls(ModifierMask);
+    std.testing.refAllDecls(MoreEventsMask);
+    std.testing.refAllDecls(ClassesReportedMask);
+    std.testing.refAllDecls(ChangeDevice);
+    std.testing.refAllDecls(DeviceChange);
+    std.testing.refAllDecls(ChangeReason);
+    std.testing.refAllDecls(KeyEventFlags);
+    std.testing.refAllDecls(PointerEventFlags);
+    std.testing.refAllDecls(NotifyMode);
+    std.testing.refAllDecls(NotifyDetail);
+    std.testing.refAllDecls(HierarchyMask);
+    std.testing.refAllDecls(PropertyFlag);
+    std.testing.refAllDecls(TouchEventFlags);
+    std.testing.refAllDecls(TouchOwnershipFlags);
+    std.testing.refAllDecls(BarrierFlags);
+    std.testing.refAllDecls(GesturePinchEventFlags);
+    std.testing.refAllDecls(GestureSwipeEventFlags);
+    std.testing.refAllDecls(FP3232);
+    std.testing.refAllDecls(DeviceInfo);
+    std.testing.refAllDecls(KeyInfo);
+    std.testing.refAllDecls(ButtonInfo);
+    std.testing.refAllDecls(AxisInfo);
+    std.testing.refAllDecls(ValuatorInfo);
+    std.testing.refAllDecls(InputInfo);
+    std.testing.refAllDecls(InputInfo.Info);
+    std.testing.refAllDecls(DeviceName);
+    std.testing.refAllDecls(InputClassInfo);
+    std.testing.refAllDecls(DeviceTimeCoord);
+    std.testing.refAllDecls(KbdFeedbackState);
+    std.testing.refAllDecls(PtrFeedbackState);
+    std.testing.refAllDecls(IntegerFeedbackState);
+    std.testing.refAllDecls(StringFeedbackState);
+    std.testing.refAllDecls(BellFeedbackState);
+    std.testing.refAllDecls(LedFeedbackState);
+    std.testing.refAllDecls(FeedbackState);
+    std.testing.refAllDecls(FeedbackState.Data);
+    std.testing.refAllDecls(KbdFeedbackCtl);
+    std.testing.refAllDecls(PtrFeedbackCtl);
+    std.testing.refAllDecls(IntegerFeedbackCtl);
+    std.testing.refAllDecls(StringFeedbackCtl);
+    std.testing.refAllDecls(BellFeedbackCtl);
+    std.testing.refAllDecls(LedFeedbackCtl);
+    std.testing.refAllDecls(FeedbackCtl);
+    std.testing.refAllDecls(FeedbackCtl.Data);
+    std.testing.refAllDecls(KeyState);
+    std.testing.refAllDecls(ButtonState);
+    std.testing.refAllDecls(ValuatorState);
+    std.testing.refAllDecls(InputState);
+    std.testing.refAllDecls(InputState.Data);
+    std.testing.refAllDecls(DeviceResolutionState);
+    std.testing.refAllDecls(DeviceAbsCalibState);
+    std.testing.refAllDecls(DeviceAbsAreaState);
+    std.testing.refAllDecls(DeviceCoreState);
+    std.testing.refAllDecls(DeviceEnableState);
+    std.testing.refAllDecls(DeviceState);
+    std.testing.refAllDecls(DeviceState.Data);
+    std.testing.refAllDecls(DeviceResolutionCtl);
+    std.testing.refAllDecls(DeviceAbsCalibCtl);
+    std.testing.refAllDecls(DeviceAbsAreaCtrl);
+    std.testing.refAllDecls(DeviceCoreCtrl);
+    std.testing.refAllDecls(DeviceEnableCtrl);
+    std.testing.refAllDecls(DeviceCtl);
+    std.testing.refAllDecls(DeviceCtl.Data);
+    std.testing.refAllDecls(GroupInfo);
+    std.testing.refAllDecls(ModifierInfo);
+    std.testing.refAllDecls(AddMaster);
+    std.testing.refAllDecls(RemoveMaster);
+    std.testing.refAllDecls(AttachSlave);
+    std.testing.refAllDecls(DetachSlave);
+    std.testing.refAllDecls(HierarchyChange);
+    std.testing.refAllDecls(HierarchyChange.Data);
+    std.testing.refAllDecls(EventMask);
+    std.testing.refAllDecls(ButtonClass);
+    std.testing.refAllDecls(KeyClass);
+    std.testing.refAllDecls(ScrollClass);
+    std.testing.refAllDecls(TouchClass);
+    std.testing.refAllDecls(GestureClass);
+    std.testing.refAllDecls(ValuatorClass);
+    std.testing.refAllDecls(DeviceClass);
+    std.testing.refAllDecls(DeviceClass.Data);
+    std.testing.refAllDecls(XIDeviceInfo);
+    std.testing.refAllDecls(GrabModifierInfo);
+    std.testing.refAllDecls(BarrierReleasePointerInfo);
+    std.testing.refAllDecls(HierarchyInfo);
+    std.testing.refAllDecls(EventForSend);
+    std.testing.refAllDecls(DeviceValuatorEvent);
+    std.testing.refAllDecls(DeviceKeyPressEvent);
+    std.testing.refAllDecls(DeviceFocusInEvent);
+    std.testing.refAllDecls(DeviceStateNotifyEvent);
+    std.testing.refAllDecls(DeviceMappingNotifyEvent);
+    std.testing.refAllDecls(ChangeDeviceNotifyEvent);
+    std.testing.refAllDecls(DeviceKeyStateNotifyEvent);
+    std.testing.refAllDecls(DeviceButtonStateNotifyEvent);
+    std.testing.refAllDecls(DevicePresenceNotifyEvent);
+    std.testing.refAllDecls(DevicePropertyNotifyEvent);
+    std.testing.refAllDecls(DeviceChangedEvent);
+    std.testing.refAllDecls(KeyPressEvent);
+    std.testing.refAllDecls(ButtonPressEvent);
+    std.testing.refAllDecls(EnterEvent);
+    std.testing.refAllDecls(HierarchyEvent);
+    std.testing.refAllDecls(PropertyEvent);
+    std.testing.refAllDecls(RawKeyPressEvent);
+    std.testing.refAllDecls(RawButtonPressEvent);
+    std.testing.refAllDecls(TouchBeginEvent);
+    std.testing.refAllDecls(TouchOwnershipEvent);
+    std.testing.refAllDecls(RawTouchBeginEvent);
+    std.testing.refAllDecls(BarrierHitEvent);
+    std.testing.refAllDecls(GesturePinchBeginEvent);
+    std.testing.refAllDecls(GestureSwipeBeginEvent);
+    std.testing.refAllDecls(GetExtensionVersion);
+    std.testing.refAllDecls(GetExtensionVersion.Reply);
+    std.testing.refAllDecls(ListInputDevices);
+    std.testing.refAllDecls(ListInputDevices.Reply);
+    std.testing.refAllDecls(OpenDevice);
+    std.testing.refAllDecls(OpenDevice.Reply);
+    std.testing.refAllDecls(CloseDevice);
+    std.testing.refAllDecls(SetDeviceMode);
+    std.testing.refAllDecls(SetDeviceMode.Reply);
+    std.testing.refAllDecls(SelectExtensionEvent);
+    std.testing.refAllDecls(GetSelectedExtensionEvents);
+    std.testing.refAllDecls(GetSelectedExtensionEvents.Reply);
+    std.testing.refAllDecls(ChangeDeviceDontPropagateList);
+    std.testing.refAllDecls(GetDeviceDontPropagateList);
+    std.testing.refAllDecls(GetDeviceDontPropagateList.Reply);
+    std.testing.refAllDecls(GetDeviceMotionEvents);
+    std.testing.refAllDecls(GetDeviceMotionEvents.Reply);
+    std.testing.refAllDecls(ChangeKeyboardDevice);
+    std.testing.refAllDecls(ChangeKeyboardDevice.Reply);
+    std.testing.refAllDecls(ChangePointerDevice);
+    std.testing.refAllDecls(ChangePointerDevice.Reply);
+    std.testing.refAllDecls(GrabDevice);
+    std.testing.refAllDecls(GrabDevice.Reply);
+    std.testing.refAllDecls(UngrabDevice);
+    std.testing.refAllDecls(GrabDeviceKey);
+    std.testing.refAllDecls(UngrabDeviceKey);
+    std.testing.refAllDecls(GrabDeviceButton);
+    std.testing.refAllDecls(UngrabDeviceButton);
+    std.testing.refAllDecls(AllowDeviceEvents);
+    std.testing.refAllDecls(GetDeviceFocus);
+    std.testing.refAllDecls(GetDeviceFocus.Reply);
+    std.testing.refAllDecls(SetDeviceFocus);
+    std.testing.refAllDecls(GetFeedbackControl);
+    std.testing.refAllDecls(GetFeedbackControl.Reply);
+    std.testing.refAllDecls(ChangeFeedbackControl);
+    std.testing.refAllDecls(GetDeviceKeyMapping);
+    std.testing.refAllDecls(GetDeviceKeyMapping.Reply);
+    std.testing.refAllDecls(ChangeDeviceKeyMapping);
+    std.testing.refAllDecls(GetDeviceModifierMapping);
+    std.testing.refAllDecls(GetDeviceModifierMapping.Reply);
+    std.testing.refAllDecls(SetDeviceModifierMapping);
+    std.testing.refAllDecls(SetDeviceModifierMapping.Reply);
+    std.testing.refAllDecls(GetDeviceButtonMapping);
+    std.testing.refAllDecls(GetDeviceButtonMapping.Reply);
+    std.testing.refAllDecls(SetDeviceButtonMapping);
+    std.testing.refAllDecls(SetDeviceButtonMapping.Reply);
+    std.testing.refAllDecls(QueryDeviceState);
+    std.testing.refAllDecls(QueryDeviceState.Reply);
+    std.testing.refAllDecls(DeviceBell);
+    std.testing.refAllDecls(SetDeviceValuators);
+    std.testing.refAllDecls(SetDeviceValuators.Reply);
+    std.testing.refAllDecls(GetDeviceControl);
+    std.testing.refAllDecls(GetDeviceControl.Reply);
+    std.testing.refAllDecls(ChangeDeviceControl);
+    std.testing.refAllDecls(ChangeDeviceControl.Reply);
+    std.testing.refAllDecls(ListDeviceProperties);
+    std.testing.refAllDecls(ListDeviceProperties.Reply);
+    std.testing.refAllDecls(ChangeDeviceProperty);
+    std.testing.refAllDecls(ChangeDeviceProperty.Items);
+    std.testing.refAllDecls(DeleteDeviceProperty);
+    std.testing.refAllDecls(GetDeviceProperty);
+    std.testing.refAllDecls(GetDeviceProperty.Reply);
+    std.testing.refAllDecls(GetDeviceProperty.Reply.Items);
+    std.testing.refAllDecls(XIQueryPointer);
+    std.testing.refAllDecls(XIQueryPointer.Reply);
+    std.testing.refAllDecls(XIWarpPointer);
+    std.testing.refAllDecls(XIChangeCursor);
+    std.testing.refAllDecls(XIChangeHierarchy);
+    std.testing.refAllDecls(XISetClientPointer);
+    std.testing.refAllDecls(XIGetClientPointer);
+    std.testing.refAllDecls(XIGetClientPointer.Reply);
+    std.testing.refAllDecls(XISelectEvents);
+    std.testing.refAllDecls(XIQueryVersion);
+    std.testing.refAllDecls(XIQueryVersion.Reply);
+    std.testing.refAllDecls(XIQueryDevice);
+    std.testing.refAllDecls(XIQueryDevice.Reply);
+    std.testing.refAllDecls(XISetFocus);
+    std.testing.refAllDecls(XIGetFocus);
+    std.testing.refAllDecls(XIGetFocus.Reply);
+    std.testing.refAllDecls(XIGrabDevice);
+    std.testing.refAllDecls(XIGrabDevice.Reply);
+    std.testing.refAllDecls(XIUngrabDevice);
+    std.testing.refAllDecls(XIAllowEvents);
+    std.testing.refAllDecls(XIPassiveGrabDevice);
+    std.testing.refAllDecls(XIPassiveGrabDevice.Reply);
+    std.testing.refAllDecls(XIPassiveUngrabDevice);
+    std.testing.refAllDecls(XIListProperties);
+    std.testing.refAllDecls(XIListProperties.Reply);
+    std.testing.refAllDecls(XIChangeProperty);
+    std.testing.refAllDecls(XIChangeProperty.Items);
+    std.testing.refAllDecls(XIDeleteProperty);
+    std.testing.refAllDecls(XIGetProperty);
+    std.testing.refAllDecls(XIGetProperty.Reply);
+    std.testing.refAllDecls(XIGetProperty.Reply.Items);
+    std.testing.refAllDecls(XIGetSelectedEvents);
+    std.testing.refAllDecls(XIGetSelectedEvents.Reply);
+    std.testing.refAllDecls(XIBarrierReleasePointer);
+    std.testing.refAllDecls(SendExtensionEvent);
+}

@@ -171,6 +171,14 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = Non
     if isinstance(expr, xcbxml.ParamRef):
         return zig_local_name(expr.ref)
     if isinstance(expr, xcbxml.Op):
+        if (
+            expr.op == '&'
+            and isinstance(expr.right, xcbxml.Unop)
+            and expr.right.op == '~'
+            and isinstance(expr.right.expr, int)
+        ):
+            left = emit_expr(expr.left, prefix, element_expr)
+            return f'({left} & ~@as(@TypeOf({left}), {expr.right.expr}))'
         return f'({emit_expr(expr.left, prefix, element_expr)} {expr.op} {emit_expr(expr.right, prefix, element_expr)})'
     if isinstance(expr, xcbxml.Unop):
         return f'({expr.op}{emit_expr(expr.expr, prefix, element_expr)})'
@@ -180,6 +188,50 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = Non
         elem_value = emit_expr(expr.expr, 'elem.', 'elem')
         return (
             f'(blk: {{ var total: usize = 0; for ({prefix}{expr.ref}) |elem| '
+            f'total += @as(usize, {elem_value}); break :blk total; }})'
+        )
+    if isinstance(expr, xcbxml.ListElementRef):
+        if element_expr is None:
+            raise NotImplementedError('listelement-ref requires list element context')
+        return element_expr
+    raise NotImplementedError(f'unsupported list expression: {type(expr).__name__}')
+
+
+def emit_decode_expr(
+    expr: xcbxml.ListExpr,
+    scope: DecodeScope,
+    element_expr: str | None = None,
+    element_prefix: str | None = None,
+) -> str:
+    if isinstance(expr, int):
+        return str(expr)
+    if isinstance(expr, xcbxml.FieldRef):
+        if element_prefix is not None:
+            return f'{element_prefix}.{expr.ref}'
+        if '.' in expr.ref:
+            return expr.ref
+        return scope.get(expr.ref)
+    if isinstance(expr, xcbxml.ParamRef):
+        value = scope.get(expr.ref)
+        return f'@intFromBool({value})' if expr.type == 'bool' else value
+    if isinstance(expr, xcbxml.Op):
+        if (
+            expr.op == '&'
+            and isinstance(expr.right, xcbxml.Unop)
+            and expr.right.op == '~'
+            and isinstance(expr.right.expr, int)
+        ):
+            left = emit_decode_expr(expr.left, scope, element_expr, element_prefix)
+            return f'({left} & ~@as(@TypeOf({left}), {expr.right.expr}))'
+        return f'({emit_decode_expr(expr.left, scope, element_expr, element_prefix)} {expr.op} {emit_decode_expr(expr.right, scope, element_expr, element_prefix)})'
+    if isinstance(expr, xcbxml.Unop):
+        return f'({expr.op}{emit_decode_expr(expr.expr, scope, element_expr, element_prefix)})'
+    if isinstance(expr, xcbxml.PopCount):
+        return f'@popCount({emit_decode_expr(expr.expr, scope, element_expr, element_prefix)})'
+    if isinstance(expr, xcbxml.SumOf):
+        elem_value = emit_decode_expr(expr.expr, scope, 'elem', 'elem')
+        return (
+            f'(blk: {{ var total: usize = 0; for ({scope.get(expr.ref)}) |elem| '
             f'total += @as(usize, {elem_value}); break :blk total; }})'
         )
     if isinstance(expr, xcbxml.ListElementRef):
@@ -232,7 +284,7 @@ def emit_decl_items(emit: Emit, items: Iterable[Field]) -> None:
 
 
 def emit_encode_fn(emit: Emit, items: Iterable[Field]) -> None:
-    emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
+    emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {')
     with emit.block():
         emitted = False
         for item in items:
@@ -286,7 +338,19 @@ def decode_call_args(args: Mapping[str, str], scope: DecodeScope) -> list[str]:
     return result
 
 
+def decode_error_set(args: Mapping[str, str]) -> str:
+    if 'buffer_' in args:
+        return 'errors.BufferDecodeError'
+    if 'allocator' in args:
+        return 'errors.AllocDecodeError'
+    return 'errors.DecodeError'
+
+
 def expr_decode_args(expr: xcbxml.ListExpr) -> dict[str, str]:
+    if isinstance(expr, xcbxml.FieldRef):
+        if expr.ref.split('.', 1)[0] == 'header_':
+            return {'header_': 'wire.ReplyHeader'}
+        return {}
     if isinstance(expr, xcbxml.ParamRef):
         return {expr.ref: expr.type}
     if isinstance(expr, xcbxml.Op):
@@ -298,6 +362,25 @@ def expr_decode_args(expr: xcbxml.ListExpr) -> dict[str, str]:
     if isinstance(expr, xcbxml.SumOf):
         return expr_decode_args(expr.expr)
     return {}
+
+
+def replace_field_ref_in_expr(
+    expr: xcbxml.ListExpr,
+    ref: str,
+    replacement: xcbxml.ListExpr,
+) -> xcbxml.ListExpr:
+    if isinstance(expr, xcbxml.FieldRef) and expr.ref == ref:
+        return replacement
+    if isinstance(expr, xcbxml.PopCount):
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, replacement)
+    elif isinstance(expr, xcbxml.SumOf):
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, replacement)
+    elif isinstance(expr, xcbxml.Op):
+        expr.left = replace_field_ref_in_expr(expr.left, ref, replacement)
+        expr.right = replace_field_ref_in_expr(expr.right, ref, replacement)
+    elif isinstance(expr, xcbxml.Unop):
+        expr.expr = replace_field_ref_in_expr(expr.expr, ref, replacement)
+    return expr
 
 
 def emit_decode_fn(
@@ -318,7 +401,7 @@ def emit_decode_fn(
     local_names = frozenset([*args, *(item.name for item in items if not item.public)])
     scope = DecodeScope(owner_expr='result', local_names=local_names)
 
-    emit(f'pub fn decode({", ".join(fargs)}) !@This() {{')
+    emit(f'pub fn decode({", ".join(fargs)}) {decode_error_set(args)}!@This() {{')
     with emit.block():
         emit('var result: @This() = undefined;')
         for arg in unused_args:
@@ -346,6 +429,8 @@ def expr_refs(expr: xcbxml.ListExpr) -> list[str]:
         return []
     if isinstance(expr, xcbxml.FieldRef):
         return [expr.ref]
+    if isinstance(expr, xcbxml.ParamRef):
+        return []
     if isinstance(expr, xcbxml.Op):
         return expr_refs(expr.left) + expr_refs(expr.right)
     if isinstance(expr, xcbxml.Unop):

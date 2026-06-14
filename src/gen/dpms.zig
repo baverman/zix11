@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const xproto = @import("xproto.zig");
 
@@ -34,7 +34,7 @@ pub const GetVersion = struct {
     client_major_version: u16,
     client_minor_version: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.client_major_version, .native);
         try writer.writeInt(u16, self.client_minor_version, .native);
     }
@@ -43,7 +43,7 @@ pub const GetVersion = struct {
         server_major_version: u16,
         server_minor_version: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.server_major_version = try reader.takeInt(u16, .native);
@@ -58,7 +58,7 @@ pub const Capable = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -66,7 +66,7 @@ pub const Capable = struct {
     pub const Reply = struct {
         capable: bool,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.capable = (try reader.takeByte()) != 0;
@@ -81,7 +81,7 @@ pub const GetTimeouts = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -91,7 +91,7 @@ pub const GetTimeouts = struct {
         suspend_timeout: u16,
         off_timeout: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.standby_timeout = try reader.takeInt(u16, .native);
@@ -111,7 +111,7 @@ pub const SetTimeouts = struct {
     suspend_timeout: u16,
     off_timeout: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, self.standby_timeout, .native);
         try writer.writeInt(u16, self.suspend_timeout, .native);
         try writer.writeInt(u16, self.off_timeout, .native);
@@ -125,7 +125,7 @@ pub const Enable = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -138,7 +138,7 @@ pub const Disable = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -152,7 +152,7 @@ pub const ForceLevel = struct {
 
     power_level: DPMSMode,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u16, @intCast(@intFromEnum(self.power_level)), .native);
     }
 
@@ -164,7 +164,7 @@ pub const Info = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -173,7 +173,7 @@ pub const Info = struct {
         power_level: DPMSMode,
         state: bool,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.power_level = @as(DPMSMode, @enumFromInt(try reader.takeInt(u16, .native)));
@@ -190,7 +190,7 @@ pub const SelectInput = struct {
 
     event_mask: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.event_mask, .native);
     }
 
@@ -205,7 +205,7 @@ pub const InfoNotifyEvent = struct {
     power_level: DPMSMode,
     state: bool,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.extension = try reader.takeByte();
@@ -225,7 +225,7 @@ pub const InfoNotifyEvent = struct {
     }
 };
 
-pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeXgeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const header = try reader.peek(10);
     const event_type = std.mem.readInt(u16, header[8..10], .native);
     return switch (event_type) {
@@ -234,3 +234,22 @@ pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(DPMSMode);
+    std.testing.refAllDecls(EventMask);
+    std.testing.refAllDecls(InfoNotifyEvent);
+    std.testing.refAllDecls(GetVersion);
+    std.testing.refAllDecls(GetVersion.Reply);
+    std.testing.refAllDecls(Capable);
+    std.testing.refAllDecls(Capable.Reply);
+    std.testing.refAllDecls(GetTimeouts);
+    std.testing.refAllDecls(GetTimeouts.Reply);
+    std.testing.refAllDecls(SetTimeouts);
+    std.testing.refAllDecls(Enable);
+    std.testing.refAllDecls(Disable);
+    std.testing.refAllDecls(ForceLevel);
+    std.testing.refAllDecls(Info);
+    std.testing.refAllDecls(Info.Reply);
+    std.testing.refAllDecls(SelectInput);
+}

@@ -12,6 +12,7 @@ from .common import (
     Size,
     emit_decl_items,
     emit_deinit_items,
+    expr_decode_args,
     expr_refs,
     items_size,
 )
@@ -68,13 +69,13 @@ class EventStructType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) errors.EncodeError!void {')
             with emit.block():
                 emit('try writer.writeAll(self.raw[0..]);')
             emit('}')
             emit()
 
-            emit('pub fn decode(reader: *std.Io.Reader) !@This() {')
+            emit('pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {')
             with emit.block():
                 emit('var raw: [32]u8 = undefined;')
                 emit('@memcpy(raw[0..], try reader.take(32));')
@@ -171,22 +172,34 @@ class EventType(BaseType):
                 emit('};')
                 emit()
 
-                emit('pub fn getBody(self: @This(), allocator: std.mem.Allocator) !Body {')
+                emit(
+                    'pub fn getBody(self: @This(), allocator: std.mem.Allocator) errors.AllocDecodeError!Body {'
+                )
                 with emit.block():
                     emit('var reader_impl: std.Io.Reader = .fixed(self._body);')
                     emit('const reader = &reader_impl;')
-                    for name in self.body_prefix_refs(prefix_items, body_items):
+                    body_prefix_refs = self.body_prefix_refs(prefix_items, body_items)
+                    for name in body_prefix_refs:
                         emit(f'const {name} = self.{name};')
                     emit('var result: Body = undefined;')
+                    body_scope = DecodeScope(
+                        owner_expr='result',
+                        local_names=frozenset(
+                            {
+                                'allocator',
+                                'reader',
+                                *body_prefix_refs,
+                                *(item.name for item in body_items if not item.public),
+                            }
+                        ),
+                    )
                     for item in body_items:
-                        item.type.emit_decode(
-                            emit, item.decode_target_expr('result'), DecodeScope.empty()
-                        )
+                        item.type.emit_decode(emit, item.decode_target_expr('result'), body_scope)
                     emit('return result;')
                 emit('}')
 
             emit()
-            emit('pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {')
+            emit('pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {')
             with emit.block():
                 emit('var result: @This() = undefined;')
                 if self.no_sequence_number:
@@ -254,7 +267,7 @@ class EventType(BaseType):
         emit()
 
     def emit_to_bytes(self, emit: Emit) -> None:
-        emit('pub fn toBytes(self: @This()) ![32]u8 {')
+        emit('pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {')
         with emit.block():
             emit('var packet: [32]u8 = std.mem.zeroes([32]u8);')
             emit('var writer_impl: std.Io.Writer = .fixed(&packet);')
@@ -288,7 +301,8 @@ class EventType(BaseType):
         seen: set[str] = set()
         for item in body_items:
             if isinstance(item.type, ListType) and item.type.len is not None:
-                for name in expr_refs(item.type.len):
+                names = [*expr_refs(item.type.len), *expr_decode_args(item.type.len)]
+                for name in names:
                     if name in prefix_names and name not in seen:
                         result.append(name)
                         seen.add(name)
@@ -310,7 +324,7 @@ def emit_definitions(emit: Emit, module: Module, events: Sequence[EventType]) ->
     prefix = module.global_tagged_prefix()
 
     if normal_events:
-        emit('pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {')
+        emit('pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {')
         with emit.block():
             emit('const code = (try reader.peek(1))[0] & 0x7f;')
             emit('return switch (code) {')
@@ -338,7 +352,9 @@ def emit_definitions(emit: Emit, module: Module, events: Sequence[EventType]) ->
         emit()
 
     if xge_events:
-        emit('pub fn decodeXgeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {')
+        emit(
+            'pub fn decodeXgeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {'
+        )
         with emit.block():
             emit('const header = try reader.peek(10);')
             emit('const event_type = std.mem.readInt(u16, header[8..10], .native);')

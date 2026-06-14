@@ -12,8 +12,11 @@ from .common import (
     Parent,
     Size,
     TypeProtocol,
+    emit_decode_expr,
     emit_expr,
     expr_decode_args,
+    expr_refs,
+    replace_field_ref_in_expr,
 )
 from .resolver import Resolver
 
@@ -99,10 +102,7 @@ class ListType(BaseType):
                 emit('}')
                 emit(f'const decoded_{name}_buf = try decoded_{name}_list.toOwnedSlice(allocator);')
         else:
-            if isinstance(self.len, xcbxml.FieldRef):
-                len_expr = emit_expr(self.len, '')
-            else:
-                len_expr = emit_expr(self.len, f'{owner_expr}.')
+            len_expr = emit_decode_expr(self.len, scope)
             len_expr = f'@intCast({len_expr})'
             if T.decl_name == 'u8':
                 if self.use_buffer:
@@ -139,19 +139,29 @@ class ListType(BaseType):
     def update_fieldref(
         self, parents: tuple[Parent, ...], field: Field, fields_by_name: dict[str, Field]
     ) -> None:
-        if isinstance(self.len, xcbxml.FieldRef):
+        if self.len is None or isinstance(self.len, int):
+            return
+
+        direct_ref = self.len.ref if isinstance(self.len, xcbxml.FieldRef) else None
+        for ref in expr_refs(self.len):
             if (
-                self.len.ref == 'length'
-                and self.len.ref not in fields_by_name
+                ref == 'length'
+                and ref not in fields_by_name
                 and isinstance(parents[-1], xcbxml.Reply)
             ):
-                self.len = xcbxml.FieldRef('header_.length')
-                return
+                self.len = replace_field_ref_in_expr(
+                    self.len, ref, xcbxml.FieldRef('header_.length')
+                )
+                continue
 
-            if self.len.ref in fields_by_name:
-                len_field = fields_by_name[self.len.ref]
-                len_field.public = False
-                len_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.len)'
+            if ref in fields_by_name:
+                len_field = fields_by_name[ref]
+                if ref == direct_ref:
+                    len_field.public = False
+                    len_field.encode_value_expr_ = f'@intCast({{owner}}.{field.name}.len)'
+                self.len = replace_field_ref_in_expr(
+                    self.len, ref, xcbxml.ParamRef(ref=ref, type=len_field.type.decl_name)
+                )
 
     def emit_deinit(self, emit: Emit, value_expr: str) -> None:
         T = self.item_type

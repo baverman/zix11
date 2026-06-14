@@ -55,13 +55,13 @@ class UnionType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) !void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) errors.EncodeError!void {')
             with emit.block():
                 emit('try writer.writeAll(self.raw[0..]);')
             emit('}')
             emit()
 
-            emit('pub fn decode(reader: *std.Io.Reader) !@This() {')
+            emit('pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {')
             with emit.block():
                 emit(f'var raw: [{self.size}]u8 = undefined;')
                 emit(f'@memcpy(raw[0..], try reader.take({self.size}));')
@@ -71,7 +71,9 @@ class UnionType(BaseType):
             for item in self.items:
                 suffix = item.name[:1].upper() + item.name[1:]
                 emit()
-                emit(f'pub fn from{suffix}(value: {item.type.decl_name}) !@This() {{')
+                emit(
+                    f'pub fn from{suffix}(value: {item.type.decl_name}) errors.EncodeError!@This() {{'
+                )
                 with emit.block():
                     emit(f'var raw = std.mem.zeroes([{self.size}]u8);')
                     emit('var writer_impl: std.Io.Writer = .fixed(&raw);')
@@ -81,7 +83,9 @@ class UnionType(BaseType):
                 emit('}')
                 emit()
 
-                emit(f'pub fn as{suffix}(self: @This()) !{item.type.decl_name} {{')
+                emit(
+                    f'pub fn as{suffix}(self: @This()) errors.DecodeError!{item.type.decl_name} {{'
+                )
                 with emit.block():
                     emit('var reader_impl: std.Io.Reader = .fixed(&self.raw);')
                     emit('const reader = &reader_impl;')

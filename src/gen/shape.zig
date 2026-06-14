@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const xproto = @import("xproto.zig");
 
@@ -31,7 +31,7 @@ pub const QueryVersion = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -40,7 +40,7 @@ pub const QueryVersion = struct {
         major_version: u16,
         minor_version: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.major_version = try reader.takeInt(u16, .native);
@@ -63,7 +63,7 @@ pub const Rectangles = struct {
     rectangles: []const xproto.RECTANGLE,
     decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.operation)));
         try writer.writeByte(@intCast(@intFromEnum(self.destination_kind)));
         try writer.writeByte(@intCast(@intFromEnum(self.ordering)));
@@ -90,7 +90,7 @@ pub const Mask = struct {
     y_offset: i16,
     source_bitmap: xproto.Pixmap,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.operation)));
         try writer.writeByte(@intCast(@intFromEnum(self.destination_kind)));
         try writer.splatByteAll(0, 2);
@@ -115,7 +115,7 @@ pub const Combine = struct {
     y_offset: i16,
     source_window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.operation)));
         try writer.writeByte(@intCast(@intFromEnum(self.destination_kind)));
         try writer.writeByte(@intCast(@intFromEnum(self.source_kind)));
@@ -138,7 +138,7 @@ pub const Offset = struct {
     x_offset: i16,
     y_offset: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.destination_kind)));
         try writer.splatByteAll(0, 3);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination_window)), .native);
@@ -155,7 +155,7 @@ pub const QueryExtents = struct {
 
     destination_window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination_window)), .native);
     }
 
@@ -171,7 +171,7 @@ pub const QueryExtents = struct {
         clip_shape_extents_width: u16,
         clip_shape_extents_height: u16,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.bounding_shaped = (try reader.takeByte()) != 0;
@@ -197,7 +197,7 @@ pub const SelectInput = struct {
     destination_window: xproto.Window,
     enable: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination_window)), .native);
         try writer.writeByte(@intFromBool(self.enable));
         try writer.splatByteAll(0, 3);
@@ -212,14 +212,14 @@ pub const InputSelected = struct {
 
     destination_window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination_window)), .native);
     }
 
     pub const Reply = struct {
         enabled: bool,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = reader;
             result.enabled = (header_.byte_slot != 0);
@@ -235,7 +235,7 @@ pub const GetRectangles = struct {
     window: xproto.Window,
     source_kind: SK,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeByte(@intCast(@intFromEnum(self.source_kind)));
         try writer.splatByteAll(0, 3);
@@ -246,7 +246,7 @@ pub const GetRectangles = struct {
         rectangles: []const xproto.RECTANGLE,
         decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             result.ordering = @as(xproto.ClipOrdering, @enumFromInt(header_.byte_slot));
             const rectangles_len = try reader.takeInt(u32, .native);
@@ -280,7 +280,7 @@ pub const NotifyEvent = struct {
     server_time: u32,
     shaped: bool,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.shape_kind = @as(SK, @enumFromInt(try reader.takeByte()));
@@ -296,7 +296,7 @@ pub const NotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -315,7 +315,7 @@ pub const NotifyEvent = struct {
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .ShapeNotify = try NotifyEvent.decode(reader) },
@@ -332,3 +332,22 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(SO);
+    std.testing.refAllDecls(SK);
+    std.testing.refAllDecls(NotifyEvent);
+    std.testing.refAllDecls(QueryVersion);
+    std.testing.refAllDecls(QueryVersion.Reply);
+    std.testing.refAllDecls(Rectangles);
+    std.testing.refAllDecls(Mask);
+    std.testing.refAllDecls(Combine);
+    std.testing.refAllDecls(Offset);
+    std.testing.refAllDecls(QueryExtents);
+    std.testing.refAllDecls(QueryExtents.Reply);
+    std.testing.refAllDecls(SelectInput);
+    std.testing.refAllDecls(InputSelected);
+    std.testing.refAllDecls(InputSelected.Reply);
+    std.testing.refAllDecls(GetRectangles);
+    std.testing.refAllDecls(GetRectangles.Reply);
+}

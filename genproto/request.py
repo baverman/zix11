@@ -60,6 +60,8 @@ class RequestType:
         with emit.block():
             if self.byte_slot and self.byte_slot.public:
                 expr = self.byte_slot.type.coerce_to_raw(f'self.{self.byte_slot.name}')
+                if self.byte_slot.type.decl_name == 'i8':
+                    expr = f'@bitCast({expr})'
                 emit(f'return {expr};')
             else:
                 emit('_ = self;')

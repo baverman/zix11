@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const xproto = @import("xproto.zig");
 
@@ -21,7 +21,7 @@ pub const QueryVersion = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -34,7 +34,7 @@ pub const QueryVersion = struct {
         gid: u16,
         pixmap_format: u8,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.shared_pixmaps = (header_.byte_slot != 0);
             result.major_version = try reader.takeInt(u16, .native);
@@ -56,7 +56,7 @@ pub const Attach = struct {
     shmid: u32,
     read_only: bool,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.shmseg)), .native);
         try writer.writeInt(u32, self.shmid, .native);
         try writer.writeByte(@intFromBool(self.read_only));
@@ -72,7 +72,7 @@ pub const Detach = struct {
 
     shmseg: Seg,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.shmseg)), .native);
     }
 
@@ -99,7 +99,7 @@ pub const PutImage = struct {
     shmseg: Seg,
     offset: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.drawable.toInt(), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.gc)), .native);
         try writer.writeInt(u16, self.total_width, .native);
@@ -135,7 +135,7 @@ pub const GetImage = struct {
     shmseg: Seg,
     offset: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.drawable.toInt(), .native);
         try writer.writeInt(i16, self.x, .native);
         try writer.writeInt(i16, self.y, .native);
@@ -153,7 +153,7 @@ pub const GetImage = struct {
         visual: u32,
         size: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             result.depth = header_.byte_slot;
             result.visual = try reader.takeInt(u32, .native);
@@ -175,7 +175,7 @@ pub const CreatePixmap = struct {
     shmseg: Seg,
     offset: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.pid)), .native);
         try writer.writeInt(u32, self.drawable.toInt(), .native);
         try writer.writeInt(u16, self.width, .native);
@@ -196,7 +196,7 @@ pub const CompletionEvent = struct {
     shmseg: Seg,
     offset: u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         _ = try reader.take(1);
@@ -210,7 +210,7 @@ pub const CompletionEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -227,7 +227,7 @@ pub const CompletionEvent = struct {
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .ShmCompletion = try CompletionEvent.decode(reader) },
@@ -244,3 +244,16 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(Seg);
+    std.testing.refAllDecls(CompletionEvent);
+    std.testing.refAllDecls(QueryVersion);
+    std.testing.refAllDecls(QueryVersion.Reply);
+    std.testing.refAllDecls(Attach);
+    std.testing.refAllDecls(Detach);
+    std.testing.refAllDecls(PutImage);
+    std.testing.refAllDecls(GetImage);
+    std.testing.refAllDecls(GetImage.Reply);
+    std.testing.refAllDecls(CreatePixmap);
+}

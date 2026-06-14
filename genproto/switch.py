@@ -15,6 +15,7 @@ from .common import (
     Size,
     collect_decode_args,
     decode_call_args,
+    decode_error_set,
     emit_decl_items,
     emit_expr,
     expr_decode_args,
@@ -298,7 +299,9 @@ class CaseType(InnerType):
             for arm in self.arms:
                 arm.emit_decl(emit)
             emit()
-            emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
+            emit(
+                'pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {'
+            )
             with emit.block():
                 emit('switch (self.*) {')
                 with emit.block():
@@ -324,7 +327,7 @@ class CaseType(InnerType):
                 f'{zig_local_name(name)}: {COMMON_ARGS.get(name, decode_args[name])}'
                 for name in ordered_decode_args(decode_args)
             )
-            emit(f'pub fn decode({params}) !@This() {{')
+            emit(f'pub fn decode({params}) {decode_error_set(decode_args)}!@This() {{')
             with emit.block():
                 emit(f'return switch (@intFromEnum({emit_expr(self.field_name, "")})) {{')
                 with emit.block():
@@ -435,7 +438,9 @@ class BitcaseType(InnerType):
                 arm.emit_decl(emit)
 
             emit()
-            emit('pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {')
+            emit(
+                'pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {'
+            )
             with emit.block():
                 for arm in self.arms:
                     emit(f'if (self.{arm.name}) |it| {{')
@@ -462,7 +467,7 @@ class BitcaseType(InnerType):
                 f'{zig_local_name(name)}: {COMMON_ARGS.get(name, decode_args[name])}'
                 for name in ordered_decode_args(decode_args)
             )
-            emit(f'pub fn decode({params}) !@This() {{')
+            emit(f'pub fn decode({params}) {decode_error_set(decode_args)}!@This() {{')
             with emit.block():
                 emit('var result: @This() = .{};')
                 switch_expr = emit_expr(self.expr, '')

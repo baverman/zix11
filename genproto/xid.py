@@ -67,13 +67,13 @@ class XidUnionType(BaseType):
             emit('}')
             emit()
 
-            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) void {')
+            emit('pub fn encode(self: @This(), writer: *std.Io.Writer) errors.EncodeError!void {')
             with emit.block():
                 emit('try writer.writeInt(u32, self.toInt(), .native);')
             emit('}')
             emit()
 
-            emit('pub fn decode(reader: *std.Io.Reader) !@This() {')
+            emit('pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {')
             with emit.block():
                 emit('return .{ .raw = try reader.takeInt(u32, .native) };')
             emit('}')

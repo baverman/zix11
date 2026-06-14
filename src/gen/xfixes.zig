@@ -4,7 +4,7 @@
 const std = @import("std");
 const wire = @import("../_wire.zig");
 const extensions = @import("../_ext.zig");
-const DecodeError = @import("../_errors.zig").DecodeError;
+const errors = @import("../_errors.zig");
 const global_events = @import("events.zig");
 const render = @import("render.zig");
 const shape = @import("shape.zig");
@@ -93,7 +93,7 @@ pub const QueryVersion = struct {
     client_major_version: u32,
     client_minor_version: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.client_major_version, .native);
         try writer.writeInt(u32, self.client_minor_version, .native);
     }
@@ -102,7 +102,7 @@ pub const QueryVersion = struct {
         major_version: u32,
         minor_version: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.major_version = try reader.takeInt(u32, .native);
@@ -122,7 +122,7 @@ pub const ChangeSaveSet = struct {
     map: SaveSetMapping,
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeByte(@intCast(@intFromEnum(self.mode)));
         try writer.writeByte(@intCast(@intFromEnum(self.target)));
         try writer.writeByte(@intCast(@intFromEnum(self.map)));
@@ -141,7 +141,7 @@ pub const SelectSelectionInput = struct {
     selection: xproto.Atom,
     event_mask: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.selection)), .native);
         try writer.writeInt(u32, self.event_mask, .native);
@@ -157,7 +157,7 @@ pub const SelectCursorInput = struct {
     window: xproto.Window,
     event_mask: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u32, self.event_mask, .native);
     }
@@ -170,7 +170,7 @@ pub const GetCursorImage = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -186,7 +186,7 @@ pub const GetCursorImage = struct {
         cursor_image: []const u32,
         decoded_cursor_image_buf: ?[]u32 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.x = try reader.takeInt(i16, .native);
@@ -224,7 +224,7 @@ pub const CreateRegion = struct {
     rectangles: []const xproto.RECTANGLE,
     decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         for (self.rectangles) |elem| {
             try elem.encode(writer);
@@ -241,7 +241,7 @@ pub const CreateRegionFromBitmap = struct {
     region: Region,
     bitmap: xproto.Pixmap,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.bitmap)), .native);
     }
@@ -257,7 +257,7 @@ pub const CreateRegionFromWindow = struct {
     window: xproto.Window,
     kind: shape.SK,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeByte(@intCast(@intFromEnum(self.kind)));
@@ -274,7 +274,7 @@ pub const CreateRegionFromGC = struct {
     region: Region,
     gc: xproto.Gcontext,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.gc)), .native);
     }
@@ -289,7 +289,7 @@ pub const CreateRegionFromPicture = struct {
     region: Region,
     picture: render.Picture,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.picture)), .native);
     }
@@ -303,7 +303,7 @@ pub const DestroyRegion = struct {
 
     region: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
     }
 
@@ -318,7 +318,7 @@ pub const SetRegion = struct {
     rectangles: []const xproto.RECTANGLE,
     decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         for (self.rectangles) |elem| {
             try elem.encode(writer);
@@ -335,7 +335,7 @@ pub const CopyRegion = struct {
     source: Region,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
     }
@@ -351,7 +351,7 @@ pub const UnionRegion = struct {
     source2: Region,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source1)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source2)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
@@ -368,7 +368,7 @@ pub const IntersectRegion = struct {
     source2: Region,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source1)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source2)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
@@ -385,7 +385,7 @@ pub const SubtractRegion = struct {
     source2: Region,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source1)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source2)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
@@ -402,7 +402,7 @@ pub const InvertRegion = struct {
     bounds: xproto.RECTANGLE,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source)), .native);
         try self.bounds.encode(writer);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
@@ -419,7 +419,7 @@ pub const TranslateRegion = struct {
     dx: i16,
     dy: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(i16, self.dx, .native);
         try writer.writeInt(i16, self.dy, .native);
@@ -435,7 +435,7 @@ pub const RegionExtents = struct {
     source: Region,
     destination: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
     }
@@ -449,7 +449,7 @@ pub const FetchRegion = struct {
 
     region: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
     }
 
@@ -458,12 +458,11 @@ pub const FetchRegion = struct {
         rectangles: []const xproto.RECTANGLE,
         decoded_rectangles_buf: ?[]xproto.RECTANGLE = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
-            _ = header_;
             result.extents = try xproto.RECTANGLE.decode(reader);
             _ = try reader.take(16);
-            const decoded_rectangles_buf = try allocator.alloc(xproto.RECTANGLE, @intCast((result.length / 2)));
+            const decoded_rectangles_buf = try allocator.alloc(xproto.RECTANGLE, @intCast((header_.length / 2)));
             for (decoded_rectangles_buf) |*elem| {
                 elem.* = try xproto.RECTANGLE.decode(reader);
             }
@@ -491,7 +490,7 @@ pub const SetGCClipRegion = struct {
     x_origin: i16,
     y_origin: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.gc)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(i16, self.x_origin, .native);
@@ -511,7 +510,7 @@ pub const SetWindowShapeRegion = struct {
     y_offset: i16,
     region: Region,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.dest)), .native);
         try writer.writeByte(@intCast(@intFromEnum(self.dest_kind)));
         try writer.splatByteAll(0, 3);
@@ -532,7 +531,7 @@ pub const SetPictureClipRegion = struct {
     x_origin: i16,
     y_origin: i16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.picture)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.region)), .native);
         try writer.writeInt(i16, self.x_origin, .native);
@@ -550,7 +549,7 @@ pub const SetCursorName = struct {
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.cursor)), .native);
         try writer.writeInt(u16, @intCast(self.name.len), .native);
         try writer.splatByteAll(0, 2);
@@ -566,7 +565,7 @@ pub const GetCursorName = struct {
 
     cursor: xproto.Cursor,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.cursor)), .native);
     }
 
@@ -575,7 +574,7 @@ pub const GetCursorName = struct {
         name: []const u8,
         decoded_name_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.atom = @as(xproto.Atom, @enumFromInt(try reader.takeInt(u32, .native)));
@@ -602,7 +601,7 @@ pub const GetCursorImageAndName = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -621,7 +620,7 @@ pub const GetCursorImageAndName = struct {
         name: []const u8,
         decoded_name_buf: ?[]u8 = null,
 
-        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(allocator: std.mem.Allocator, reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.AllocDecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.x = try reader.takeInt(i16, .native);
@@ -668,7 +667,7 @@ pub const ChangeCursor = struct {
     source: xproto.Cursor,
     destination: xproto.Cursor,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
     }
@@ -684,7 +683,7 @@ pub const ChangeCursorByName = struct {
     name: []const u8,
     decoded_name_buf: ?[]u8 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.src)), .native);
         try writer.writeInt(u16, @intCast(self.name.len), .native);
         try writer.splatByteAll(0, 2);
@@ -705,7 +704,7 @@ pub const ExpandRegion = struct {
     top: u16,
     bottom: u16,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.source)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.destination)), .native);
         try writer.writeInt(u16, self.left, .native);
@@ -723,7 +722,7 @@ pub const HideCursor = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -736,7 +735,7 @@ pub const ShowCursor = struct {
 
     window: xproto.Window,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
     }
 
@@ -757,7 +756,7 @@ pub const CreatePointerBarrier = struct {
     devices: []const u16,
     decoded_devices_buf: ?[]u16 = null,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.barrier)), .native);
         try writer.writeInt(u32, @intCast(@intFromEnum(self.window)), .native);
         try writer.writeInt(u16, self.x1, .native);
@@ -781,7 +780,7 @@ pub const DeletePointerBarrier = struct {
 
     barrier: Barrier,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, @intCast(@intFromEnum(self.barrier)), .native);
     }
 
@@ -794,7 +793,7 @@ pub const SetClientDisconnectMode = struct {
 
     disconnect_mode: u32,
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         try writer.writeInt(u32, self.disconnect_mode, .native);
     }
 
@@ -806,7 +805,7 @@ pub const GetClientDisconnectMode = struct {
     pub const extension = current_mod.extension;
 
 
-    pub fn encode(self: *const @This(), writer: *std.Io.Writer) !void {
+    pub fn encode(self: *const @This(), writer: *std.Io.Writer) errors.EncodeError!void {
         _ = self;
         _ = writer;
     }
@@ -814,7 +813,7 @@ pub const GetClientDisconnectMode = struct {
     pub const Reply = struct {
         disconnect_mode: u32,
 
-        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) !@This() {
+        pub fn decode(reader: *std.Io.Reader, header_: wire.ReplyHeader) errors.DecodeError!@This() {
             var result: @This() = undefined;
             _ = header_;
             result.disconnect_mode = try reader.takeInt(u32, .native);
@@ -832,7 +831,7 @@ pub const SelectionNotifyEvent = struct {
     timestamp: u32,
     selection_timestamp: u32,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.subtype = @as(SelectionEvent, @enumFromInt(try reader.takeByte()));
@@ -846,7 +845,7 @@ pub const SelectionNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -870,7 +869,7 @@ pub const CursorNotifyEvent = struct {
     timestamp: u32,
     name: xproto.Atom,
 
-    pub fn decode(reader: *std.Io.Reader) DecodeError!@This() {
+    pub fn decode(reader: *std.Io.Reader) errors.DecodeError!@This() {
         var result: @This() = undefined;
         _ = try reader.takeByte();
         result.subtype = @as(CursorNotify, @enumFromInt(try reader.takeByte()));
@@ -883,7 +882,7 @@ pub const CursorNotifyEvent = struct {
         return result;
     }
 
-    pub fn toBytes(self: @This()) ![32]u8 {
+    pub fn toBytes(self: @This()) errors.EncodeError![32]u8 {
         var packet: [32]u8 = std.mem.zeroes([32]u8);
         var writer_impl: std.Io.Writer = .fixed(&packet);
         const writer = &writer_impl;
@@ -899,7 +898,7 @@ pub const CursorNotifyEvent = struct {
     }
 };
 
-pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
+pub fn decodeEvent(reader: *std.Io.Reader) errors.DecodeError!global_events.Event {
     const code = (try reader.peek(1))[0] & 0x7f;
     return switch (code) {
         0 => .{ .XFixesSelectionNotify = try SelectionNotifyEvent.decode(reader) },
@@ -917,3 +916,60 @@ pub fn decodeEvent(reader: *std.Io.Reader) DecodeError!global_events.Event {
     };
 }
 
+
+test "analyze generated types" {
+    std.testing.refAllDecls(Region);
+    std.testing.refAllDecls(Barrier);
+    std.testing.refAllDecls(SaveSetMode);
+    std.testing.refAllDecls(SaveSetTarget);
+    std.testing.refAllDecls(SaveSetMapping);
+    std.testing.refAllDecls(SelectionEvent);
+    std.testing.refAllDecls(SelectionEventMask);
+    std.testing.refAllDecls(CursorNotify);
+    std.testing.refAllDecls(CursorNotifyMask);
+    std.testing.refAllDecls(BarrierDirections);
+    std.testing.refAllDecls(ClientDisconnectFlags);
+    std.testing.refAllDecls(SelectionNotifyEvent);
+    std.testing.refAllDecls(CursorNotifyEvent);
+    std.testing.refAllDecls(QueryVersion);
+    std.testing.refAllDecls(QueryVersion.Reply);
+    std.testing.refAllDecls(ChangeSaveSet);
+    std.testing.refAllDecls(SelectSelectionInput);
+    std.testing.refAllDecls(SelectCursorInput);
+    std.testing.refAllDecls(GetCursorImage);
+    std.testing.refAllDecls(GetCursorImage.Reply);
+    std.testing.refAllDecls(CreateRegion);
+    std.testing.refAllDecls(CreateRegionFromBitmap);
+    std.testing.refAllDecls(CreateRegionFromWindow);
+    std.testing.refAllDecls(CreateRegionFromGC);
+    std.testing.refAllDecls(CreateRegionFromPicture);
+    std.testing.refAllDecls(DestroyRegion);
+    std.testing.refAllDecls(SetRegion);
+    std.testing.refAllDecls(CopyRegion);
+    std.testing.refAllDecls(UnionRegion);
+    std.testing.refAllDecls(IntersectRegion);
+    std.testing.refAllDecls(SubtractRegion);
+    std.testing.refAllDecls(InvertRegion);
+    std.testing.refAllDecls(TranslateRegion);
+    std.testing.refAllDecls(RegionExtents);
+    std.testing.refAllDecls(FetchRegion);
+    std.testing.refAllDecls(FetchRegion.Reply);
+    std.testing.refAllDecls(SetGCClipRegion);
+    std.testing.refAllDecls(SetWindowShapeRegion);
+    std.testing.refAllDecls(SetPictureClipRegion);
+    std.testing.refAllDecls(SetCursorName);
+    std.testing.refAllDecls(GetCursorName);
+    std.testing.refAllDecls(GetCursorName.Reply);
+    std.testing.refAllDecls(GetCursorImageAndName);
+    std.testing.refAllDecls(GetCursorImageAndName.Reply);
+    std.testing.refAllDecls(ChangeCursor);
+    std.testing.refAllDecls(ChangeCursorByName);
+    std.testing.refAllDecls(ExpandRegion);
+    std.testing.refAllDecls(HideCursor);
+    std.testing.refAllDecls(ShowCursor);
+    std.testing.refAllDecls(CreatePointerBarrier);
+    std.testing.refAllDecls(DeletePointerBarrier);
+    std.testing.refAllDecls(SetClientDisconnectMode);
+    std.testing.refAllDecls(GetClientDisconnectMode);
+    std.testing.refAllDecls(GetClientDisconnectMode.Reply);
+}
