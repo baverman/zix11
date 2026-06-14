@@ -7,20 +7,20 @@ from typing import Mapping
 from . import xcbxml
 from .common import (
     COMMON_ARGS,
-    collect_decode_args,
-    decode_call_args,
-    Emit,
     DecodeScope,
+    Emit,
     Field,
     InnerType,
-    ordered_decode_args,
     Parent,
     Size,
+    collect_decode_args,
+    decode_call_args,
     emit_decl_items,
     emit_expr,
     expr_decode_args,
     expr_refs,
     items_size,
+    ordered_decode_args,
     zig_local_name,
     zig_tag_name,
 )
@@ -476,7 +476,9 @@ class BitcaseType(InnerType):
                                     'single-item bitcase payload must be public'
                                 )
                             item.type.emit_decode(
-                                emit, f'const {arm.name}', decode_scope(arm.items, self.decode_args())
+                                emit,
+                                f'const {arm.name}',
+                                decode_scope(arm.items, self.decode_args()),
                             )
                             emit(f'result.{arm.name} = {arm.name};')
                         else:

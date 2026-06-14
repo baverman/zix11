@@ -37,7 +37,7 @@ test "Point decode consumes crafted bytes" {
 
 test "ModeCount encode writes expected bytes" {
     const value = core.ModeCount{
-        .mode = .On,
+        .mode = .on,
         .count = 0x1234,
     };
 
@@ -55,7 +55,7 @@ test "ModeCount decode consumes crafted bytes" {
     var reader: std.Io.Reader = .fixed(packet);
     const decoded = try core.ModeCount.decode(&reader);
 
-    try std.testing.expectEqual(core.Mode.On, decoded.mode);
+    try std.testing.expectEqual(core.Mode.on, decoded.mode);
     try std.testing.expectEqual(0x1234, decoded.count);
 }
 
@@ -97,13 +97,13 @@ test "AliasHolder encode and decode use the final scalar type" {
 }
 
 test "DrawableHolder encode and decode use the xidunion shape" {
-    try std.testing.expectEqual(0, @intFromEnum(core.Window.None));
+    try std.testing.expectEqual(0, @intFromEnum(core.Window.none));
 
     const raw_value = core.DrawableHolder{
         .drawable = .{ .raw = 0x01020304 },
     };
     const window_value = core.DrawableHolder{
-        .drawable = .{ .window = .None },
+        .drawable = .{ .window = .none },
     };
     const pixmap_value = core.DrawableHolder{
         .drawable = .{ .pixmap = @enumFromInt(0x21222324) },
@@ -489,7 +489,7 @@ test "BitPayload encode and decode use mask-driven optional arms" {
 
 test "UseByteField header byte and encode" {
     const req = core.UseByteField{
-        .mode = .On,
+        .mode = .on,
         .count = 0x1122,
     };
 
@@ -538,7 +538,7 @@ test "UseCard32 leaves header byte zero and encodes payload" {
 
 test "extension request encodes fields as body payload" {
     const req = foo.FooPing{
-        .mode = .Beta,
+        .mode = .beta,
         .value = 0x3344,
     };
 
@@ -555,8 +555,8 @@ test "extension request encodes fields as body payload" {
 
 test "extension can use scoped core enum beside local enum with same name" {
     const value = foo.ModeRefs{
-        .core_mode = .On,
-        .mode = .Local,
+        .core_mode = .on,
+        .mode = .local,
     };
 
     var buf: [4]u8 = undefined;
@@ -570,8 +570,8 @@ test "extension can use scoped core enum beside local enum with same name" {
     var reader: std.Io.Reader = .fixed(buf[0..2]);
     const decoded = try foo.ModeRefs.decode(&reader);
 
-    try std.testing.expectEqual(core.Mode.On, decoded.core_mode);
-    try std.testing.expectEqual(foo.Mode.Local, decoded.mode);
+    try std.testing.expectEqual(core.Mode.on, decoded.core_mode);
+    try std.testing.expectEqual(foo.Mode.local, decoded.mode);
 }
 
 test "extension reply decodes byte field from header" {

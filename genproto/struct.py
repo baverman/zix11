@@ -7,12 +7,12 @@ from typing import Mapping
 from . import xcbxml
 from .common import (
     BaseType,
-    collect_decode_args,
-    decode_call_args,
     DecodeScope,
     Emit,
     Field,
     Size,
+    collect_decode_args,
+    decode_call_args,
     emit_decl_items,
     emit_decode_fn,
     emit_deinit_fn,

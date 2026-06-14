@@ -184,7 +184,7 @@ class EnumType(BaseType):
             values: dict[int, str] = {}
             aliases: list[tuple[str, int]] = []
             for item in self.items:
-                name = zig_tag_name(item.name[0].upper() + item.name[1:])
+                name = zig_tag_name(item.name)
                 value = int(item.value)
                 if value in values:
                     aliases.append((name, value))

@@ -2,12 +2,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Mapping, Protocol, TypeVar
+from typing import Iterable, Iterator, Literal, Mapping, Protocol, TypeVar
 
 from . import xcbxml
-
-if TYPE_CHECKING:
-    from .resolver import Resolver
 
 Size = int | Literal['dyn'] | Literal['fixed']
 Parent = (
@@ -22,10 +19,12 @@ Parent = (
 
 
 def zig_tag_name(name: str) -> str:
-    if name.isidentifier() and not name[0].isdigit():
+    if name.isidentifier() and name not in ZIG_OPERATORS:
         return name
     return f'@"{name}"'
 
+
+ZIG_OPERATORS = frozenset({'and', 'or'})
 
 ZIG_RESERVED = frozenset(
     {

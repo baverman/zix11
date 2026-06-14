@@ -449,22 +449,22 @@ pub const GC = enum(u32) {
 };
 
 pub const GX = enum(u32) {
-    Clear = 0,
-    And = 1,
-    AndReverse = 2,
-    Copy = 3,
-    AndInverted = 4,
-    Noop = 5,
-    Xor = 6,
-    Or = 7,
-    Nor = 8,
-    Equiv = 9,
-    Invert = 10,
-    OrReverse = 11,
-    CopyInverted = 12,
-    OrInverted = 13,
-    Nand = 14,
-    Set = 15,
+    clear = 0,
+    @"and" = 1,
+    andReverse = 2,
+    copy = 3,
+    andInverted = 4,
+    noop = 5,
+    xor = 6,
+    @"or" = 7,
+    nor = 8,
+    equiv = 9,
+    invert = 10,
+    orReverse = 11,
+    copyInverted = 12,
+    orInverted = 13,
+    nand = 14,
+    set = 15,
 };
 
 pub const LineStyle = enum(u32) {

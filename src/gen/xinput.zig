@@ -94,11 +94,11 @@ pub const ValuatorStateModeMask = enum(u32) {
 };
 
 pub const DeviceControl = enum(u32) {
-    Resolution = 1,
-    Abs_calib = 2,
-    Core = 3,
-    Enable = 4,
-    Abs_area = 5,
+    resolution = 1,
+    abs_calib = 2,
+    core = 3,
+    enable = 4,
+    abs_area = 5,
 };
 
 pub const PropertyFormat = enum(u32) {
