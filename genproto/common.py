@@ -74,11 +74,12 @@ class DecodeScope:
         return DecodeScope(owner_expr='')
 
     def get(self, name: str) -> str:
+        name, sep, tail = name.partition('.')
         if name in self.local_names:
-            return zig_local_name(name)
+            return zig_local_name(name) + sep + tail
         if not self.owner_expr:
             raise NotImplementedError(f'decode argument requires owner scope: {name}')
-        return f'{self.owner_expr}.{name}'
+        return f'{self.owner_expr}.{name}{sep}{tail}'
 
 
 class TypeProtocol(Protocol):
@@ -200,44 +201,38 @@ def emit_expr(expr: xcbxml.ListExpr, prefix: str, element_expr: str | None = Non
 def emit_decode_expr(
     expr: xcbxml.ListExpr,
     scope: DecodeScope,
-    element_expr: str | None = None,
-    element_prefix: str | None = None,
 ) -> str:
     if isinstance(expr, int):
         return str(expr)
     if isinstance(expr, xcbxml.FieldRef):
-        if element_prefix is not None:
-            return f'{element_prefix}.{expr.ref}'
-        if '.' in expr.ref:
-            return expr.ref
         return scope.get(expr.ref)
     if isinstance(expr, xcbxml.ParamRef):
         value = scope.get(expr.ref)
         return f'@intFromBool({value})' if expr.type == 'bool' else value
     if isinstance(expr, xcbxml.Op):
+        # TODO: why this specialization is needed?
         if (
             expr.op == '&'
             and isinstance(expr.right, xcbxml.Unop)
             and expr.right.op == '~'
             and isinstance(expr.right.expr, int)
         ):
-            left = emit_decode_expr(expr.left, scope, element_expr, element_prefix)
+            left = emit_decode_expr(expr.left, scope)
             return f'({left} & ~@as(@TypeOf({left}), {expr.right.expr}))'
-        return f'({emit_decode_expr(expr.left, scope, element_expr, element_prefix)} {expr.op} {emit_decode_expr(expr.right, scope, element_expr, element_prefix)})'
+        return f'({emit_decode_expr(expr.left, scope)} {expr.op} {emit_decode_expr(expr.right, scope)})'
     if isinstance(expr, xcbxml.Unop):
-        return f'({expr.op}{emit_decode_expr(expr.expr, scope, element_expr, element_prefix)})'
+        return f'({expr.op}{emit_decode_expr(expr.expr, scope)})'
     if isinstance(expr, xcbxml.PopCount):
-        return f'@popCount({emit_decode_expr(expr.expr, scope, element_expr, element_prefix)})'
+        return f'@popCount({emit_decode_expr(expr.expr, scope)})'
     if isinstance(expr, xcbxml.SumOf):
-        elem_value = emit_decode_expr(expr.expr, scope, 'elem', 'elem')
+        elem_scope = DecodeScope('elem')
+        elem_value = emit_decode_expr(expr.expr, elem_scope)
         return (
             f'(blk: {{ var total: usize = 0; for ({scope.get(expr.ref)}) |elem| '
             f'total += @as(usize, {elem_value}); break :blk total; }})'
         )
     if isinstance(expr, xcbxml.ListElementRef):
-        if element_expr is None:
-            raise NotImplementedError('listelement-ref requires list element context')
-        return element_expr
+        return scope.owner_expr
     raise NotImplementedError(f'unsupported list expression: {type(expr).__name__}')
 
 
