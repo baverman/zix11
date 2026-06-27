@@ -32,7 +32,7 @@ pub const StreamTransport = struct {
     stream_reader: std.Io.net.Stream.Reader,
     stream_writer: std.Io.net.Stream.Writer,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io) !StreamTransport {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) std.mem.Allocator.Error!StreamTransport {
         const read_buffer = try allocator.alloc(u8, read_buffer_size);
         errdefer allocator.free(read_buffer);
         const write_buffer = try allocator.alloc(u8, write_buffer_size);
@@ -65,7 +65,7 @@ pub const StreamTransport = struct {
         self.* = undefined;
     }
 
-    pub fn wait(self: *const @This(), timeout_ms: i32) !bool {
+    pub fn wait(self: *const @This(), timeout_ms: i32) std.posix.PollError!bool {
         var pollfd = [1]std.posix.pollfd{.{
             .fd = self.fd(),
             .events = std.posix.POLL.IN,
@@ -99,7 +99,9 @@ pub const Connection = struct {
     proto: protocol_mod.Protocol,
     transport: StreamTransport,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Connection {
+    pub const RequestError = protocol_mod.RequestError;
+
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) std.mem.Allocator.Error!Connection {
         return .{
             .proto = .init(allocator),
             .transport = try .init(allocator, io),
@@ -109,7 +111,7 @@ pub const Connection = struct {
     pub fn connectFromEnv(
         self: *Connection,
         environ_map: *const std.process.Environ.Map,
-    ) !void {
+    ) (error{MissingDisplay} || DisplayError || XAuthorityError || ConnectError || errors.EncodeError || protocol_mod.ReadSetupError)!void {
         const allocator = self.proto.allocator;
         const io = self.transport.io;
         const display = environ_map.get("DISPLAY") orelse return error.MissingDisplay;
@@ -126,8 +128,10 @@ pub const Connection = struct {
         self: *Connection,
         cookie: []const u8,
         display: DisplaySpec,
-    ) !void {
-        if (display.host.len != 0) return error.RemoteDisplayUnsupported;
+    ) (ConnectError || errors.EncodeError || protocol_mod.ReadSetupError)!void {
+        if (display.host.len != 0) {
+            @panic("Remote display isn't supported yet");
+        }
         const io = self.transport.io;
 
         const stream = try connectUnix(io, display.display_number);
@@ -148,18 +152,18 @@ pub const Connection = struct {
         return self.proto.root_window;
     }
 
-    pub fn nextEvent(self: *Connection) !events.Event {
+    pub fn nextEvent(self: *Connection) errors.AllocDecodeError!events.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
         return self.proto.readEvent(self.transport.reader());
     }
 
-    pub fn waitForEvents(self: *Connection, timeout_ms: i32) !bool {
+    pub fn waitForEvents(self: *Connection, timeout_ms: i32) std.posix.PollError!bool {
         if (self.hasPendingEvents()) return true;
         if (self.transport.reader().bufferedLen() != 0) return true;
         return self.transport.wait(timeout_ms);
     }
 
-    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) !?events.Event {
+    pub fn pollEventTimeout(self: *Connection, timeout_ms: i32) (errors.AllocDecodeError || std.posix.PollError)!?events.Event {
         if (try self.proto.pendingEvent()) |ev| return ev;
 
         if (try self.waitForEvents(timeout_ms)) {
@@ -169,23 +173,23 @@ pub const Connection = struct {
         return null;
     }
 
-    pub fn pollEvent(self: *Connection) !?events.Event {
+    pub fn pollEvent(self: *Connection) (errors.AllocDecodeError || std.posix.PollError)!?events.Event {
         return self.pollEventTimeout(0);
     }
 
-    pub fn request(self: *Connection, comptime Request: type, req: Request) !Request.Reply {
+    pub fn request(self: *Connection, comptime Request: type, req: Request) protocol_mod.RequestError!Request.Reply {
         return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .fixed, {});
     }
 
-    pub fn requestAlloc(self: *Connection, allocator: std.mem.Allocator, comptime Request: type, req: Request) !Request.Reply {
+    pub fn requestAlloc(self: *Connection, allocator: std.mem.Allocator, comptime Request: type, req: Request) protocol_mod.RequestError!Request.Reply {
         return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .alloc, allocator);
     }
 
-    pub fn requestBuf(self: *Connection, buffer: []u8, comptime Request: type, req: Request) !Request.Reply {
+    pub fn requestBuf(self: *Connection, buffer: []u8, comptime Request: type, req: Request) protocol_mod.RequestError!Request.Reply {
         return self.proto.requestWithStorage(self.transport.writer_reader(), Request, req, .buffer, buffer);
     }
 
-    pub fn allocId(self: *Connection, comptime T: type) !T {
+    pub fn allocId(self: *Connection, comptime T: type) protocol_mod.ResourceIdsExhaustedError!T {
         return self.proto.allocId(T);
     }
 
@@ -202,17 +206,19 @@ pub const Connection = struct {
         return self.proto.hasPendingEvents();
     }
 
-    pub fn registerExtension(self: *Connection, extension: ext.Extension) !void {
+    pub fn registerExtension(self: *Connection, extension: ext.Extension) protocol_mod.ExtensionError!void {
         return self.proto.registerExtension(self.transport.writer_reader(), extension);
     }
 };
+
+pub const XAuthorityError = error{ MissingHome, MalformedXAuthority, XAuthorityCookieNotFound } || std.mem.Allocator.Error || std.Io.Dir.ReadFileAllocError;
 
 fn readXAuthorityCookie(
     io: std.Io,
     allocator: std.mem.Allocator,
     environ_map: *const std.process.Environ.Map,
     display: DisplaySpec,
-) ![]u8 {
+) XAuthorityError![]u8 {
     const path = try xauthorityPath(allocator, environ_map);
     defer allocator.free(path);
 
@@ -223,6 +229,7 @@ fn readXAuthorityCookie(
     defer allocator.free(host_name);
 
     var offset: usize = 0;
+    // TODO: Cleanup this to use reader
     while (offset < contents.len) {
         const family = try readCountedU16(contents, &offset);
         const address = try readCountedSlice(contents, &offset);
@@ -240,7 +247,7 @@ fn readXAuthorityCookie(
     return error.XAuthorityCookieNotFound;
 }
 
-fn xauthorityPath(allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) ![]u8 {
+fn xauthorityPath(allocator: std.mem.Allocator, environ_map: *const std.process.Environ.Map) (error{MissingHome} || std.mem.Allocator.Error)![]u8 {
     if (environ_map.get("XAUTHORITY")) |path| {
         return allocator.dupe(u8, path);
     }
@@ -249,20 +256,20 @@ fn xauthorityPath(allocator: std.mem.Allocator, environ_map: *const std.process.
     return std.fmt.allocPrint(allocator, "{s}/.Xauthority", .{home});
 }
 
-fn localHostName(allocator: std.mem.Allocator) ![]u8 {
+fn localHostName(allocator: std.mem.Allocator) (std.posix.GetHostNameError || std.mem.Allocator.Error)![]u8 {
     var buffer: [std.posix.HOST_NAME_MAX]u8 = undefined;
     const host = try std.posix.gethostname(&buffer);
     return allocator.dupe(u8, host);
 }
 
-fn readCountedU16(buf: []const u8, offset: *usize) !u16 {
+fn readCountedU16(buf: []const u8, offset: *usize) error{MalformedXAuthority}!u16 {
     if (offset.* + 2 > buf.len) return error.MalformedXAuthority;
     const value = std.mem.readInt(u16, buf[offset.*..][0..2], .big);
     offset.* += 2;
     return value;
 }
 
-fn readCountedSlice(buf: []const u8, offset: *usize) ![]const u8 {
+fn readCountedSlice(buf: []const u8, offset: *usize) error{MalformedXAuthority}![]const u8 {
     const len = try readCountedU16(buf, offset);
     if (offset.* + len > buf.len) return error.MalformedXAuthority;
     const out = buf[offset.* .. offset.* + len];
@@ -296,7 +303,9 @@ fn matchAuthorityAddress(
     }
 }
 
-fn parseDisplay(allocator: std.mem.Allocator, display: []const u8) !DisplaySpec {
+pub const DisplayError = error{UnsupportedDisplayFormat} || std.mem.Allocator.Error;
+
+fn parseDisplay(allocator: std.mem.Allocator, display: []const u8) DisplayError!DisplaySpec {
     const colon = std.mem.indexOfScalar(u8, display, ':') orelse return error.UnsupportedDisplayFormat;
     const host = try allocator.dupe(u8, display[0..colon]);
 
@@ -304,13 +313,16 @@ fn parseDisplay(allocator: std.mem.Allocator, display: []const u8) !DisplaySpec 
     if (tail.len == 0) return error.UnsupportedDisplayFormat;
     if (std.mem.indexOfScalar(u8, tail, '.')) |dot| tail = tail[0..dot];
 
+    const display_number = std.fmt.parseUnsigned(u16, tail, 10) catch return error.UnsupportedDisplayFormat;
     return .{
         .host = host,
-        .display_number = try std.fmt.parseUnsigned(u16, tail, 10),
+        .display_number = display_number,
     };
 }
 
-fn connectUnix(io: std.Io, display_number: u16) !std.Io.net.Stream {
+pub const ConnectError = std.fmt.BufPrintError || std.Io.net.UnixAddress.InitError || std.Io.net.UnixAddress.ConnectError;
+
+fn connectUnix(io: std.Io, display_number: u16) ConnectError!std.Io.net.Stream {
     var path_buf: [64]u8 = undefined;
     const path = try std.fmt.bufPrint(&path_buf, "/tmp/.X11-unix/X{}", .{display_number});
     const address = try std.Io.net.UnixAddress.init(path);

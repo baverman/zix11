@@ -21,6 +21,12 @@ pub const WriterReader = struct {
 
 const queued_event_inline_cap = 64;
 
+pub const SendError = error{ExtensionNotRegistered} || errors.EncodeError;
+pub const RequestError = SendError || error{X11ProtocolError} || errors.AllocDecodeError || errors.BufferDecodeError;
+pub const ExtensionError = error{ExtensionUnavailable} || RequestError;
+pub const ResourceIdsExhaustedError = error{ResourceIdsExhausted};
+pub const ReadSetupError = error{ X11SetupFailed, X11SetupAuthenticate } || errors.AllocDecodeError;
+
 const QueuedEvent = union(enum) {
     fixed: struct {
         data: [queued_event_inline_cap]u8,
@@ -82,7 +88,7 @@ pub const Protocol = struct {
         self.packet_buf.deinit(self.allocator);
     }
 
-    pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) ![]const u8 {
+    pub fn readReplyPacket(self: *Protocol, reader: *std.Io.Reader) (std.Io.Reader.Error || std.mem.Allocator.Error)![]const u8 {
         const header = try reader.peek(32);
         const packet_kind = header[0];
         const extra_len = if (packet_kind == 1 or (packet_kind & 0x7f) == 35)
@@ -95,7 +101,7 @@ pub const Protocol = struct {
         return self.packet_buf.items[0..packet_len];
     }
 
-    pub fn readEvent(self: *Protocol, reader: *std.Io.Reader) !events.Event {
+    pub fn readEvent(self: *Protocol, reader: *std.Io.Reader) errors.AllocDecodeError!events.Event {
         while (true) {
             const packet = try self.readReplyPacket(reader);
             if (packet[0] == 0) {
@@ -106,7 +112,7 @@ pub const Protocol = struct {
         }
     }
 
-    pub fn pendingEvent(self: *Protocol) !?events.Event {
+    pub fn pendingEvent(self: *Protocol) errors.AllocDecodeError!?events.Event {
         if (self.pending_events.popFront()) |queued| {
             return try events.decodeEvent(&self.extensions, try self.normalizeQueuedEventPacket(queued));
         }
@@ -117,7 +123,7 @@ pub const Protocol = struct {
         return self.pending_events.len != 0;
     }
 
-    pub fn send(self: *Protocol, writer: *std.Io.Writer, request_value: anytype, flush: bool) !u16 {
+    pub fn send(self: *Protocol, writer: *std.Io.Writer, request_value: anytype, flush: bool) SendError!u16 {
         const Request = @TypeOf(request_value);
         const sequence = self.sequence;
         self.sequence +%= 1;
@@ -154,7 +160,7 @@ pub const Protocol = struct {
         req: Request,
         comptime reply_mode: ReplyMode,
         storage: anytype,
-    ) !Request.Reply {
+    ) RequestError!Request.Reply {
         const Reply = Request.Reply;
         if (Reply == void) {
             const request_sequence = try self.send(wr.writer, req, true);
@@ -183,7 +189,7 @@ pub const Protocol = struct {
         }
     }
 
-    pub fn registerExtension(self: *Protocol, wr: WriterReader, extension: ext.Extension) !void {
+    pub fn registerExtension(self: *Protocol, wr: WriterReader, extension: ext.Extension) ExtensionError!void {
         const reply = try self.requestWithStorage(wr, x.QueryExtension, .{
             .name = ext.xname(extension),
         }, .fixed, .{});
@@ -197,7 +203,7 @@ pub const Protocol = struct {
         });
     }
 
-    pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) !void {
+    pub fn sync(self: *Protocol, wr: WriterReader, request_sequence: u16) (SendError || errors.AllocDecodeError || error{X11ProtocolError})!void {
         const sync_sequence = try self.send(wr.writer, x.GetInputFocus{}, true);
         var request_failed = false;
         while (true) {
@@ -210,7 +216,8 @@ pub const Protocol = struct {
                         request_failed = true;
                         continue;
                     }
-                    return error.UnexpectedProtocolError;
+                    // TODO: add details
+                    @panic("Unexpected protocol error");
                 },
                 1 => {
                     const header = wire.ReplyHeader.decode(packet);
@@ -218,7 +225,7 @@ pub const Protocol = struct {
                     const reply = try x.GetInputFocus.Reply.decode(&packet_reader, header);
                     _ = reply;
                     if (header.seq_num != sync_sequence) {
-                        return error.UnexpectedReply;
+                        @panic("Unexpected sequence number");
                     }
                     if (request_failed) {
                         return error.X11ProtocolError;
@@ -230,7 +237,7 @@ pub const Protocol = struct {
         }
     }
 
-    pub fn allocId(self: *Protocol, comptime T: type) !T {
+    pub fn allocId(self: *Protocol, comptime T: type) ResourceIdsExhaustedError!T {
         if (self.resource_id_mask == 0 or self.resource_id_inc == 0) return error.ResourceIdsExhausted;
         if ((self.next_resource_id & ~self.resource_id_mask) != 0) return error.ResourceIdsExhausted;
         const id = self.resource_id_base | self.next_resource_id;
@@ -238,7 +245,7 @@ pub const Protocol = struct {
         return @as(T, @enumFromInt(id));
     }
 
-    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) !void {
+    pub fn sendSetup(self: *Protocol, writer: *std.Io.Writer, cookie: []const u8) errors.EncodeError!void {
         _ = self;
         const request = x.SetupRequest{
             .byte_order = switch (builtin.cpu.arch.endian()) {
@@ -255,7 +262,7 @@ pub const Protocol = struct {
         try writer.flush();
     }
 
-    pub fn readSetupReply(self: *Protocol, reader: *std.Io.Reader) !void {
+    pub fn readSetupReply(self: *Protocol, reader: *std.Io.Reader) ReadSetupError!void {
         const packet = try self.readSetupPacket(reader);
         const status = packet[0];
         var packet_reader: std.Io.Reader = .fixed(packet);
@@ -263,7 +270,9 @@ pub const Protocol = struct {
             1 => {
                 var setup = try x.Setup.decode(self.allocator, &packet_reader);
                 defer setup.deinit(self.allocator);
-                if (setup.roots.len == 0) return error.MalformedPacket;
+                if (setup.roots.len == 0) {
+                    @panic("X server returned no screens");
+                }
                 const screen = setup.roots[0];
                 self.root_window = screen.root;
                 self.resource_id_base = setup.resource_id_base;
@@ -281,11 +290,13 @@ pub const Protocol = struct {
                 defer auth.deinit(self.allocator);
                 return error.X11SetupAuthenticate;
             },
-            else => return error.X11SetupUnknown,
+            else => {
+                @panic("Unknown setup response");
+            },
         }
     }
 
-    pub fn readSetupPacket(self: *const Protocol, reader: *std.Io.Reader) ![]const u8 {
+    pub fn readSetupPacket(self: *const Protocol, reader: *std.Io.Reader) std.Io.Reader.Error![]const u8 {
         _ = self;
         const prefix = try reader.peek(8);
         const extra_len = @as(usize, std.mem.readInt(u16, prefix[6..8], .native)) * 4;
@@ -293,7 +304,7 @@ pub const Protocol = struct {
         return try reader.take(packet_len);
     }
 
-    pub fn queueEventPacket(self: *Protocol, packet: []const u8) !void {
+    pub fn queueEventPacket(self: *Protocol, packet: []const u8) std.mem.Allocator.Error!void {
         if (packet.len <= queued_event_inline_cap) {
             var raw = std.mem.zeroes([queued_event_inline_cap]u8);
             @memcpy(raw[0..packet.len], packet);
@@ -310,12 +321,12 @@ pub const Protocol = struct {
         });
     }
 
-    fn normalizeEventPacket(self: *Protocol, packet: []const u8) ![]const u8 {
+    fn normalizeEventPacket(self: *Protocol, packet: []const u8) std.mem.Allocator.Error![]const u8 {
         if (packet.len <= 32) return packet;
         return try self.copyEventPacketToScratch(packet);
     }
 
-    fn normalizeQueuedEventPacket(self: *Protocol, event: QueuedEvent) ![]const u8 {
+    fn normalizeQueuedEventPacket(self: *Protocol, event: QueuedEvent) std.mem.Allocator.Error![]const u8 {
         return switch (event) {
             .fixed => |fixed| if (fixed.len <= 32)
                 fixed.data[0..fixed.len]
@@ -328,7 +339,7 @@ pub const Protocol = struct {
         };
     }
 
-    fn copyEventPacketToScratch(self: *Protocol, packet: []const u8) ![]const u8 {
+    fn copyEventPacketToScratch(self: *Protocol, packet: []const u8) std.mem.Allocator.Error![]const u8 {
         if (self.event_packet_scratch.len < packet.len) {
             if (self.event_packet_scratch.len == 0) {
                 self.event_packet_scratch = try self.allocator.alloc(u8, packet.len);

@@ -2,9 +2,10 @@ const std = @import("std");
 const connection = @import("connection.zig");
 const x = @import("gen/xproto.zig");
 
-pub const Connection = connection.Connection;
+const Connection = connection.Connection;
+pub const PropertyError = Connection.RequestError || error{ UnexpectedFormat, UnexpectedType, PropertyTruncated, MalformedProperty };
 
-pub fn get(conn: *Connection, window: x.Window, property: x.Atom, arg: anytype) !GetResult(
+pub fn get(conn: *Connection, window: x.Window, property: x.Atom, arg: anytype) PropertyError!GetResult(
     @TypeOf(arg),
     if (@TypeOf(arg) == type) arg else null,
 ) {
@@ -25,7 +26,7 @@ pub fn getAs(
     property: x.Atom,
     property_type: x.Atom,
     arg: anytype,
-) !GetResult(@TypeOf(arg), if (@TypeOf(arg) == type) arg else null) {
+) PropertyError!GetResult(@TypeOf(arg), if (@TypeOf(arg) == type) arg else null) {
     return switch (@typeInfo(@TypeOf(arg))) {
         .type => getScalarImpl(conn, window, property, property_type, arg),
         .pointer => getSliceImpl(conn, window, property, property_type, std.meta.Elem(@TypeOf(arg)), arg),
@@ -39,7 +40,7 @@ pub fn setAs(
     property: x.Atom,
     property_type: x.Atom,
     data: anytype,
-) !void {
+) Connection.RequestError!void {
     const T = @TypeOf(data);
     return switch (@typeInfo(T)) {
         .pointer => setSliceImpl(conn, window, property, property_type, std.meta.Elem(T), data[0..]),
@@ -52,7 +53,7 @@ pub fn set(
     window: x.Window,
     property: x.Atom,
     data: anytype,
-) !void {
+) Connection.RequestError!void {
     const T = @TypeOf(data);
 
     return switch (@typeInfo(T)) {
@@ -68,7 +69,7 @@ fn setSliceImpl(
     property_type: x.Atom,
     comptime T: type,
     data: []const T,
-) !void {
+) Connection.RequestError!void {
     try conn.request(x.ChangeProperty, .{
         .mode = .Replace,
         .window = window,
@@ -94,7 +95,7 @@ fn getScalarImpl(
     property: x.Atom,
     property_type: x.Atom,
     comptime T: type,
-) !?T {
+) PropertyError!?T {
     var buf: [1]T = undefined;
     const values = try getSliceImpl(conn, window, property, property_type, T, &buf);
     return if (values.len == 0) null else values[0];
@@ -107,7 +108,7 @@ fn getSliceImpl(
     property_type: x.Atom,
     comptime T: type,
     buffer: []T,
-) ![]const T {
+) PropertyError![]const T {
     const reply = try conn.requestBuf(std.mem.sliceAsBytes(buffer), x.GetProperty, .{
         .delete = false,
         .window = window,
