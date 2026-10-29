@@ -24,7 +24,7 @@ pub fn AtomStruct(comptime E: type) type {
 pub fn getAll(comptime T: type, conn: *Connection) Connection.RequestError!T {
     var result: T = undefined;
     inline for (@typeInfo(T).@"struct".fields) |field| {
-        @field(result, field.name) = try get(conn, field.name);
+        @field(result, field.name) = try getOrCreate(conn, field.name);
     }
     return result;
 }
